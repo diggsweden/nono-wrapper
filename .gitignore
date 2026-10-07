@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: The nono-agent-profiles Authors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# Downloaded tools, compiled wrapper and test helper
+/.cache/
+
+# Machine-local mise overrides; .mise.toml and mise.lock are tracked
+/.mise.local.toml
+/mise.local.toml
+/mise.local.lock

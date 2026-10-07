@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: The nono-agent-profiles Authors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# One test image per distribution: the pinned base, all three real tools,
+# their runtime dependencies, and an ordinary user. The named "tools" build
+# context contains verified tools, the wrapper, probe and build-input records.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+COPY install-deps.sh /tmp/install-deps.sh
+RUN sh /tmp/install-deps.sh && rm -f /tmp/install-deps.sh
+
+COPY --from=tools nono codex opencode /usr/local/bin/
+COPY tools /usr/local/share/nono-agent-profiles/tools
+COPY packs /usr/local/share/nono-agent-profiles/packs
+COPY install-packs.sh /tmp/install-packs.sh
+
+ENV HOME=/home/tester
+ENV PATH=/usr/local/bin:/usr/bin:/bin
+USER tester
+RUN sh /tmp/install-packs.sh
+
+# Wrapper/probe edits reuse the verified pack-installation layer.
+COPY --from=tools nono-wrapper agent-probe /usr/local/bin/
+COPY --from=tools nono-wrapper.sources /usr/local/share/nono-agent-profiles/nono-wrapper.sources
+COPY --from=tools image.inputs /usr/local/share/nono-agent-profiles/image.inputs

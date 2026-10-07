@@ -1,0 +1,31 @@
+// SPDX-FileCopyrightText: The nono-agent-profiles Authors
+//
+// SPDX-License-Identifier: CC0-1.0
+
+// OpenAI / ChatGPT account login and token refresh. The pinned OpenCode
+// browser flow listens on TCP port 1455. Its model catalogue host,
+// models.opencode.ai, is not listed: OpenCode uses its bundled catalogue.
+// Endpoint rules make nono intercept TLS and refuse other methods and paths
+// over HTTPS. Plain HTTP to a listed host is not covered by them.
+{
+  "extends": "opencode-base",
+  "meta": { "name": "opencode-chatgpt", "version": "0.2.0", "description": "OpenCode with ChatGPT browser login and OpenAI authentication" },
+  "network": {
+    "allow_domain": [
+      {
+        "domain": "chatgpt.com",
+        "endpoints": [{ "method": "POST", "path": "/backend-api/codex/responses" }]
+      },
+      {
+        // Browser and device-code login, then token refresh.
+        "domain": "auth.openai.com",
+        "endpoints": [
+          { "method": "POST", "path": "/oauth/token" },
+          { "method": "POST", "path": "/api/accounts/deviceauth/usercode" },
+          { "method": "POST", "path": "/api/accounts/deviceauth/token" }
+        ]
+      }
+    ],
+    "listen_port": [1455]
+  }
+}

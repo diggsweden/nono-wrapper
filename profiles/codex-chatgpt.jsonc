@@ -1,0 +1,32 @@
+// SPDX-FileCopyrightText: The nono-agent-profiles Authors
+//
+// SPDX-License-Identifier: CC0-1.0
+
+// ChatGPT login and token refresh. Codex's browser callback uses port 1455,
+// with 1457 as its registered fallback. URL-opening policy is inherited.
+// Endpoint rules make nono intercept TLS and refuse other methods and paths
+// over HTTPS. Plain HTTP to a listed host is not covered by them.
+{
+  "extends": "codex-base",
+  "meta": { "name": "codex-chatgpt", "version": "0.4.0", "description": "Codex with ChatGPT browser login and OpenAI authentication" },
+  "network": {
+    // Codex reads its own CA variable alongside the standard ones.
+    "tls_intercept": { "ca_env_vars": ["CODEX_CA_CERTIFICATE"] },
+    "allow_domain": [
+      // Whole host: Codex streams responses over a WebSocket, and nono 0.79.0
+      // refuses WebSocket upgrades on hosts with endpoint rules.
+      "chatgpt.com",
+      {
+        // Browser and device-code login, token refresh and logout.
+        "domain": "auth.openai.com",
+        "endpoints": [
+          { "method": "POST", "path": "/oauth/token" },
+          { "method": "POST", "path": "/oauth/revoke" },
+          { "method": "POST", "path": "/api/accounts/deviceauth/usercode" },
+          { "method": "POST", "path": "/api/accounts/deviceauth/token" }
+        ]
+      }
+    ],
+    "listen_port": [1455, 1457]
+  }
+}

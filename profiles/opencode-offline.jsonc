@@ -1,0 +1,10 @@
+// SPDX-FileCopyrightText: The nono-agent-profiles Authors
+//
+// SPDX-License-Identifier: CC0-1.0
+
+// Explicit offline profile: no network access.
+{
+  "extends": "opencode-base",
+  "meta": { "name": "opencode-offline", "version": "0.1.0", "description": "OpenCode without network access" },
+  "network": { "block": true }
+}

@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: The nono-agent-profiles Authors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# Host tools for running nono-wrapper and developing this checkout.
+# Linux container archives and their checksums are pinned separately in
+# test/tools; keep the three agent-tool versions aligned with that manifest.
+
+[settings]
+lockfile = true
+locked = true
+
+[tools]
+nono = "0.79.0"
+opencode = "1.18.35"
+# Codex's release tag includes the rust-v prefix.
+codex = "rust-v0.161.0"
+
+go = "1.27.2"
+just = "1.58.0"
+"aqua:koalaman/shellcheck" = "0.11.0"
+
+[hooks]
+# Prepare pinned Go dependencies so local checks can run offline.
+postinstall = "GOTOOLCHAIN=local go mod download"

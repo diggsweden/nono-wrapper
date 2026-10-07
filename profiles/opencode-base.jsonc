@@ -1,0 +1,14 @@
+// SPDX-FileCopyrightText: The nono-agent-profiles Authors
+//
+// SPDX-License-Identifier: CC0-1.0
+
+// Inherit the official pack, including its filesystem grants, plugin and
+// first-run hook. Select the ChatGPT or offline profile for network policy.
+{
+  "extends": ["nolabs-ai/opencode", "agent-policy"],
+  "meta": {
+    "name": "opencode-base",
+    "version": "0.2.0",
+    "description": "Official OpenCode pack with shared policy overrides"
+  }
+}

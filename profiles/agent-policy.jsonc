@@ -1,0 +1,43 @@
+// SPDX-FileCopyrightText: The nono-agent-profiles Authors
+//
+// SPDX-License-Identifier: CC0-1.0
+
+// Shared overrides layered on the official agent packs. Project, agent-state
+// and most runtime grants come from those packs.
+{
+  "meta": {
+    "name": "agent-policy",
+    "version": "0.3.0",
+    "description": "Official-pack overrides: filtered agent environment, Linux socket mediation, toolchain and temporary-file access"
+  },
+  // The pinned official packs do not filter the agent's environment.
+  // This filters the agent's environment, not nono's own configuration.
+  // ChatGPT login uses saved credentials; custom profiles can allow more vars.
+  // SSH_AUTH_SOCK is only a path: the socket itself needs the wrapper's grant.
+  "environment": {
+    "allow_vars": [
+      "HOME", "PATH", "USER", "LOGNAME", "SHELL", "TMPDIR", "SSH_AUTH_SOCK",
+      "EDITOR", "VISUAL", "PAGER",
+      "GOPATH", "GOROOT", "JAVA_HOME", "CARGO_HOME", "RUSTUP_HOME",
+      "TERM", "TERM_PROGRAM", "TERM_PROGRAM_VERSION", "COLORTERM", "NO_COLOR", "CLICOLOR", "CLICOLOR_FORCE",
+      "LANG", "LANGUAGE", "TZ", "LC_*",
+      "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR"
+    ]
+  },
+  // Opt in explicitly; the pinned upstream defaults do not enable mediation.
+  "linux": { "af_unix_mediation": "pathname" },
+  // nono's own groups: readable temporary files on Linux, and read-only mise,
+  // Go and Java tool locations. Toolchain variables above point into these.
+  "groups": {
+    "include": ["linux_temp_read", "mise_manager", "go_runtime", "go_runtime_linux", "java_runtime"]
+  },
+  "filesystem": {
+    "read": [
+      // openSUSE's HTTPS certificate bundle; remove once upstream grants this.
+      "/var/lib/ca-certificates",
+      // Files a user's Git configuration commonly includes; the pack grants
+      // only the configuration file itself.
+      "$XDG_CONFIG_HOME/git", "$XDG_CONFIG_HOME/delta", "$XDG_CONFIG_HOME/ssh/allowed_signers"
+    ]
+  }
+}
