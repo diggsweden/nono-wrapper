@@ -65,7 +65,7 @@ install-local: build
         esac
     done
     command -v nono >/dev/null 2>&1 || {
-        printf 'nono is required; run mise install from this checkout.\n' >&2
+        printf 'nono is required; run just install-dev-tools from this checkout.\n' >&2
         exit 127
     }
     while read -r name version; do

@@ -103,18 +103,22 @@ Prerequisites:
 - An internet connection for setup and a ChatGPT account with access to the
   agent you want to use.
 
-**Tested on Linux x86_64 only. macOS has not been tested yet.**
+**Tested on Linux x86_64 only. macOS has not been tested yet. WSL2 starts with
+reduced protection; see [What the boundary means](#what-the-boundary-means).**
 
 Run these steps as your normal user from this repository's checkout.
 
 ### 1. Install the tools
 
 ```sh
-mise install
+mise install --locked nono opencode codex go just aqua:koalaman/shellcheck
 ```
 
-This installs the pinned tools and Go dependencies. If mise asks for trust,
-review `.mise.toml` and run `mise trust` before retrying.
+This installs the pinned tools and Go dependencies. `--locked` accepts only
+the versions and checksums recorded in `mise.lock`; naming the tools keeps
+that check away from tools in your global mise configuration, which have no
+entries there. If mise asks for trust, review `.mise.toml` and run
+`mise trust` before retrying.
 
 Make nono and the agents available in other project directories:
 
@@ -794,11 +798,11 @@ apply.
 Run development commands from the `nono-agent-profiles` checkout:
 
 ```sh
-mise install   # prepare pinned tools and Go dependencies
-just           # list available recipes
-just build     # build .cache/bin/nono-wrapper
-just fmt       # format Go source and tests
-just verify    # lint and unit tests; no containers or network
+just install-dev-tools   # prepare pinned tools and Go dependencies
+just                     # list available recipes
+just build               # build .cache/bin/nono-wrapper
+just fmt                 # format Go source and tests
+just verify              # lint and unit tests; no containers or network
 ```
 
 `just verify` is the everyday check before submitting a change. `just lint`

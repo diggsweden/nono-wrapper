@@ -273,7 +273,7 @@ func TestInstallLocalRequiresNono(t *testing.T) {
 		t.Fatal(err)
 	}
 	output, status := runTask(t, f, "install-local")
-	if status == 0 || !strings.Contains(output, "nono is required; run mise install") {
+	if status == 0 || !strings.Contains(output, "nono is required; run just install-dev-tools") {
 		t.Fatalf("missing nono was not reported: status=%d (%s)", status, output)
 	}
 	if _, err := os.Stat(filepath.Join(f.home, ".local")); !os.IsNotExist(err) {

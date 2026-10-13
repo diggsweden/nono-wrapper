@@ -8,7 +8,10 @@
 
 [settings]
 lockfile = true
-locked = true
+# Do not set `locked` here: mise settings apply to every active config, so it
+# would also demand lockfile entries for the user's global tools and break
+# their shims in this directory. `just install-dev-tools` passes --locked for
+# this checkout's tools only.
 
 [tools]
 nono = "0.79.0"

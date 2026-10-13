@@ -54,7 +54,7 @@ mkdir "$tools"
 # Build the wrapper and standard-library-only test helper as static executables.
 # Cross-compile for the same Linux x86_64 target as the pinned agent tools.
 command -v go >/dev/null 2>&1 || {
-  echo "prepare: Go 1.27.2 or newer is required; run mise install" >&2
+  echo "prepare: Go 1.27.2 or newer is required; run just install-dev-tools" >&2
   exit 1
 }
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOENV=off GOFLAGS='' GOTOOLCHAIN=local \
