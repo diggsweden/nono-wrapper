@@ -98,7 +98,10 @@ local setting; upstream socket grants are still inherited.
 Prerequisites:
 
 - Linux with Git, Bash, `/bin/sh`, curl and coreutils.
-- [mise](https://mise.jdx.dev/) installed and activated in your shell.
+- [mise](https://mise.jdx.dev/getting-started.html) installed and activated in
+  your shell, for example with `eval "$(mise activate bash)"` in `~/.bashrc`.
+  DevBase machines already have this. mise installs everything else, including
+  Go and just; a system Go is not used and may be too old.
 - Your user command directory (`~/.local/bin` by default) on `PATH`.
 - An internet connection for setup and a ChatGPT account with access to the
   agent you want to use.
@@ -122,6 +125,11 @@ the versions and checksums recorded in `mise.lock`; naming the tools keeps
 that check away from tools in your global mise configuration, which have no
 entries there. If mise asks for trust, review `.mise.toml` and run
 `mise trust` before retrying.
+
+Check that your shell uses these tools: `go version` in this checkout must
+print the Go version from `.mise.toml`. If it prints another one, mise is not
+activated and the next step fails with `go.mod requires go >= ...`. Activate
+mise, or prefix the commands below with `mise exec --`.
 
 Make nono and the agents available in other project directories:
 
