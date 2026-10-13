@@ -192,7 +192,7 @@ fi
 				ctx, cancel = context.WithTimeout(ctx, time.Second)
 				defer cancel()
 			}
-			composed, cleanup, err := composeUserOverrides(ctx, nono, "opencode-chatgpt", "opencode-user", "", base, user)
+			composed, cleanup, err := composeUserOverrides(ctx, nono, "opencode-chatgpt", "opencode-user", "", base, user, false)
 			fails := mode == "broader inherited write" || mode == "invalid manifest" || mode == "cancelled inspection"
 			if fails {
 				if err == nil {

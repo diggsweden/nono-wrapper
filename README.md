@@ -37,7 +37,7 @@ an agent. To work on this repository, see [Develop and test](#develop-and-test).
 | Network | ChatGPT host lists by default; explicit offline profiles |
 | Browser login | TCP callback listeners on 1455, plus Codex's fallback 1457 |
 | Agent environment | nono's `environment.allow_vars` keeps the core, editor and toolchain-location variables and excludes unrelated credentials |
-| Linux pathname Unix sockets | mediation enabled; sockets require explicit grants, and the wrapper grants the SSH agent's |
+| Linux pathname Unix sockets | mediation enabled; sockets require explicit grants, and the wrapper grants the SSH agent's. Not on WSL2: see [What the boundary means](#what-the-boundary-means) |
 | Certificates | read access to `/var/lib/ca-certificates` for openSUSE compatibility |
 | Project, agent state, toolchains and Git configuration | inherited from the official pack |
 | Temporary files and devices | inherited from nono and the official pack, plus nono's `linux_temp_read` group so temporary files can be read back on Linux; `TMPDIR` is preserved |
@@ -105,6 +105,9 @@ Prerequisites:
 
 **Tested on Linux x86_64 only. macOS has not been tested yet. WSL2 starts with
 reduced protection; see [What the boundary means](#what-the-boundary-means).**
+
+Minimum supported releases: Ubuntu 26.04, and WSL 2.7.7 when running under
+WSL2. The wrapper does not check either; older releases are simply untested.
 
 Run these steps as your normal user from this repository's checkout.
 
@@ -727,6 +730,19 @@ composition profile: those do not restrict the network on their own.
   private/local address is not rejected.
 - Linux pathname socket access requires explicit `filesystem.unix_socket*`
   grants. Ordinary directory access does not authorize sockets there.
+- WSL2 has no Unix-socket mediation. nono needs a seccomp listener for it,
+  which WSL2 refuses ([microsoft/WSL#9548](https://github.com/microsoft/WSL/issues/9548)),
+  and nono 0.79.0 then declines to start. When nono reports WSL2, the wrapper
+  starts the bundled profiles without `linux.af_unix_mediation` and says so
+  on every launch and in `nono-wrapper verify`: the agent can then connect to
+  any Unix socket your user can, such as Docker's. The installed profile files
+  are not changed, so running `nono` directly with them still fails on WSL2.
+- On WSL2 the minimum supported release is WSL 2.7.7 (`wsl --update` in
+  Windows). The wrapper does not check it.
+- On WSL2, keep projects on the Linux filesystem. nono reports Landlock as
+  unreliable on Windows mounts such as `/mnt/c`.
+- WSL2 support is not validated: no test here runs on WSL2. The behaviour
+  above follows nono 0.79.0's own checks and [WSL2 notes](https://nono.sh/docs/cli/internals/wsl2).
 - Running plain `opencode` or `codex` bypasses the wrapper. Explicitly
   permitted remote execution services are outside the local sandbox.
 

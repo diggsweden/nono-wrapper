@@ -77,30 +77,35 @@ func profileHostRules(data []byte) (map[string]hostRule, error) {
 // Reordering --extends alone cannot replace nono's additive host/path rules.
 // Never rebuild policy from profile show's JSON: it omits environment and TLS
 // settings. These private copies preserve the complete original JSONC instead.
-func composeUserOverrides(ctx context.Context, nono, base, user, program string, baseJSON, userJSON []byte) (string, func(), error) {
+// The same copies drop socket mediation where nono cannot enforce it; user is
+// empty when that is the only change.
+func composeUserOverrides(ctx context.Context, nono, base, user, program string, baseJSON, userJSON []byte, dropSocketMediation bool) (string, func(), error) {
 	noop := func() {}
 	if !bundledProfile(base) {
 		return "", noop, nil
 	}
-	baseRules, err := profileHostRules(baseJSON)
-	if err != nil {
-		return "", noop, err
-	}
-	userRules, err := profileHostRules(userJSON)
-	if err != nil {
-		return "", noop, err
-	}
 	overrides := map[string]hostRule{}
-	for host, rule := range userRules {
-		if _, present := baseRules[host]; present {
-			overrides[host] = rule
+	var paths []pathRule
+	if user != "" {
+		baseRules, err := profileHostRules(baseJSON)
+		if err != nil {
+			return "", noop, err
+		}
+		userRules, err := profileHostRules(userJSON)
+		if err != nil {
+			return "", noop, err
+		}
+		for host, rule := range userRules {
+			if _, present := baseRules[host]; present {
+				overrides[host] = rule
+			}
+		}
+		paths, err = profilePathRules(userJSON)
+		if err != nil {
+			return "", noop, err
 		}
 	}
-	paths, err := profilePathRules(userJSON)
-	if err != nil {
-		return "", noop, err
-	}
-	if len(overrides) == 0 && len(paths) == 0 {
+	if len(overrides) == 0 && len(paths) == 0 && !dropSocketMediation {
 		return "", noop, nil
 	}
 	userPath, err := configPath(strings.TrimSuffix(user, "-user"))
@@ -158,7 +163,7 @@ func composeUserOverrides(ctx context.Context, nono, base, user, program string,
 		if err := json.Unmarshal(doc.Pack(), &raw); err != nil {
 			return "", err
 		}
-		if err := stripBundledRules(raw, overrides, paths); err != nil {
+		if err := stripBundledRules(raw, overrides, paths, dropSocketMediation); err != nil {
 			return "", err
 		}
 		alias := fmt.Sprintf("bundled%d", len(copied))
@@ -200,7 +205,11 @@ func composeUserOverrides(ctx context.Context, nono, base, user, program string,
 	if err != nil {
 		return "", noop, err
 	}
-	data, _ := json.Marshal(map[string]any{"extends": []string{alias, user}})
+	parents := []string{alias}
+	if user != "" {
+		parents = append(parents, user)
+	}
+	data, _ := json.Marshal(map[string]any{"extends": parents})
 	path := filepath.Join(directory, "session.json")
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return "", noop, quotePathError(err)
@@ -224,13 +233,24 @@ func composeUserOverrides(ctx context.Context, nono, base, user, program string,
 	if err := verifyPathOverrides(ctx, nono, path, program, shown, paths); err != nil {
 		return "", noop, err
 	}
+	if dropSocketMediation && mediatesSockets(shown) {
+		return "", noop, fmt.Errorf("cannot start on WSL2: a profile outside the bundled profiles still sets linux.af_unix_mediation, which nono cannot enforce there")
+	}
 	complete = true
 	return path, cleanup, nil
 }
 
-func stripBundledRules(profile map[string]json.RawMessage, overrides map[string]hostRule, paths []pathRule) error {
+func stripBundledRules(profile map[string]json.RawMessage, overrides map[string]hostRule, paths []pathRule, dropSocketMediation bool) error {
 	if err := stripPathRules(profile, paths); err != nil {
 		return err
+	}
+	if data, ok := profile["linux"]; ok && dropSocketMediation {
+		var linux map[string]json.RawMessage
+		if err := json.Unmarshal(data, &linux); err != nil {
+			return err
+		}
+		delete(linux, "af_unix_mediation")
+		profile["linux"], _ = json.Marshal(linux)
 	}
 	if data, ok := profile["network"]; ok {
 		var network map[string]json.RawMessage
@@ -262,7 +282,7 @@ func stripBundledRules(profile map[string]json.RawMessage, overrides map[string]
 			return err
 		}
 		for _, platform := range platforms {
-			if err := stripBundledRules(platform, overrides, paths); err != nil {
+			if err := stripBundledRules(platform, overrides, paths, dropSocketMediation); err != nil {
 				return err
 			}
 		}

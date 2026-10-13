@@ -96,6 +96,13 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 		return err
 	}
 	profileArgs := []string{"--profile", profile}
+	dropSocketMediation := socketMediationUnavailable(ctx, nono, profile, shown)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if dropSocketMediation {
+		fmt.Fprintf(stderr, "nono-wrapper: %s\n", socketMediationNotice)
+	}
 	if user != "" && user != profile {
 		baseShown := shown
 		shown, diagnostic, loadErr = showProfile(ctx, nono, user)
@@ -111,7 +118,7 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 			return err
 		}
 		block = block || userBlock
-		composed, cleanup, err := composeUserOverrides(ctx, nono, profile, user, program, baseShown, shown)
+		composed, cleanup, err := composeUserOverrides(ctx, nono, profile, user, program, baseShown, shown, dropSocketMediation)
 		if err != nil {
 			return err
 		}
@@ -121,6 +128,13 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 		} else {
 			profileArgs = append(profileArgs, "--extends", user)
 		}
+	} else if dropSocketMediation {
+		composed, cleanup, err := composeUserOverrides(ctx, nono, profile, "", program, shown, nil, true)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		profileArgs = []string{"--profile", composed}
 	}
 	proxyArgs, err := upstreamProxyArgs(block)
 	if err != nil {

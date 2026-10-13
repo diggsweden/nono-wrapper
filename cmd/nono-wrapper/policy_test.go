@@ -48,7 +48,7 @@ func TestComposeHostOverridesPreservesPolicy(t *testing.T) {
 			if err := os.WriteFile(nono, []byte("#!/bin/sh\nprintf '%s\\n' \"$POLICY_RESULT\"\n"), 0o700); err != nil {
 				t.Fatal(err)
 			}
-			path, cleanup, err := composeUserOverrides(context.Background(), nono, "opencode-chatgpt", "opencode-user", "", base, user)
+			path, cleanup, err := composeUserOverrides(context.Background(), nono, "opencode-chatgpt", "opencode-user", "", base, user, false)
 			if strings.Contains(mode, "conflicting") || strings.Contains(mode, "invalid") {
 				if err == nil {
 					cleanup()
@@ -99,9 +99,70 @@ func TestComposeHostOverridesPreservesPolicy(t *testing.T) {
 }
 
 func TestHostOverridesLeaveExternalProfilesToNono(t *testing.T) {
-	path, cleanup, err := composeUserOverrides(context.Background(), "missing-nono", "custom", "opencode-user", "", nil, nil)
+	path, cleanup, err := composeUserOverrides(context.Background(), "missing-nono", "custom", "opencode-user", "", nil, nil, false)
 	defer cleanup()
 	if err != nil || path != "" {
 		t.Fatalf("external profile was rewritten: path=%q err=%v", path, err)
+	}
+}
+
+func TestComposeDropsSocketMediation(t *testing.T) {
+	for _, mode := range []string{"bundled setting", "setting from another profile"} {
+		t.Run(mode, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+			profiles := filepath.Join(home, ".config/nono/profiles")
+			if err := os.MkdirAll(profiles, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			for name, data := range map[string]string{
+				"opencode-offline": `{"extends":"agent-policy","network":{"block":true}}`,
+				"agent-policy":     `{"environment":{"allow_vars":["KEEP"]},"linux":{"af_unix_mediation":"pathname"}}`,
+			} {
+				if err := os.WriteFile(filepath.Join(profiles, name+".jsonc"), []byte(data), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			resolved := `{"network":{"block":true}}`
+			if mode != "bundled setting" {
+				resolved = `{"network":{"block":true},"linux":{"af_unix_mediation":"pathname"}}`
+			}
+			t.Setenv("POLICY_RESULT", resolved)
+			nono := filepath.Join(home, "nono")
+			if err := os.WriteFile(nono, []byte("#!/bin/sh\nprintf '%s\\n' \"$POLICY_RESULT\"\n"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			path, cleanup, err := composeUserOverrides(context.Background(), nono, "opencode-offline", "", "", nil, nil, true)
+			if mode != "bundled setting" {
+				if err == nil {
+					cleanup()
+					t.Fatal("accepted a policy that still mediates sockets")
+				}
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
+				entries, err := os.ReadDir(filepath.Dir(path))
+				if err != nil || len(entries) != 3 {
+					t.Fatalf("missing profile snapshots: %v (%v)", entries, err)
+				}
+				var all strings.Builder
+				for _, entry := range entries {
+					data, err := os.ReadFile(filepath.Join(filepath.Dir(path), entry.Name()))
+					if err != nil || !json.Valid(data) {
+						t.Fatalf("invalid generated profile: %s (%v)", data, err)
+					}
+					all.Write(data)
+				}
+				if strings.Contains(all.String(), "pathname") || !strings.Contains(all.String(), "KEEP") || !strings.Contains(all.String(), `"block":true`) {
+					t.Fatalf("unexpected generated policy: %s", all.String())
+				}
+				cleanup()
+			}
+			if entries, err := os.ReadDir(profiles); err != nil || len(entries) != 2 {
+				t.Fatalf("generated policy residue remains: %v (%v)", entries, err)
+			}
+		})
 	}
 }

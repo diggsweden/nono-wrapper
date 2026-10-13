@@ -79,8 +79,22 @@ func verify(ctx context.Context, agents []string, output io.Writer) error {
 	failed := false
 	for _, agent := range agents {
 		fmt.Fprintf(output, "%s under nono (profile %s-offline):\n", agent, agent)
+		profile := agent + "-offline"
+		// A profile that cannot be shown is left for the checks below to report.
+		if shown, _, err := showProfile(ctx, nono, profile); err == nil && socketMediationUnavailable(ctx, nono, profile, shown) {
+			composed, cleanup, err := composeUserOverrides(ctx, nono, profile, "", "", shown, nil, true)
+			if err != nil {
+				return err
+			}
+			defer cleanup()
+			profile = composed
+			fmt.Fprintf(output, "  note  %s\n", socketMediationNotice)
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		for _, check := range checks {
-			cmd := exec.CommandContext(ctx, nono, "run", "--silent", "--profile", agent+"-offline", "--allow-cwd", "--", "/bin/sh", "-c", check.script)
+			cmd := exec.CommandContext(ctx, nono, "run", "--silent", "--profile", profile, "--allow-cwd", "--", "/bin/sh", "-c", check.script)
 			cmd.Dir = project
 			cmd.Env = append(os.Environ(), "CODEX_HOME="+codexHome, "TMPDIR="+temp)
 			cmd.WaitDelay = time.Second

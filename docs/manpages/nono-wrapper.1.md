@@ -23,6 +23,11 @@ The profile is **NONO_PROFILE**, or *AGENT*-chatgpt, plus the optional
 *AGENT*-user.jsonc in the nono profiles directory. After the agent exits, the
 wrapper prints a summary of the session's audit record on standard error.
 
+On WSL2 nono cannot mediate Unix sockets, so the wrapper starts the bundled
+profiles without **linux.af_unix_mediation** and says so on standard error:
+the agent can then connect to any Unix socket the user can. The minimum
+supported releases are WSL 2.7.7 and Ubuntu 26.04; neither is checked.
+
 ## COMMANDS
 
 **opencode** [*agent-argument*...], **codex** [*agent-argument*...]
