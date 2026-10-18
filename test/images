@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: The nono-agent-profiles Authors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# Full release matrix. just defaults to Ubuntu and openSUSE Leap; use
+# `just test-prepare all` and `just test-containers all` for every image here.
+#
+# One `name=reference` per line. Every reference carries a version tag and a
+# digest, never `latest`; renovate updates both from the comment above it.
+
+# renovate: datasource=docker depName=docker.io/library/ubuntu
+ubuntu-26.04=docker.io/library/ubuntu:26.04@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7
+# renovate: datasource=docker depName=docker.io/library/debian
+debian-13=docker.io/library/debian:13.7@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c
+# renovate: datasource=docker depName=registry.fedoraproject.org/fedora
+fedora-44=registry.fedoraproject.org/fedora:44@sha256:94e175d9796d3582d4d3cdcff1004bd67cc51dc45df452d3b16f76f071c7c487
+# renovate: datasource=docker depName=registry.opensuse.org/opensuse/leap
+opensuse-leap-16=registry.opensuse.org/opensuse/leap:16.0@sha256:5bc9e1242fc2c92dbbcaf4db5e2eadad062c4c0434550c53822201f18799d55a
+# renovate: datasource=docker depName=registry.opensuse.org/opensuse/tumbleweed
+opensuse-tumbleweed=registry.opensuse.org/opensuse/tumbleweed:20260923@sha256:5cf76e9d0151ac988135992927da162777a7b51dca0d3f2134eed78204079cc8
+# renovate: datasource=docker depName=docker.io/library/archlinux
+arch=docker.io/library/archlinux:base-20260920.0.596911@sha256:f3691b4dde62ba4c4b6f0ae2c1fbf28e8c0c8c4b9a35c7e06dc1f70e21aa29f6

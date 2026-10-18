@@ -1,0 +1,60 @@
+// SPDX-FileCopyrightText: The nono-agent-profiles Authors
+//
+// SPDX-License-Identifier: CC0-1.0
+
+// Shared overrides layered on the official agent packs. Project, agent-state
+// and most runtime grants come from those packs.
+{
+  "meta": {
+    "name": "agent-policy",
+    "version": "0.5.0",
+    "description": "Official-pack overrides: filtered agent environment, Linux socket mediation, macOS Apple Events isolation, toolchain and temporary-file access"
+  },
+  // The pinned official packs do not filter the agent's environment.
+  // This filters the agent's environment, not nono's own configuration.
+  // ChatGPT login uses saved credentials; custom profiles can allow more vars.
+  // SSH_AUTH_SOCK is only a path: the socket itself needs the wrapper's grant.
+  "environment": {
+    "allow_vars": [
+      "HOME", "PATH", "USER", "LOGNAME", "SHELL", "TMPDIR", "SSH_AUTH_SOCK",
+      "EDITOR", "VISUAL", "PAGER",
+      "GOPATH", "GOROOT", "JAVA_HOME", "CARGO_HOME", "RUSTUP_HOME",
+      "TERM", "TERM_PROGRAM", "TERM_PROGRAM_VERSION", "COLORTERM", "NO_COLOR", "CLICOLOR", "CLICOLOR_FORCE",
+      "LANG", "LANGUAGE", "TZ", "LC_*",
+      "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR"
+    ]
+  },
+  // Opt in explicitly; the pinned upstream defaults do not enable mediation.
+  "linux": { "af_unix_mediation": "pathname" },
+  // A running terminal can launch an unsandboxed agent on our behalf. Denying
+  // appleevent-send alone does not stop native AESendMessage calls addressed
+  // directly to Ghostty's PID; deny the Apple Events broker as well. These
+  // rules apply to the sandboxed child, not nono's URL-opening supervisor.
+  // nono ignores this field on Linux.
+  "unsafe_macos_seatbelt_rules": [
+    "(deny appleevent-send)",
+    "(deny mach-lookup (global-name \"com.apple.coreservices.appleevents\"))"
+  ],
+  // nono's own groups: readable temporary files on Linux, and read-only mise,
+  // Go and Java tool locations. Toolchain variables above point into these.
+  "groups": {
+    "include": ["linux_temp_read", "mise_manager", "go_runtime", "go_runtime_linux", "java_runtime"]
+  },
+  "filesystem": {
+    // Maven writes lock files and downloads into its local repository even
+    // offline, and the Maven wrapper unpacks distributions next to it. The
+    // java_runtime group grants both read-only.
+    "allow": ["$HOME/.m2/repository", "$HOME/.m2/wrapper"],
+    // Maven stops when settings.xml exists but cannot be read, and DevBase
+    // writes one for proxies and registries. It can hold repository and proxy
+    // passwords, which the agent can then read; settings-security.xml stays out.
+    "read_file": ["$HOME/.m2/settings.xml"],
+    "read": [
+      // openSUSE's HTTPS certificate bundle; remove once upstream grants this.
+      "/var/lib/ca-certificates",
+      // Files a user's Git configuration commonly includes; the pack grants
+      // only the configuration file itself.
+      "$XDG_CONFIG_HOME/git", "$XDG_CONFIG_HOME/delta", "$XDG_CONFIG_HOME/ssh/allowed_signers"
+    ]
+  }
+}

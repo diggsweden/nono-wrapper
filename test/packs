@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: The nono-agent-profiles Authors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# Official registry packs shared by local installation and test images.
+# nono installs the packs and verifies their signatures.
+# Keep these paired with the CLI versions in test/tools. nolabs-ai/opencode
+# targets OpenCode 2 since 0.3.0; the pinned OpenCode 1 CLI uses opencode-v1.
+# One `namespace/name version` per line.
+nolabs-ai/opencode-v1 0.1.0
+nolabs-ai/codex 0.2.3

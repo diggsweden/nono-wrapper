@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "local>itiquette/renovate-runner//configuration/renovate-base"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update the version-tag and digest pins of the distribution images in test/images",
+      "managerFilePatterns": [
+        "/^test/images$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=docker depName=(?<depName>\\S+)\\n[a-z0-9][a-z0-9.-]*=\\S+:(?<currentValue>[\\w.-]+)@(?<currentDigest>sha256:[a-f0-9]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Update the release tag and checksum of nono and the agents in test/tools",
+      "managerFilePatterns": [
+        "/^test/tools$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n[a-z0-9-]+ (?<currentValue>\\S+) (?<currentDigest>[a-f0-9]{64})"
+      ],
+      "versioningTemplate": "loose"
+    }
+  ]
+}

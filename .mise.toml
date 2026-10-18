@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: The nono-agent-profiles Authors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# Host tools for running nono-wrapper and developing this checkout.
+# Linux container archives and their checksums are pinned separately in
+# test/tools; keep the three agent-tool versions aligned with that manifest.
+
+[settings]
+lockfile = true
+# Do not set `locked` here: mise settings apply to every active config, so it
+# would also demand lockfile entries for the user's global tools and break
+# their shims in this directory. `just install-dev-tools` passes --locked for
+# this checkout's tools only.
+
+[tools]
+nono = "0.80.0"
+opencode = "1.19.3"
+# Codex's release tag includes the rust-v prefix.
+codex = "rust-v0.163.0"
+
+go = "1.27.2"
+just = "1.58.0"
+"aqua:koalaman/shellcheck" = "0.11.0"
+
+[hooks]
+# Prepare pinned Go dependencies so local checks can run offline.
+postinstall = "GOTOOLCHAIN=local go mod download"

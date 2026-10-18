@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: The nono-agent-profiles Authors
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# The three real tools installed in every Linux x86_64 test image.
+# `just test-prepare` downloads each one and refuses a checksum mismatch.
+#
+# One `name release-tag sha256` per line; test/prepare.sh knows where each
+# tool's archive lives. Renovate updates tag and checksum from the comment
+# above the line. nono and Codex use musl builds; OpenCode uses its glibc
+# baseline build, with runtime libraries installed by test/install-deps.sh.
+
+# renovate: datasource=github-release-attachments depName=nolabs-ai/nono
+nono v0.80.0 cae6755f1188b561ea02f62995feb8ad87d457f6d5255956ec54f41bbefca31e
+# renovate: datasource=github-release-attachments depName=openai/codex
+codex rust-v0.163.0 beb339e8ecd9ba057a6bb2dc81ad8ca474812edfbf0fc5056ca818797648dde4
+# renovate: datasource=github-release-attachments depName=anomalyco/opencode
+opencode v1.19.3 531cff2441129c30f0edd5878af494108ad07f5feb46d7ee29a2a5b830a5765d
