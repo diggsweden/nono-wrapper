@@ -38,6 +38,7 @@ an agent. To work on this repository, see [Develop and test](#develop-and-test).
 | Browser login | TCP callback listeners on 1455, plus Codex's fallback 1457 |
 | Agent environment | nono's `environment.allow_vars` keeps the core, editor and toolchain-location variables and excludes unrelated credentials |
 | Linux pathname Unix sockets | mediation enabled; sockets require explicit grants, and the wrapper grants the SSH agent's. Not on WSL2: see [What the boundary means](#what-the-boundary-means) |
+| macOS app automation | Apple Events and access to their Mach broker are denied in the bundled profiles |
 | Certificates | read access to `/var/lib/ca-certificates` for openSUSE compatibility |
 | Project, agent state, toolchains and Git configuration | inherited from the official pack |
 | Temporary files and devices | inherited from nono and the official pack, plus nono's `linux_temp_read` group so temporary files can be read back on Linux; `TMPDIR` is preserved |
@@ -727,6 +728,13 @@ composition profile: those do not restrict the network on their own.
   carve a hidden or read-only exception out of that read/write grant.
 - The inherited agent-state, cache and runtime grants expose their contents,
   including any credentials stored there. State is shared across projects.
+- On macOS, the bundled profiles deny Apple Events and access to
+  `com.apple.coreservices.appleevents`. Both rules are needed: denying only
+  `appleevent-send` did not prevent native calls addressed directly to an
+  existing terminal process. The wrapper refuses the official-profile fallback
+  on macOS when its bundled profile is missing. Custom `NONO_PROFILE` policies
+  must inherit `agent-policy` or supply equivalent restrictions; custom raw
+  Seatbelt rules can override inherited rules and need separate review.
 - Host allowlists limit destinations, not uploads. Endpoint rules narrow a
   host to listed HTTPS methods and paths and make nono validate its
   certificate. They do not inspect query strings, headers or bodies, and do
@@ -754,10 +762,15 @@ composition profile: those do not restrict the network on their own.
 - Running plain `opencode` or `codex` bypasses the wrapper. Explicitly
   permitted remote execution services are outside the local sandbox.
 
-These profiles target Linux. macOS has not been validated.
+These profiles target Linux. Full macOS runtime compatibility has not been validated.
+The Apple Events broker denial was checked separately on macOS with native
+PID-addressed calls; it does not establish broader macOS compatibility.
 The Go wrapper has Darwin timestamp support and native unit tests, including
 filesystem-identity checks; these do not establish Seatbelt or agent runtime
 compatibility. Validate those on an actual Mac before relying on the sandbox.
+
+After updating, reinstall the bundled profiles with `just install-local` and
+restart running agent sessions. Existing sessions keep their original policy.
 
 ## Verify and review
 

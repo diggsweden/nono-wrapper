@@ -564,6 +564,12 @@ func TestLauncherOfficialProfileFallback(t *testing.T) {
 		t.Run(spec.agent+"/default profile missing", func(t *testing.T) {
 			f := newLauncherFixture(t, spec.agent)
 			stdout, stderr, status := runLauncher(t, f, spec.agent, nil, []string{"LAUNCHER_TEST_MISSING_PROFILE=" + spec.profile})
+			if runtime.GOOS == "darwin" {
+				if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, "refusing the official-profile fallback on macOS") {
+					t.Fatalf("unprotected fallback on macOS: status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
+				}
+				return
+			}
 			want := "nono-wrapper: profile \"" + spec.profile + "\" is not installed; using nono's official \"" + spec.agent + "\" profile without the nono-agent-profiles rules\n"
 			want += emptySessionReport(spec.agent, 0)
 			if status != 0 || stderr != want || !bytes.HasPrefix(stdout, []byte("run\x00--profile\x00"+spec.agent+"\x00")) {

@@ -6,6 +6,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -58,6 +59,12 @@ func TestLauncherUserProfile(t *testing.T) {
 				log := filepath.Join(home, "profile.log")
 				env = append(env, "LAUNCHER_PROFILE_LOG="+log)
 				stdout, stderr, status := runLauncher(t, f, spec.agent, []string{"--model", "test"}, env)
+				if mode == "official fallback" && runtime.GOOS == "darwin" {
+					if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, "refusing the official-profile fallback on macOS") {
+						t.Fatalf("unprotected fallback with a user profile: status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
+					}
+					return
+				}
 				if status != 0 {
 					t.Fatalf("status=%d, stderr=%q", status, stderr)
 				}

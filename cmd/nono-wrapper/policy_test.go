@@ -25,7 +25,7 @@ func TestComposeHostOverridesPreservesPolicy(t *testing.T) {
 			sources := map[string]string{
 				"opencode-chatgpt": `{"extends":"opencode-base","environment":{"allow_vars":["KEEP"]},"network":{"tls_intercept":{"ca_env_vars":["CUSTOM_CA"]},"allow_domain":[{"domain":"api.github.com","endpoints":[{"method":"GET","path":"/old"}]},"retained.example"]}}`,
 				"opencode-base":    `{"extends":["nolabs-ai/opencode","agent-policy"],"linux":{"af_unix_mediation":"pathname"}}`,
-				"agent-policy":     `{"filesystem":{"read":["$HOME/reference"]},"platform_overrides":{"linux":{"network":{"allow_domain":["API.GITHUB.COM.","platform.example"]}}}}`,
+				"agent-policy":     `{"filesystem":{"read":["$HOME/reference"]},"unsafe_macos_seatbelt_rules":["(deny appleevent-send)","(deny mach-lookup (global-name \"com.apple.coreservices.appleevents\"))"],"platform_overrides":{"linux":{"network":{"allow_domain":["API.GITHUB.COM.","platform.example"]}}}}`,
 			}
 			for name, data := range sources {
 				if err := os.WriteFile(filepath.Join(profiles, name+".jsonc"), []byte(data), 0o600); err != nil {
@@ -74,7 +74,7 @@ func TestComposeHostOverridesPreservesPolicy(t *testing.T) {
 					}
 					all.Write(data)
 				}
-				for _, retained := range []string{"KEEP", "CUSTOM_CA", "pathname", "$HOME/reference", "retained.example", "platform.example", "nolabs-ai/opencode", "opencode-user"} {
+				for _, retained := range []string{"KEEP", "CUSTOM_CA", "pathname", "$HOME/reference", "retained.example", "platform.example", "nolabs-ai/opencode", "opencode-user", "(deny appleevent-send)", "com.apple.coreservices.appleevents"} {
 					if !strings.Contains(all.String(), retained) {
 						t.Fatalf("lost policy field %q: %s", retained, all.String())
 					}

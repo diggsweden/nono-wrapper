@@ -7,8 +7,8 @@
 {
   "meta": {
     "name": "agent-policy",
-    "version": "0.3.0",
-    "description": "Official-pack overrides: filtered agent environment, Linux socket mediation, toolchain and temporary-file access"
+    "version": "0.4.0",
+    "description": "Official-pack overrides: filtered agent environment, Linux socket mediation, macOS Apple Events isolation, toolchain and temporary-file access"
   },
   // The pinned official packs do not filter the agent's environment.
   // This filters the agent's environment, not nono's own configuration.
@@ -26,6 +26,15 @@
   },
   // Opt in explicitly; the pinned upstream defaults do not enable mediation.
   "linux": { "af_unix_mediation": "pathname" },
+  // A running terminal can launch an unsandboxed agent on our behalf. Denying
+  // appleevent-send alone does not stop native AESendMessage calls addressed
+  // directly to Ghostty's PID; deny the Apple Events broker as well. These
+  // rules apply to the sandboxed child, not nono's URL-opening supervisor.
+  // nono ignores this field on Linux.
+  "unsafe_macos_seatbelt_rules": [
+    "(deny appleevent-send)",
+    "(deny mach-lookup (global-name \"com.apple.coreservices.appleevents\"))"
+  ],
   // nono's own groups: readable temporary files on Linux, and read-only mise,
   // Go and Java tool locations. Toolchain variables above point into these.
   "groups": {

@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -77,6 +78,9 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 		return err
 	}
 	if loadErr != nil && !chosen && officialProfileOnly(ctx, nono, profile, agent) {
+		if runtime.GOOS == "darwin" {
+			return fmt.Errorf("cannot load profile %q; refusing the official-profile fallback on macOS because it omits the Apple Events broker denial.\nRun 'just install-local' from the nono-agent-profiles checkout to install the bundled profiles", profile)
+		}
 		previous := profile
 		profile = agent
 		shown, diagnostic, loadErr = showProfile(ctx, nono, profile)
