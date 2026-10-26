@@ -12,8 +12,11 @@ SPDX-License-Identifier: CC0-1.0
   its built-in Bash, `/bin/sh`, curl and file utilities for native checks.
 - [mise](https://mise.jdx.dev/getting-started.html) installed and activated in
   your shell, for example with `eval "$(mise activate bash)"` in `~/.bashrc`.
-  DevBase machines already have this. mise installs everything else, including
-  Go and just; a system Go is not used and may be too old.
+  DevBase machines already have this. mise installs the sandbox and build
+  tools, including Go and just; a system Go may be too old.
+- OpenCode and/or Codex installed through DevBase's AI tool configuration,
+  or an equivalent installation on `PATH`. This checkout does not pin or
+  install host agent versions.
 - Your user command directory (`~/.local/bin` by default) on `PATH`.
 - An internet connection for setup and a ChatGPT account with access to the
   agent you want to use.
@@ -26,7 +29,7 @@ Run these steps as your normal user from this repository's checkout.
 ## 1. Install the tools
 
 ```sh
-mise install --locked nono opencode codex go just aqua:koalaman/shellcheck
+mise install --locked nono go just aqua:koalaman/shellcheck
 ```
 
 This installs the pinned tools and Go dependencies. `--locked` accepts only
@@ -40,10 +43,10 @@ print the Go version from `.mise.toml`. If it prints another one, mise is not
 activated and the next step fails with `go.mod requires go >= ...`. Activate
 mise, or prefix the commands below with `mise exec --`.
 
-Make nono and the agents available in other project directories:
+Make nono available in other project directories:
 
 ```sh
-mise use -g nono@0.80.0 opencode@1.19.3 codex@rust-v0.163.0
+mise use -g nono@0.80.0
 ```
 
 ## 2. Install the wrapper and profiles
@@ -79,14 +82,20 @@ nono-wrapper verify
 Expect `ok` for each check, then [launch an agent and sign in](usage.md).
 Rerun `just install-local` after changing the Go code or bundled profiles.
 
-## Pinned versions
+## Sandbox and test versions
+
+DevBase owns host OpenCode and Codex stable-version selection and updates.
+The CLI versions below are the independently pinned container-test baseline
+in `test/tools`, not host installation requirements. Retest sandbox
+integration when updating agents; this wrapper currently uses the OpenCode 1
+pack.
 
 | Component | Version |
 | --- | --- |
 | nono | 0.80.0 |
-| OpenCode CLI | 1.19.3 |
+| OpenCode CLI (container tests) | 1.19.3 |
 | Official OpenCode 1 pack (`nolabs-ai/opencode-v1`) | 0.1.0 |
-| Codex CLI | 0.163.0 |
+| Codex CLI (container tests) | 0.163.0 |
 | Official Codex pack | 0.2.3 |
 
 **nono's `nolabs-ai/opencode` pack targets OpenCode 2 since 0.3.0**, and

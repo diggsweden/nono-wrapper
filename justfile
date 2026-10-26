@@ -40,9 +40,9 @@ help recipe="":
 # Select this project's tools even when other tools are configured globally.
 [doc('Install pinned tools')]
 [group('setup')]
-install-dev-tools: (_job "install-dev-tools" "tools=locked nono/OpenCode/Codex/Go/Just/ShellCheck; scope=user installation; network=allowed")
+install-dev-tools: (_job "install-dev-tools" "tools=locked nono/Go/Just/ShellCheck; agents=provided by DevBase; scope=user installation; network=allowed")
     @command -v mise >/dev/null 2>&1 || { printf 'mise is required; see docs/install.md. On macOS: sudo port install mise\n' >&2; exit 127; }
-    mise --cd {{ quote(justfile_directory()) }} install --locked nono opencode codex go just aqua:koalaman/shellcheck
+    mise --cd {{ quote(justfile_directory()) }} install --locked nono go just aqua:koalaman/shellcheck
 
 # Compile the host executable into the ignored build directory.
 [doc('Build nono-wrapper')]
