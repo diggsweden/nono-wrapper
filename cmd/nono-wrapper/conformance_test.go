@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: The nono-agent-profiles Authors
+// SPDX-FileCopyrightText: The nono-wrapper Authors
 // SPDX-License-Identifier: CC0-1.0
 
 package main
@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"testing"
 
-	"codefloe.com/itiquette/nono-agent-profiles/docs/manpages"
+	"codefloe.com/itiquette/nono-wrapper/docs/manpages"
 	"github.com/urfave/cli/v3"
 )
 

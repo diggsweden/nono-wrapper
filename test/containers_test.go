@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: The nono-agent-profiles Authors
+// SPDX-FileCopyrightText: The nono-wrapper Authors
 // SPDX-License-Identifier: CC0-1.0
 
 package main
@@ -58,7 +58,7 @@ image) [ "$RUNNER_MODE" != missing ] ;;
 run)
   record=
   for arg do
-    case "$arg" in *:/run/nono-agent-profiles/expected.inputs:ro) record=${arg%:/run/nono-agent-profiles/expected.inputs:ro} ;; esac
+    case "$arg" in *:/run/nono-wrapper/expected.inputs:ro) record=${arg%:/run/nono-wrapper/expected.inputs:ro} ;; esac
   done
   [ -n "$record" ] || exit 99
   IFS= read -r base < "$record"
@@ -102,7 +102,7 @@ esac
 				if strings.Contains(string(log), "run ") || !strings.Contains(string(output), "just test-prepare") {
 					t.Fatalf("missing image was run or had no preparation hint: log=%s, output=%s", log, output)
 				}
-			} else if !strings.Contains(string(log), "--pull=never") || !strings.Contains(string(log), "--cidfile") || !strings.Contains(string(log), ":/run/nono-agent-profiles/expected.inputs:ro") ||
+			} else if !strings.Contains(string(log), "--pull=never") || !strings.Contains(string(log), "--cidfile") || !strings.Contains(string(log), ":/run/nono-wrapper/expected.inputs:ro") ||
 				(strings.Contains(string(log), "--network=none") != (test.network == "0")) {
 				t.Fatalf("incorrect cidfile/pull/network controls: %s", log)
 			}

@@ -1,6 +1,6 @@
 #!/usr/bin/env just --justfile
 
-# SPDX-FileCopyrightText: The nono-agent-profiles Authors
+# SPDX-FileCopyrightText: The nono-wrapper Authors
 #
 # SPDX-License-Identifier: CC0-1.0
 
@@ -210,7 +210,7 @@ test-clean:
     root={{ quote(justfile_directory()) }}
     cache="$root/.cache"
     if [[ ! -f "$root/test/tools" || ! -f "$root/profiles/agent-policy.jsonc" ]]; then
-        printf 'Refusing cleanup outside a nono-agent-profiles checkout.\n' >&2
+        printf 'Refusing cleanup outside a nono-wrapper checkout.\n' >&2
         exit 1
     fi
     if [[ -L "$cache" || -L "$cache/tools" || -L "$cache/bin" ]]; then
@@ -227,10 +227,10 @@ test-clean:
         fi
     done
     if command -v podman >/dev/null 2>&1; then
-        podman images --format {{ quote(image_tag_format) }} --filter reference='localhost/nono-agent-profiles:*' |
+        podman images --format {{ quote(image_tag_format) }} --filter reference='localhost/nono-wrapper:*' |
         while IFS= read -r image; do
             case "$image" in
-                localhost/nono-agent-profiles:*) podman rmi --ignore --no-prune "$image" ;;
+                localhost/nono-wrapper:*) podman rmi --ignore --no-prune "$image" ;;
             esac
         done
     fi

@@ -1,7 +1,7 @@
-// SPDX-FileCopyrightText: The nono-agent-profiles Authors
+// SPDX-FileCopyrightText: The nono-wrapper Authors
 // SPDX-License-Identifier: CC0-1.0
 
-module codefloe.com/itiquette/nono-agent-profiles
+module codefloe.com/itiquette/nono-wrapper
 
 go 1.27.2
 

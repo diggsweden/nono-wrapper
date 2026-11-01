@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# SPDX-FileCopyrightText: The nono-agent-profiles Authors
+# SPDX-FileCopyrightText: The nono-wrapper Authors
 #
 # SPDX-License-Identifier: CC0-1.0
 
@@ -59,9 +59,9 @@ in_image() {
   podman run --rm --cidfile "$scratch/container" --pull=never $network --cap-drop=ALL \
     --security-opt no-new-privileges --security-opt label=disable \
     --volume "$root:/src:ro" \
-    --volume "$scratch/expected.inputs:/run/nono-agent-profiles/expected.inputs:ro" \
+    --volume "$scratch/expected.inputs:/run/nono-wrapper/expected.inputs:ro" \
     --env "AGENT_TEST_NETWORK=${AGENT_TEST_NETWORK:-}" \
-    "localhost/nono-agent-profiles:$name" sh /src/test/container-suite.sh "$@" &
+    "localhost/nono-wrapper:$name" sh /src/test/container-suite.sh "$@" &
   status=0
   wait "$!" || status=$?
   rm -f -- "$scratch/container"
@@ -72,7 +72,7 @@ for name in $names; do
   echo
   echo "######## $name"
 
-  podman image exists "localhost/nono-agent-profiles:$name" || {
+  podman image exists "localhost/nono-wrapper:$name" || {
     echo "no image for $name; run just test-prepare $name first" >&2
     failed="$failed $name"
     continue

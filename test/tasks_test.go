@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: The nono-agent-profiles Authors
+// SPDX-FileCopyrightText: The nono-wrapper Authors
 // SPDX-License-Identifier: CC0-1.0
 
 package main
@@ -101,7 +101,7 @@ func newTaskFixture(t *testing.T) taskFixture {
 	writeLauncherFixture(t, filepath.Join(f.tools, "podman"), `#!/bin/sh
 case "$1" in
 images)
-  printf '%s\n' 'localhost/nono-agent-profiles:fixture' 'localhost/unrelated:keep'
+  printf '%s\n' 'localhost/nono-wrapper:fixture' 'localhost/unrelated:keep'
   ;;
 rmi) printf '%s\n' "$*" >> "$TASK_PODMAN_LOG" ;;
 *) exit 99 ;;
@@ -399,7 +399,7 @@ func TestCleanRemovesOnlyOwnedArtifacts(t *testing.T) {
 				t.Fatalf("cleanup touched the working directory instead of the checkout: %v", err)
 			}
 			log, err := os.ReadFile(f.log)
-			if err != nil || string(log) != "rmi --ignore --no-prune localhost/nono-agent-profiles:fixture\n" {
+			if err != nil || string(log) != "rmi --ignore --no-prune localhost/nono-wrapper:fixture\n" {
 				t.Fatalf("unexpected image deletion: %q (%v)", log, err)
 			}
 		})

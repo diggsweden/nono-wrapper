@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: The nono-agent-profiles Authors
+// SPDX-FileCopyrightText: The nono-wrapper Authors
 // SPDX-License-Identifier: CC0-1.0
 
 package main

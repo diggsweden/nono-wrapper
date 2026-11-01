@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# SPDX-FileCopyrightText: The nono-agent-profiles Authors
+# SPDX-FileCopyrightText: The nono-wrapper Authors
 #
 # SPDX-License-Identifier: CC0-1.0
 
@@ -119,5 +119,5 @@ grep -v -e '^#' -e '^$' "$root/test/images" | while IFS='=' read -r name referen
   IFS= read -r reference <"$tools/image.inputs"
   echo "== $name ($reference)"
   podman build --quiet --build-arg "BASE_IMAGE=$reference" --build-context "tools=$tools" \
-    --tag "localhost/nono-agent-profiles:$name" --file "$root/test/Containerfile" "$root/test" >/dev/null
+    --tag "localhost/nono-wrapper:$name" --file "$root/test/Containerfile" "$root/test" >/dev/null
 done

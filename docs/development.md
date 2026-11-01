@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: The nono-agent-profiles Authors
+SPDX-FileCopyrightText: The nono-wrapper Authors
 
 SPDX-License-Identifier: CC0-1.0
 -->
@@ -359,5 +359,5 @@ they do not establish every agent workflow.
 another working directory. It refuses symlinked `.cache`, `.cache/tools` and
 `.cache/bin` directories, deletes only the known generated files, and removes
 directories only when empty. Extra files are retained. Image cleanup targets
-only `localhost/nono-agent-profiles:*` tags without force-removal or parent
+only `localhost/nono-wrapper:*` tags without force-removal or parent
 pruning. The recipe performs no recursive filesystem deletion.

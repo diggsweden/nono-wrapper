@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: The nono-agent-profiles Authors
+// SPDX-FileCopyrightText: The nono-wrapper Authors
 // SPDX-License-Identifier: CC0-1.0
 
 package main
@@ -92,7 +92,7 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 	}
 	if loadErr != nil {
 		fmt.Fprint(stderr, diagnostic)
-		return fmt.Errorf("cannot load profile %q.\nRun 'just install-local' from the nono-agent-profiles checkout to install our profiles and the pinned nolabs-ai/%s pack.\nSee docs/install.md in the nono-agent-profiles checkout", profile, officialPacks[agent])
+		return fmt.Errorf("cannot load profile %q.\nRun 'just install-local' from the nono-wrapper checkout to install our profiles and the pinned nolabs-ai/%s pack.\nSee docs/install.md in the nono-wrapper checkout", profile, officialPacks[agent])
 	}
 	block, err := profileBlocksNetwork(shown, profile)
 	if err != nil {

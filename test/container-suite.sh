@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# SPDX-FileCopyrightText: The nono-agent-profiles Authors
+# SPDX-FileCopyrightText: The nono-wrapper Authors
 #
 # SPDX-License-Identifier: CC0-1.0
 
@@ -14,15 +14,15 @@ set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
 # shellcheck source=test/require-container.sh
 . "$root/test/require-container.sh"
-sh "$root/test/image-inputs.sh" --check /usr/local/share/nono-agent-profiles/image.inputs /run/nono-agent-profiles/expected.inputs
+sh "$root/test/image-inputs.sh" --check /usr/local/share/nono-wrapper/image.inputs /run/nono-wrapper/expected.inputs
 expected_manifest=$(sha256sum "$root/test/tools")
-installed_manifest=$(sha256sum /usr/local/share/nono-agent-profiles/tools)
+installed_manifest=$(sha256sum /usr/local/share/nono-wrapper/tools)
 [ "${expected_manifest%% *}" = "${installed_manifest%% *}" ] || {
   echo "container: tool pins changed; rebuild with just test-prepare" >&2
   exit 1
 }
 expected_packs=$(sha256sum "$root/test/packs")
-installed_packs=$(sha256sum /usr/local/share/nono-agent-profiles/packs)
+installed_packs=$(sha256sum /usr/local/share/nono-wrapper/packs)
 [ "${expected_packs%% *}" = "${installed_packs%% *}" ] || {
   echo "container: official pack pins changed; rebuild with just test-prepare" >&2
   exit 1
@@ -49,7 +49,7 @@ command -v nono-wrapper >/dev/null 2>&1 || {
   exit 1
 }
 expected_wrapper=$(cd "$root" && sha256sum go.mod go.sum cmd/nono-wrapper/*.go docs/manpages/*.go docs/manpages/*.md)
-installed_wrapper=$(cat /usr/local/share/nono-agent-profiles/nono-wrapper.sources)
+installed_wrapper=$(cat /usr/local/share/nono-wrapper/nono-wrapper.sources)
 [ "$expected_wrapper" = "$installed_wrapper" ] || {
   echo "container: wrapper source or dependencies changed; rebuild with just test-prepare" >&2
   exit 1
