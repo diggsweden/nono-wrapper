@@ -51,7 +51,8 @@ nono-wrapper codex
 ```
 
 Use `nono-wrapper opencode` the same way. The current directory is the
-agent's writable workspace, and it must be a project below `~/development`
+agent's writable workspace. By default, start below `~/development`; an
+explicit `NONO_WRAPPER_ROOT` allows starting in that root or below it
 ([Where an agent may start](docs/usage.md#where-an-agent-may-start)).
 [Usage](docs/usage.md) covers OpenCode's sign-in, offline mode and the
 session report.

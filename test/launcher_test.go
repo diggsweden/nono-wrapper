@@ -436,8 +436,33 @@ func TestLauncherStartDirectory(t *testing.T) {
 				}
 				return []string{"NONO_WRAPPER_ROOT="}
 			}},
-		{name: "the project root itself", want: "will not start in the project root",
-			setup: func(_ *testing.T, f launcherFixture) []string { return []string{"NONO_WRAPPER_ROOT=" + f.project} }},
+		{name: "explicit workspace root containing multiple projects",
+			setup: func(t *testing.T, f launcherFixture) []string {
+				for _, name := range []string{"project-a", "project-b"} {
+					if err := os.MkdirAll(filepath.Join(f.project, name, ".git"), 0o700); err != nil {
+						t.Fatal(err)
+					}
+				}
+				return []string{"NONO_WRAPPER_ROOT=" + f.project}
+			}},
+		{name: "explicit project root with trailing slash",
+			setup: func(_ *testing.T, f launcherFixture) []string {
+				return []string{"NONO_WRAPPER_ROOT=" + f.project + "/"}
+			}},
+		{name: "default project root itself remains refused", want: "will not start in the project root",
+			setup: func(t *testing.T, f launcherFixture) []string {
+				if err := os.Symlink(f.project, filepath.Join(filepath.Dir(f.bin), "development")); err != nil {
+					t.Fatal(err)
+				}
+				return []string{"NONO_WRAPPER_ROOT="}
+			}},
+		{name: "inside default project root",
+			setup: func(t *testing.T, f launcherFixture) []string {
+				if err := os.Symlink(filepath.Dir(f.project), filepath.Join(filepath.Dir(f.bin), "development")); err != nil {
+					t.Fatal(err)
+				}
+				return []string{"NONO_WRAPPER_ROOT="}
+			}},
 		{name: "outside the project root", want: "is outside the project root",
 			setup: func(t *testing.T, f launcherFixture) []string {
 				other := filepath.Join(filepath.Dir(f.project), "other")
@@ -454,6 +479,10 @@ func TestLauncherStartDirectory(t *testing.T) {
 			setup: func(_ *testing.T, f launcherFixture) []string {
 				return []string{"NONO_WRAPPER_ROOT=" + filepath.Dir(f.bin)}
 			}},
+		{name: "project root above the home directory", want: "contains your home directory",
+			setup: func(_ *testing.T, f launcherFixture) []string {
+				return []string{"NONO_WRAPPER_ROOT=" + filepath.Dir(filepath.Dir(f.bin))}
+			}},
 		{name: "relative project root", want: "must be an absolute path",
 			setup: func(*testing.T, launcherFixture) []string { return []string{"NONO_WRAPPER_ROOT=development"} }},
 		{name: "symlinked project root",
@@ -463,6 +492,29 @@ func TestLauncherStartDirectory(t *testing.T) {
 					t.Fatal(err)
 				}
 				return []string{"NONO_WRAPPER_ROOT=" + link}
+			}},
+		{name: "symlinked explicit root itself",
+			setup: func(t *testing.T, f launcherFixture) []string {
+				link := filepath.Join(filepath.Dir(f.bin), "workspace link")
+				if err := os.Symlink(f.project, link); err != nil {
+					t.Fatal(err)
+				}
+				return []string{"NONO_WRAPPER_ROOT=" + link}
+			}},
+		{name: "symlinked home remains refused", want: "contains your home directory",
+			setup: func(t *testing.T, f launcherFixture) []string {
+				link := filepath.Join(filepath.Dir(f.bin), "home link")
+				if err := os.Symlink(filepath.Dir(f.bin), link); err != nil {
+					t.Fatal(err)
+				}
+				return []string{"NONO_WRAPPER_ROOT=" + link}
+			}},
+		{name: "configuration repository in explicit root still needs approval", want: "team-config",
+			setup: func(t *testing.T, f launcherFixture) []string {
+				if err := os.MkdirAll(filepath.Join(f.project, "team-config", ".git"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				return []string{"NONO_WRAPPER_ROOT=" + f.project}
 			}},
 		{name: "configuration repository without a terminal", want: "sdg-config",
 			setup: func(t *testing.T, f launcherFixture) []string {

@@ -65,10 +65,12 @@ Help forwarding:
 
 Environment:
   NONO_PROFILE                 profile to use instead of AGENT-chatgpt
-  NONO_WRAPPER_ROOT            project root agents start below (default ~/development)
+  NONO_WRAPPER_ROOT            absolute workspace root; allows start in it or below it
   NONO_WRAPPER_ALLOW_CONFIG=1  include configuration repositories without asking
   NONO_WRAPPER_SSH_AGENT=0     do not share the SSH agent socket
   HTTPS_PROXY, HTTP_PROXY      upstream proxy for the sandbox's network proxy
+
+Without NONO_WRAPPER_ROOT, agents start only below ~/development.
 
 Exit status:
   0      success

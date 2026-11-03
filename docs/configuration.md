@@ -342,7 +342,7 @@ profiles, independently of these user additions.
 | Setting | Meaning | Default |
 | --- | --- | --- |
 | `NONO_PROFILE` | base profile to select; user additions still apply | `opencode-chatgpt` or `codex-chatgpt` |
-| `NONO_WRAPPER_ROOT` | absolute project root; agents start only below it ([details](usage.md#where-an-agent-may-start)) | `~/development` |
+| `NONO_WRAPPER_ROOT` | absolute workspace root; an explicit value allows starting in it or below it ([details](usage.md#where-an-agent-may-start)) | `~/development` |
 | `NONO_WRAPPER_ALLOW_CONFIG` | `1` includes configuration repositories in the start directory without asking | ask on a terminal, stop otherwise |
 | `NONO_WRAPPER_SSH_AGENT` | `0` withholds the SSH agent socket | granted when `SSH_AUTH_SOCK` names a socket |
 

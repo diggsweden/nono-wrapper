@@ -21,9 +21,11 @@ profile, inherited packs, user allowances and launch-time grants. Bundled
 profiles also grant agent state and selected caches outside the workspace;
 the workspace is not the agent's only writable location.
 
-The agent starts only in a directory below the project root, ~/development
-unless **NONO_WRAPPER_ROOT** says otherwise; never in the root itself or
-outside it. When the start directory holds Git repositories named config, or
+By default, the agent starts only below ~/development, not in that root
+itself. An explicitly set **NONO_WRAPPER_ROOT** allows starting in the chosen
+root or below it, never outside it. The root must be absolute and must not
+be, or contain, the home directory; symlinks are resolved before checking.
+When the start directory holds Git repositories named config, or
 ending in -config or _config, the wrapper lists them and asks before
 including them. Without a terminal to answer from, it stops instead.
 
@@ -135,8 +137,9 @@ use **config** *AGENT* **allow-domain** for persistent wrapper allowances.
 :   Profile to use instead of *AGENT*-chatgpt.
 
 **NONO_WRAPPER_ROOT**
-:   Absolute path of the project root agents start below. Default:
-    ~/development.
+:   Absolute workspace root. An explicit value allows starting in that
+    directory or below it, sharing the whole start directory read/write.
+    Without it, agents start only below ~/development.
 
 **NONO_WRAPPER_ALLOW_CONFIG=1**
 :   Include configuration repositories in the start directory without asking.

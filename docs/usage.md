@@ -9,7 +9,7 @@ SPDX-License-Identifier: CC0-1.0
 ## Start an agent
 
 Open a terminal in a project below `~/development`. If your projects live
-elsewhere, set `NONO_WRAPPER_ROOT` to their absolute parent directory first
+elsewhere, set `NONO_WRAPPER_ROOT` to the absolute workspace root first
 (see [Where an agent may start](#where-an-agent-may-start)). For example:
 
 ```sh
@@ -32,20 +32,40 @@ The current project directory is the writable workspace granted to the agent.
 
 ### Where an agent may start
 
-The agent gets read and write access to everything in its start directory,
-so the wrapper starts it only **below your project root**, `~/development` by
-default. It refuses the root itself, which would expose every project at
-once, and any directory outside it:
+The agent gets read and write access to everything in its start directory.
+By default, it must start **below `~/development`**. The wrapper refuses
+`~/development` itself, which would expose every project at once, and any
+directory outside it:
 
 ```text
-nono-wrapper: will not start in "/home/kim": it is outside the project root "/home/kim/development".
+nono-wrapper: will not start in "/home/user": it is outside the project root "/home/user/development".
 ```
 
-Set `NONO_WRAPPER_ROOT` to an absolute path if your projects live elsewhere.
-It must not be, or contain, your home directory: agents could then start next
-to your keys and settings.
-A directory that groups several projects, such as `~/development/wallet`, is
-fine: that is the way to let an agent work across those repositories.
+An explicitly set `NONO_WRAPPER_ROOT` allows starting **in that directory or
+any directory below it**, but not outside it. This supports a workspace that
+groups the repositories you want to share, for example:
+
+```text
+~/agent-workspace/
+  project-a/
+  project-b/
+```
+
+To work on that whole existing workspace:
+
+```sh
+cd ~/agent-workspace
+env NONO_WRAPPER_ROOT="$HOME/agent-workspace" nono-wrapper codex
+```
+
+The whole start directory is writable, including both projects. Starting in
+`project-a` instead shares that directory as the workspace. Other profile
+grants still apply. The root must be absolute and must not be, or contain,
+your home directory; symlinks are resolved before these checks. Existing
+checks for protected policy files and executables still apply.
+
+`config AGENT add-dir` adds filesystem access; it does not select the start
+directory or change `NONO_WRAPPER_ROOT`.
 
 **Configuration repositories need a yes.** When the start directory holds a
 Git repository named `config`, or ending in `-config` or `_config`, within two
@@ -54,7 +74,7 @@ lists it and asks:
 
 ```text
 nono-wrapper: the start directory contains configuration repositories:
-  /home/kim/development/sdg/sdg-config
+  /home/user/agent-workspace/team-config
 The agent would get read and write access to them as well.
 Include them? [y/N]
 ```
@@ -227,8 +247,8 @@ profile.
 
 ### First-time ChatGPT login
 
-Login commands start the agent like any other session, so run them in a
-project below your [project root](#where-an-agent-may-start).
+Login commands start the agent like any other session, so run them in an
+[allowed workspace](#where-an-agent-may-start).
 
 For OpenCode, select **OpenAI → ChatGPT Pro/Plus (browser)** in the
 connection dialog, or start that flow directly:

@@ -39,6 +39,7 @@ func TestLaunchChecksEffectiveExecutableWritesBeforeRunningAgent(t *testing.T) {
 				env = append(env, "NONO_ALLOW="+path)
 				path = ""
 			case "workspace":
+				env = append(env, "NONO_WRAPPER_ROOT="+f.project)
 				target := filepath.Join(f.project, "opencode")
 				writeLauncherFixture(t, target, "agent stand-in\n")
 				if err := os.Remove(filepath.Join(f.bin, "opencode")); err != nil {

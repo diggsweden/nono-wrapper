@@ -18,9 +18,9 @@ import (
 // group directory holds repositories, and those hold their own files.
 const configRepoDepth = 2
 
-// The agent gets read and write access to its whole start directory. Starting
-// in the home directory, or in the directory holding every project, would
-// hand it all of them, so agents start only below one project root.
+// The agent gets read and write access to its whole start directory. The
+// default root requires a project below it; an explicitly selected root may
+// itself be the workspace. projectRoot still excludes HOME and its ancestors.
 func checkStartDirectory(stdin io.Reader, stderr io.Writer, interactive bool) error {
 	root, canonical, err := projectRoot()
 	if err != nil {
@@ -35,8 +35,8 @@ func checkStartDirectory(stdin io.Reader, stderr io.Writer, interactive bool) er
 		return quotePathError(err)
 	}
 	switch {
-	case samePolicyPath(workdir, canonical):
-		return fmt.Errorf("will not start in the project root %q itself: the agent would get read and write access to every project in it.\nStart in one project, or in a directory that groups the projects you want, such as %q", root, filepath.Join(root, "my-project"))
+	case samePolicyPath(workdir, canonical) && os.Getenv("NONO_WRAPPER_ROOT") == "":
+		return fmt.Errorf("will not start in the project root %q itself: the agent would get read and write access to every project in it.\nStart in a project below it, or explicitly set NONO_WRAPPER_ROOT to this directory to share all of it", root)
 	case !pathWithin(workdir, canonical):
 		return fmt.Errorf("will not start in %q: it is outside the project root %q.\nThe agent gets read and write access to the whole start directory. Move to a project inside %q, or set NONO_WRAPPER_ROOT", workdir, root, root)
 	}

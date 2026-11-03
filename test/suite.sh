@@ -30,7 +30,7 @@ readonly temp
 export XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$home/.local/share"
 export XDG_STATE_HOME="$home/.local/state" XDG_CACHE_HOME="$home/.cache"
 export CODEX_HOME="$home/.codex" TMPDIR="$temp/tmp"
-# Agents start only below a project root; the suite's project lives in $work.
+# The suite's project lives below its explicit workspace root.
 export NONO_WRAPPER_ROOT="$work"
 export PATH="$work/bin:$PATH"
 unset XDG_RUNTIME_DIR SSH_AUTH_SOCK
