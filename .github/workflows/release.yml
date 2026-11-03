@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: The nono-wrapper Authors
+# SPDX-License-Identifier: CC0-1.0
+
+name: Release
+
+on:
+  push:
+    tags: ["release-request/v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/pullrequest.yml
+    permissions:
+      actions: read
+      contents: read
+
+  release:
+    needs: checks
+    uses: diggsweden/forge-ci/.github/workflows/release-orchestrator.yml@265b9ff6cb171eb663263dc0cb9da85b373c6287 # v0.91.13
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write
+    secrets:
+      RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+      RELEASE_SSH_SIGNING_KEY: ${{ secrets.RELEASE_SSH_SIGNING_KEY }}
+    with:
+      branch: main
+      forge-ci-binary-ref: v0.91.13
+      runtime-image: ghcr.io/diggsweden/forge-ci-runtime-base:v0.91.13
+      runtime-image-full: ghcr.io/diggsweden/forge-ci-runtime:v0.91.13
+      runtime-image-go: ghcr.io/diggsweden/forge-ci-runtime-go-1.27:v0.91.13
+      artifacts-config: .forge-ci/artifacts.yml
+      bot-name: ${{ vars.RELEASE_BOT_NAME }}
+      bot-email: ${{ vars.RELEASE_BOT_EMAIL }}
+      release.requireallowlistedsigner: true
+      release-publisher: github-cli
+      release.attachartifacts: release-artifacts/*/nono-wrapper-*

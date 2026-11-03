@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: The nono-wrapper Authors
+# SPDX-License-Identifier: CC0-1.0
+
+# Organization release signer, matching diggsweden/forge-ci's allowlist.
+josef.andersson@digg.se namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIChehPsR+MfL4pcS2FcIjM5O2n6e0cdVUATxUD+SAfGD
+
+# Maintainer's local release-request signer.
+josef.andersson@digg.se namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINvfLYzH2HftO/cKwKQG63zxA4WBjWXiR0ypuYhSE+0h

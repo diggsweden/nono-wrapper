@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: The nono-wrapper Authors
+# SPDX-License-Identifier: CC0-1.0
+
+artifacts:
+  - name: nono-wrapper
+    project-type: go
+    working-directory: .
+    config:
+      build-mode: artifact-first
+      main-package: ./cmd/nono-wrapper
+      binary-name: nono-wrapper
+      platforms: linux/amd64,linux/arm64,darwin/amd64,darwin/arm64
+      # The checks job runs tests with Just before release preparation.
+      # Forge CI's Go build image does not include Just.
+      skip-tests: true
+
+sign:
+  method: sigstore
+
+git-signing:
+  method: ssh

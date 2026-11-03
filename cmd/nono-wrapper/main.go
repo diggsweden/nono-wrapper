@@ -194,9 +194,21 @@ func command() *cli.Command {
 	}
 }
 
-// Use metadata already embedded by Go; development builds are labelled honestly.
+// Forge CI injects these for release binaries; checkout builds use Go metadata.
+var version, commit string
+
 func buildVersion() string {
 	info, ok := debug.ReadBuildInfo()
+	if version != "" {
+		label := version
+		if commit != "" {
+			label += " " + commit[:min(len(commit), 12)]
+		}
+		if ok {
+			label += " (" + info.GoVersion + ")"
+		}
+		return label
+	}
 	if !ok {
 		return "devel"
 	}

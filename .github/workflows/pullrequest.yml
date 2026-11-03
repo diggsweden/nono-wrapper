@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: The nono-wrapper Authors
+# SPDX-License-Identifier: CC0-1.0
+
+name: Pull Request
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pr-checks:
+    uses: diggsweden/forge-ci/.github/workflows/pullrequest-orchestrator.yml@265b9ff6cb171eb663263dc0cb9da85b373c6287 # v0.91.13
+    permissions:
+      actions: read
+      contents: read
+    with:
+      project-type: go
+      forge-ci-binary-ref: v0.91.13
+      runtime-image: ghcr.io/diggsweden/forge-ci-runtime-base:v0.91.13
+      # Temporary: re-enable nanolinter after its next Codefloe release.
+      lint-engine: none
+
+  test:
+    name: Build and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Install pinned build tools
+        uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
+        with:
+          version: 2026.10.8
+          install_args: --locked go just aqua:koalaman/shellcheck
+      - name: Download Go dependencies
+        run: go mod download
+      - name: Lint scripts and Go
+        run: just lint
+      - name: Run isolated unit tests
+        run: just test-unit
+      - name: Build wrapper
+        run: just build

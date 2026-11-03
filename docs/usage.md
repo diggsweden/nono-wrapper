@@ -121,9 +121,9 @@ workspace grants and `NONO_ALLOW`; read-only access is permitted.
 Install managed binaries outside the writable workspace, including local
 builds of the wrapper itself.
 
-Checkout builds identify themselves as `devel`. A module version and VCS
-revision are shown when the Go build includes them; help links to the project
-documentation.
+Release binaries embed the release version and source commit. Checkout builds
+identify themselves as `devel`, with module/VCS metadata when available; help
+links to the project documentation.
 
 The `config` commands are described in [Configuration](configuration.md);
 `verify` and `audit` in [Verify and review](verify-and-review.md).

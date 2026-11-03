@@ -182,6 +182,52 @@ just test-unit -run TestLauncherInvocation -v
 `just test-net` also enables the container networking checks. The explicit
 `test-containers` recipes run only the integration suite.
 
+## GitHub checks and releases
+
+`.github/workflows/pullrequest.yml` runs on pull requests and pushes to
+`main`. It calls Digg Sweden's Forge CI v0.91.13 and runs the isolated unit
+suite, `just lint` and native build with the checkout's locked tools. The general
+lint phase is temporarily disabled with `lint-engine: none` while waiting for
+the next nanolinter release on Codefloe; its lint/security checks are not
+running. ShellCheck, Go formatting and vet still run through `just lint`.
+Re-enable that input when the new linter is available. Local
+`just verify` remains the full lint and unit check.
+
+The release workflow reruns those checks, then asks Forge CI to prepare a
+signed release commit and final tag, generate the changelog, and publish
+standalone Linux/macOS amd64/arm64 binaries with checksums, Sigstore signatures
+and SBOMs. `.forge-ci/artifacts.yml` selects the Go CLI build; its build-stage
+tests are skipped because the preceding checks already ran them with Just.
+Profiles are available in the tagged source; the existing `just install-local`
+recipe installs profiles, the manual and signed upstream packs from that
+checkout. A binary download alone does not install those dependencies.
+
+The workflow uses the organization's existing `RELEASE_TOKEN` and
+`RELEASE_SSH_SIGNING_KEY` secrets and `RELEASE_BOT_NAME`/`RELEASE_BOT_EMAIL`
+variables. GitHub resolves these through the explicit `secrets` and `vars`
+mappings; repository-level duplicates are unnecessary.
+
+`.forge-ci/allowed_signers` trusts the organization release signer already
+listed in Digg Sweden's Forge CI allowlist and the maintainer's local
+request-tag signer. Keep the organization entry aligned when its key rotates.
+
+Require the build/test check before merging. Restrict creation of
+`release-request/*` tags to releasers and prevent changes to final `v*` tags,
+following [Forge CI's GitHub setup guide][forge-ci-github].
+
+From the checked, current `main` commit, request a stable release:
+
+```sh
+git tag -s release-request/v0.1.0 -m "Release v0.1.0"
+git push origin release-request/v0.1.0
+```
+
+Forge CI creates `v0.1.0`; do not create or move the final tag manually.
+Keep the workflow SHA, CLI version and runtime-image versions aligned when
+updating Forge CI. Its current production flow accepts stable versions only.
+
+[forge-ci-github]: https://github.com/diggsweden/forge-ci/blob/v0.91.13/docs/github.md
+
 ## Native integration smoke test
 
 The native suite also tests Linux TCP-port scope against a controlled server
