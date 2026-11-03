@@ -192,7 +192,7 @@ fi
 				ctx, cancel = context.WithTimeout(ctx, time.Second)
 				defer cancel()
 			}
-			composed, cleanup, err := composeSessionPolicy(ctx, nono, "opencode-chatgpt", "opencode-user", "", base, user, false, nil)
+			composed, cleanup, err := composeSessionPolicy(ctx, nono, "opencode-chatgpt", "opencode-user", "", base, user, false, nil, nil)
 			fails := mode == "broader inherited write" || mode == "invalid manifest" || mode == "cancelled inspection"
 			if fails {
 				if err == nil {

@@ -7,10 +7,13 @@ SPDX-License-Identifier: CC0-1.0
 # nono-wrapper
 
 Run OpenCode and Codex inside the [nono](https://nono.sh) sandbox.
-`nono-wrapper` extends nono's official agent packs with ChatGPT host
-allowlists and prints a report of what each session did.
+`nono-wrapper` extends nono's official agent packs with ChatGPT login,
+developer network defaults and a report of each session.
 
-- Sign in with your ChatGPT account; the agent reaches only the hosts it needs.
+- Sign in with your ChatGPT account; online profiles include common forges,
+  reference sites and vulnerability-data services.
+- Use Git over SSH through nono's proxy with your existing SSH agent and
+  verified host keys; no extra PAT is needed for that workflow.
 - Add hosts, directories and files per agent with `nono-wrapper config`. The
   running agent cannot change its own rules.
 

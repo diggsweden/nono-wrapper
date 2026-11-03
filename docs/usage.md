@@ -117,6 +117,7 @@ Its commands are:
 | `nono-wrapper doctor [opencode\|codex ...]` | check tools, project root and offline profiles; defaults to both agents |
 | `nono-wrapper changes MARKER [DIRECTORY]` | list selected project files changed since a marker |
 | `nono-wrapper man` | print the manual, as `man nono-wrapper` shows it |
+| `nono-wrapper ssh-proxy HOST PORT` | Git transport helper through the active nono proxy; grants no access itself |
 | `nono-wrapper completion bash\|zsh\|fish` | print a completion script for that shell, to source from its startup file |
 | `nono-wrapper --help` | show wrapper help |
 | `nono-wrapper --version` | show embedded build and Go toolchain information |
@@ -242,6 +243,9 @@ ChatGPT account.
 The wrapper explicitly selects **our** `opencode-chatgpt` or `codex-chatgpt`
 profile. Those profiles inherit the official packs and add our policy. It
 also loads your optional [user configuration](configuration.md#user-configuration).
+Online profiles include the shared developer network defaults and can route
+[Git over SSH](configuration.md#git-over-ssh) through the proxy with an
+existing SSH agent and verified host keys.
 Set `NONO_PROFILE` only when you deliberately want to select another base
 profile.
 

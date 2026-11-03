@@ -95,7 +95,7 @@ func doctor(ctx context.Context, agents []string, output io.Writer) error {
 				continue
 			}
 			if socketMediationUnavailable(ctx, nono, profile, shown) {
-				composed, cleanup, err := composeSessionPolicy(ctx, nono, profile, "", "", shown, nil, true, nil)
+				composed, cleanup, err := composeSessionPolicy(ctx, nono, profile, "", "", shown, nil, true, nil, nil)
 				if err != nil {
 					return err
 				}

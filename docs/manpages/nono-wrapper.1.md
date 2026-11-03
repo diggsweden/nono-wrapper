@@ -33,6 +33,14 @@ The profile is **NONO_PROFILE**, or *AGENT*-chatgpt, plus the optional
 *AGENT*-user.jsonc in the nono profiles directory. After the agent exits, the
 wrapper prints a summary of the session's audit record on standard error.
 
+Online profiles inherit the common forge, reference and vulnerability-data
+hosts from developer-network.jsonc. Offline profiles do not. With an SSH
+agent and verified entries in ~/.ssh/known_hosts, online sessions can route
+Git SSH through nono's proxy. Public host keys are copied to a private
+read-only session file; private keys and personal SSH config are not copied.
+Strict host-key checking remains enabled. Explicit GIT_SSH_COMMAND or
+GIT_SSH settings take precedence; no global Git/SSH files are rewritten.
+
 On macOS, the bundled profiles deny Apple Events and access to their Mach
 broker. The wrapper refuses to fall back to the official agent profile when
 the bundled profile is missing, because that would omit these restrictions.
@@ -123,6 +131,12 @@ use **config** *AGENT* **allow-domain** for persistent wrapper allowances.
 **man**
 :   Print this manual, for systems without man(1).
 
+**ssh-proxy** *HOST* *PORT*
+:   Git transport helper for an active nono session. Connects through nono's
+    authenticated loopback proxy. It adds no host or TCP-port permission.
+    Normal SSH remotes, including port 443 when supported by the forge, use
+    the same domain policy. Verify new host keys outside the sandbox first.
+
 **completion** **bash**|**zsh**|**fish**
 :   Print a completion script for that shell, to source from its startup
     file; see **nono-wrapper help completion**.
@@ -150,6 +164,10 @@ use **config** *AGENT* **allow-domain** for persistent wrapper allowances.
 
 **NONO_WRAPPER_SSH_AGENT=0**
 :   Do not share the SSH agent socket with the sandbox.
+
+**GIT_SSH_COMMAND**, **GIT_SSH**, **GIT_SSH_VARIANT**
+:   Explicit Git SSH settings are passed through by online profiles. An
+    explicit command replaces the automatic agent-based transport.
 
 **HTTPS_PROXY**, **HTTP_PROXY**
 :   Upstream proxy for the sandbox's network proxy. A user name and password

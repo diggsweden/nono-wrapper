@@ -33,6 +33,7 @@ test/              CLI/installation tests, container probes and version pins
 | `cmd/nono-wrapper/policy.go` | user precedence over matching bundled profile rules |
 | `cmd/nono-wrapper/filesystem_policy.go` | canonical path matching and effective access-mode checks |
 | `cmd/nono-wrapper/session.go` | supervised launch, signal forwarding and post-exit audit summary |
+| `cmd/nono-wrapper/git_ssh.go` | session-only Git SSH defaults, public host-key snapshots and CONNECT transport |
 | `cmd/nono-wrapper/doctor.go` | installed-tool and offline-profile checks |
 | `cmd/nono-wrapper/changes.go` | optional, manually invoked changed-project-file listing |
 | `cmd/nono-wrapper/conformance_test.go` | exit-status, stream, no-escape and help-truth contracts |
@@ -182,6 +183,25 @@ just test-unit -run TestLauncherInvocation -v
 `just test` runs those unit tests followed by the routine container suite;
 `just test-net` also enables the container networking checks. The explicit
 `test-containers` recipes run only the integration suite.
+
+### Native Git SSH integration
+
+The focused SSH test uses real nono, Git and OpenSSH against a loopback-only
+Go SSH server and a temporary agent containing generated test keys. It needs
+no model, account, installed agent pack, external server or user credentials:
+
+```sh
+NONO_SSH_TEST=1 NONO_TEST_NONO=/absolute/path/to/nono \
+  go test -count=1 -v -run '^TestNativeGitSSH$' ./test
+```
+
+`NONO_TEST_NONO` selects the native executable, not a Mise shim. The current
+test targets Linux. It covers clone/fetch/push, strict host-key rejection,
+unlisted destinations, direct TCP bypass refusal, explicit SSH overrides,
+shared-default endpoint overrides/denies, and temporary-policy cleanup.
+The fixture relocates `XDG_CONFIG_HOME` to a path containing spaces.
+Unit proxy tests also check CONNECT to port 443, buffered tunnel bytes and
+credential-free diagnostics. macOS/WSL2 Git SSH integration remains untested.
 
 ## GitHub checks and releases
 

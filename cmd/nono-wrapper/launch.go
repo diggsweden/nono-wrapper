@@ -111,8 +111,13 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 	if dropSocketMediation {
 		fmt.Fprintf(stderr, "nono-wrapper: %s\n", socketMediationNotice)
 	}
-	if user != "" && user != profile {
-		userShown, userDiagnostic, userErr := showProfile(ctx, nono, user)
+	var userShown []byte
+	compositionUser := user
+	if user == profile {
+		compositionUser = ""
+	}
+	if compositionUser != "" {
+		data, userDiagnostic, userErr := showProfile(ctx, nono, user)
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -120,22 +125,48 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 			fmt.Fprint(stderr, userDiagnostic)
 			return fmt.Errorf("cannot load user profile %q; fix its file in your nono profiles directory", user)
 		}
+		userShown = data
 		userBlock, err := profileBlocksNetwork(userShown, user)
 		if err != nil {
 			return err
 		}
 		block = block || userBlock
-		composed, cleanup, err := composeSessionPolicy(ctx, nono, profile, user, program, shown, userShown, dropSocketMediation, runtimePaths)
+	}
+	var gitSSH *gitSSHSession
+	if !block && profile == agent+"-chatgpt" {
+		userPath := ""
+		if compositionUser != "" {
+			userPath, err = configPath(agent)
+			if err != nil {
+				return err
+			}
+		}
+		gitSSH, err = prepareGitSSH(ctx, userPath)
 		if err != nil {
 			return err
 		}
-		defer cleanup()
-		if composed != "" {
-			profileArgs = []string{"--profile", composed}
-			selectedProfile = composed
+		if gitSSH != nil {
+			defer gitSSH.cleanup()
+			sshProtected, err := protectedLaunchPaths(gitSSH.ssh)
+			if err != nil {
+				return err
+			}
+			protected = append(protected, sshProtected...)
+			entries, err := executableEntries(gitSSH.source)
+			if err != nil {
+				return err
+			}
+			actual, err := canonicalConfigPath(gitSSH.source)
+			if err != nil {
+				return err
+			}
+			for _, path := range append(entries, actual) {
+				protected = append(protected, pathRule{path, pathRead, true})
+			}
 		}
-	} else if dropSocketMediation || len(runtimePaths) > 0 {
-		composed, cleanup, err := composeSessionPolicy(ctx, nono, profile, "", program, shown, nil, dropSocketMediation, runtimePaths)
+	}
+	if compositionUser != "" || dropSocketMediation || len(runtimePaths) > 0 || gitSSH != nil {
+		composed, cleanup, err := composeSessionPolicy(ctx, nono, profile, compositionUser, program, shown, userShown, dropSocketMediation, runtimePaths, gitSSH)
 		if err != nil {
 			return err
 		}

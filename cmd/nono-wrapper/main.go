@@ -68,6 +68,8 @@ Environment:
   NONO_WRAPPER_ROOT            absolute workspace root; allows start in it or below it
   NONO_WRAPPER_ALLOW_CONFIG=1  include configuration repositories without asking
   NONO_WRAPPER_SSH_AGENT=0     do not share the SSH agent socket
+  GIT_SSH_COMMAND, GIT_SSH      explicit Git SSH transport overrides
+  GIT_SSH_VARIANT              explicit Git SSH client variant
   HTTPS_PROXY, HTTP_PROXY      upstream proxy for the sandbox's network proxy
 
 Without NONO_WRAPPER_ROOT, agents start only below ~/development.
@@ -171,6 +173,7 @@ func command() *cli.Command {
 			agentCommand("codex", "Codex"),
 			configCommand(),
 			manCommand(),
+			sshProxyCommand(),
 			{
 				Name: "doctor", Usage: "Check the installed tools and offline profiles without an agent login",
 				Description: "Reports the nono version and resolved agent paths, and checks the project root and proxy setting. Resolves Mise shims without executing agents; an inactive shim fails the check. With no arguments, checks both agents; name one for a single-agent installation. A missing selected agent fails the check.\n\nRuns short probes under the installed offline profiles: the project and temporary directory must be writable; the home directory, configuration directory and network must be refused. Login, additional access rules and the full agent launch are not tested.\n\nExits 0 when every check passes and 1 when a check fails; see 'nono-wrapper --help' for the other statuses.\n\nExamples:\n  nono-wrapper doctor\n  nono-wrapper doctor codex",

@@ -49,7 +49,7 @@ func TestComposeHostOverridesPreservesPolicy(t *testing.T) {
 			if err := os.WriteFile(nono, []byte("#!/bin/sh\nprintf '%s\\n' \"$POLICY_RESULT\"\n"), 0o700); err != nil {
 				t.Fatal(err)
 			}
-			path, cleanup, err := composeSessionPolicy(context.Background(), nono, "opencode-chatgpt", "opencode-user", "", base, user, false, nil)
+			path, cleanup, err := composeSessionPolicy(context.Background(), nono, "opencode-chatgpt", "opencode-user", "", base, user, false, nil, nil)
 			if strings.Contains(mode, "conflicting") || strings.Contains(mode, "invalid") {
 				if err == nil {
 					cleanup()
@@ -99,9 +99,53 @@ func TestComposeHostOverridesPreservesPolicy(t *testing.T) {
 	}
 }
 
+func TestGitSSHCompositionAcceptsNullEnvironment(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	profiles := filepath.Join(home, "config/nono/profiles")
+	if err := os.MkdirAll(profiles, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	const original = `{"network":{"block":false},"environment":null}`
+	source := filepath.Join(profiles, "codex-chatgpt.jsonc")
+	if err := os.WriteFile(source, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	nono := filepath.Join(home, "nono")
+	if err := os.WriteFile(nono, []byte("#!/bin/sh\nprintf '{\"network\":{\"block\":false}}\\n'\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	session, cleanup, err := composeSessionPolicy(t.Context(), nono, "codex-chatgpt", "", "", []byte(original), nil, false, nil,
+		&gitSSHSession{driver: "generic-driver", files: []string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanup)
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(session), "bundled0.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var copied struct {
+		Environment struct {
+			Variables map[string]string `json:"set_vars"`
+		} `json:"environment"`
+	}
+	if err := json.Unmarshal(data, &copied); err != nil || copied.Environment.Variables["GIT_SSH"] != "generic-driver" {
+		t.Fatalf("SSH default was not composed with null environment: %s (%v)", data, err)
+	}
+	if data, err := os.ReadFile(source); err != nil || string(data) != original {
+		t.Fatalf("composition changed the persistent profile: %s (%v)", data, err)
+	}
+	cleanup()
+	if entries, err := os.ReadDir(profiles); err != nil || len(entries) != 1 {
+		t.Fatalf("composition left temporary policy files: %v (%v)", entries, err)
+	}
+}
+
 func TestHostOverridesLeaveExternalProfilesToNono(t *testing.T) {
 	path, cleanup, err := composeSessionPolicy(context.Background(), "missing-nono", "custom", "", "", nil, nil, false,
-		[]pathRule{{"/custom/runtime", pathRead | pathWrite, false}})
+		[]pathRule{{"/custom/runtime", pathRead | pathWrite, false}}, nil)
 	defer cleanup()
 	if err != nil || path != "" {
 		t.Fatalf("external profile was rewritten: path=%q err=%v", path, err)
@@ -121,7 +165,7 @@ func TestExternalProfileAndUserAreInspectedAsOneNativePolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	path, cleanup, err := composeSessionPolicy(context.Background(), nono, "external-profile", "opencode-user", "", nil, nil, false,
-		[]pathRule{{filepath.Join(root, "not-an-external-grant"), pathRead | pathWrite, false}})
+		[]pathRule{{filepath.Join(root, "not-an-external-grant"), pathRead | pathWrite, false}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +224,7 @@ func TestRuntimePathsRespectUserRestrictions(t *testing.T) {
 				t.Fatal(err)
 			}
 			path, cleanup, err := composeSessionPolicy(context.Background(), nono, "opencode-offline", user, "", []byte(source), userJSON, false,
-				[]pathRule{{runtime, pathRead | pathWrite, false}})
+				[]pathRule{{runtime, pathRead | pathWrite, false}}, nil)
 			defer cleanup()
 			if mode == "read-only parent" {
 				if err == nil || !strings.Contains(err.Error(), "cannot enforce") {
@@ -243,7 +287,7 @@ func TestComposeDropsSocketMediation(t *testing.T) {
 			if err := os.WriteFile(nono, []byte("#!/bin/sh\nprintf '%s\\n' \"$POLICY_RESULT\"\n"), 0o700); err != nil {
 				t.Fatal(err)
 			}
-			path, cleanup, err := composeSessionPolicy(context.Background(), nono, "opencode-offline", "", "", nil, nil, true, nil)
+			path, cleanup, err := composeSessionPolicy(context.Background(), nono, "opencode-offline", "", "", nil, nil, true, nil, nil)
 			if mode != "bundled setting" {
 				if err == nil {
 					cleanup()

@@ -7,7 +7,7 @@ SPDX-License-Identifier: CC0-1.0
 # Policy and security boundary
 
 This repository extends nono's official OpenCode and Codex packs with
-ChatGPT host allowlists and a shared policy layer:
+ChatGPT login rules, shared developer network defaults and a policy layer:
 
 ```text
 nolabs-ai/opencode-v1 ── opencode-base ── chatgpt / offline
@@ -15,13 +15,16 @@ nolabs-ai/opencode-v1 ── opencode-base ── chatgpt / offline
                         agent-policy
                               ↓
 nolabs-ai/codex ──────── codex-base ───── chatgpt / offline
+
+developer-network ───────────────────── chatgpt only (both agents)
 ```
 
 ## What changes from the official packs
 
 | Area | Our extension |
 | --- | --- |
-| Network | ChatGPT host lists by default; explicit offline profiles |
+| Network | ChatGPT login plus developer hosts from `developer-network.jsonc`; explicit offline profiles |
+| Git SSH | online sessions can use the domain-filtered CONNECT proxy, existing SSH agent and a read-only public host-key snapshot |
 | Browser login | TCP callback listeners on 1455, plus Codex's fallback 1457 |
 | Agent environment | nono's `environment.allow_vars` keeps the core, editor and toolchain-location variables and excludes unrelated credentials |
 | Linux pathname Unix sockets | mediation enabled; sockets require explicit grants, and the wrapper grants the SSH agent's. Not on WSL2: see [WSL2](#wsl2) |
@@ -123,6 +126,8 @@ writable: an alias could live anywhere under that grant. Use a single-link
 copy of the protected file; the wrapper does not scan workspaces or caches
 for aliases.
 These checks apply even when no user path override or runtime layer is needed.
+Automatic Git SSH also protects its resolved SSH executable and source host
+keys from writable grants; it does not grant private-key file access.
 
 The pinned official packs supply no provider host allowlists or environment
 allowlists, so those lists currently come from these extensions. Review both

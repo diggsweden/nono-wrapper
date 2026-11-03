@@ -30,10 +30,10 @@ The profile details below explain advanced use.
 
 | Profile | Allowed network hosts | Additional inherited variables |
 | --- | --- | --- |
-| `opencode-chatgpt` (default) | ChatGPT/authentication, model catalogue and developer defaults | none |
+| `opencode-chatgpt` (default) | ChatGPT/authentication, model catalogue and developer defaults | Git SSH overrides |
 | `opencode-offline` | none | none |
 | `codex-offline` | none | `CODEX_HOME` |
-| `codex-chatgpt` (default) | ChatGPT/authentication and developer defaults | `CODEX_HOME` |
+| `codex-chatgpt` (default) | ChatGPT/authentication and developer defaults | `CODEX_HOME`, Git SSH overrides |
 
 Select a ChatGPT or offline profile. `agent-policy`, `developer-network` and
 the `*-base` profiles are composition building blocks, not complete agent
@@ -86,9 +86,10 @@ installed copies in `~/.config/nono/profiles/`
 
 The host lists constrain connections from the sandbox. Upstream host
 integrations, such as delegated URL opening, retain their own upstream
-policies. Package registries, Git hosts and remote MCP destinations are not
-added to the network list automatically. Git over SSH does not work through
-the HTTP proxy; use HTTPS with an appropriate host grant.
+policies. Language-package registries and remote MCP destinations are not
+added automatically. Add other forges using `config AGENT allow-domain HOST`.
+Whole-host proxy grants can carry HTTPS and SSH through CONNECT; they are not
+HTTPS-only or repository-specific. See [Git over SSH](#git-over-ssh).
 
 ## User configuration
 
@@ -508,6 +509,45 @@ policy: grant relocated paths there explicitly. Forwarding a location variable
 alone is not a general filesystem grant. Likewise, an agent's `--cd` or
 `--add-dir` argument cannot expand nono's grants.
 
+## Git over SSH
+
+Bundled online profiles automatically route Git SSH through nono's
+authenticated CONNECT proxy when `ssh`, an enabled `SSH_AUTH_SOCK`, and valid
+entries in `~/.ssh/known_hosts` are available. Verify new servers outside the
+sandbox first, using your normal SSH workflow. No PAT or private-key file
+grant is needed when your SSH agent already authenticates to the forge.
+
+```sh
+# Other forges are added with the same host allowance as HTTPS.
+nono-wrapper config codex allow-domain git.example.com
+# Inside the agent session, use a normal Git remote.
+git clone git@git.example.com:team/project.git
+# Use the provider's SSH endpoint on port 443 when it offers one.
+git clone ssh://git@ssh.github.com:443/example/project.git
+```
+
+The wrapper creates a private, read-only snapshot of parsed public host keys;
+it copies neither private keys nor host-key comments or personal SSH config.
+The snapshot and generated policy are removed after the session. The SSH
+binary and source host-key file must be outside writable grants.
+
+The generated driver uses agent authentication and strict host-key checking.
+It is provided as Git's `GIT_SSH` fallback, so an existing `core.sshCommand`
+still wins according to Git's normal precedence.
+Explicit `GIT_SSH_COMMAND` or `GIT_SSH` values in the caller environment or
+the user profile take precedence; `GIT_SSH_VARIANT` is also passed through.
+Use an explicit command for host aliases, jump hosts or personal SSH config,
+and grant any public configuration files it needs. No global Git/SSH files
+are rewritten. External/offline profiles receive no automatic transport.
+
+`ssh-proxy HOST PORT` is the transport helper, not a separate permission:
+it only connects to the authenticated loopback proxy of an active nono
+session. It does not open port 22, bypass host rules or limit remote
+repository permissions. User deny rules remain effective. A host with HTTPS
+endpoint restrictions is not silently broadened for SSH; use a separate SSH
+host if the service provides one, or deliberately change the host allowance.
+Enterprise proxies can independently refuse SSH tunnels, including on 443.
+
 ## Signing commits through an SSH agent
 
 When `SSH_AUTH_SOCK` names a socket, the wrapper grants that one socket so
@@ -538,6 +578,6 @@ turn the grant off:
 env NONO_WRAPPER_SSH_AGENT=0 nono-wrapper codex
 ```
 
-This does not enable pushing over SSH, which needs a direct connection the
-sandbox refuses. Running `nono` directly, as `nono-wrapper doctor` does, adds
-no such grant.
+Signing itself needs no network. Git transport additionally uses the online
+proxy setup described above. Running `nono` directly, as `nono-wrapper doctor`
+does, adds no wrapper-provided SSH-agent grant or Git transport.

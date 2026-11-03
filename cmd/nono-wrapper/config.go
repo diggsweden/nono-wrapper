@@ -82,6 +82,8 @@ func configEditCommand(agent, resource string, add bool) *cli.Command {
 A quoted '*.example.com' allows subdomains at any depth, not example.com itself.
 Numeric addresses, single-label names and explicit ports are rejected;
 domain ports cannot be restricted.
+Whole-host grants can also carry SSH through the proxy. Put SSH URLs in Git
+remotes; add their hostname here.
 
 An HTTPS URL with an exact hostname and a non-root path adds an endpoint rule:
 * matches one path segment, ** any number. --method limits its HTTP method.

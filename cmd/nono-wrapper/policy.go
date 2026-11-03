@@ -83,7 +83,7 @@ func profileHostRules(data []byte) (map[string]hostRule, error) {
 // settings. These private copies preserve the complete original JSONC instead.
 // The same session adds configured runtime paths and drops unavailable socket
 // mediation. Exact user overrides take precedence over runtime defaults.
-func composeSessionPolicy(ctx context.Context, nono, base, user, program string, baseJSON, userJSON []byte, dropSocketMediation bool, runtimePaths []pathRule) (string, func(), error) {
+func composeSessionPolicy(ctx context.Context, nono, base, user, program string, baseJSON, userJSON []byte, dropSocketMediation bool, runtimePaths []pathRule, gitSSH *gitSSHSession) (string, func(), error) {
 	noop := func() {}
 	managed := bundledProfile(base)
 	if !managed && user == "" {
@@ -130,7 +130,7 @@ func composeSessionPolicy(ctx context.Context, nono, base, user, program string,
 			runtimeAllow = append(runtimeAllow, path)
 		}
 	}
-	if user == "" && len(overrides) == 0 && len(paths) == 0 && !dropSocketMediation && len(runtimeAllow) == 0 {
+	if user == "" && len(overrides) == 0 && len(paths) == 0 && !dropSocketMediation && len(runtimeAllow) == 0 && gitSSH == nil {
 		return "", noop, nil
 	}
 	// Both agents share this protected profile directory, including sessions
@@ -193,6 +193,33 @@ func composeSessionPolicy(ctx context.Context, nono, base, user, program string,
 		if err := stripBundledRules(raw, overrides, paths, dropSocketMediation); err != nil {
 			return "", err
 		}
+		if name == base && gitSSH != nil {
+			// Put the default in the base copy, before the user's extending
+			// profile, so explicit profile set_vars retain native precedence.
+			environment := map[string]json.RawMessage{}
+			if data := raw["environment"]; len(data) > 0 {
+				if err := json.Unmarshal(data, &environment); err != nil {
+					return "", err
+				}
+			}
+			if environment == nil {
+				environment = map[string]json.RawMessage{}
+			}
+			variables := map[string]string{}
+			if data := environment["set_vars"]; len(data) > 0 {
+				if err := json.Unmarshal(data, &variables); err != nil {
+					return "", err
+				}
+			}
+			_, explicitCommand := variables["GIT_SSH_COMMAND"]
+			_, explicitProgram := variables["GIT_SSH"]
+			if !explicitCommand && !explicitProgram {
+				// GIT_SSH is a fallback: Git's core.sshCommand still wins.
+				variables["GIT_SSH"] = gitSSH.driver
+			}
+			environment["set_vars"], _ = json.Marshal(variables)
+			raw["environment"], _ = json.Marshal(environment)
+		}
 		alias := fmt.Sprintf("bundled%d", len(copied))
 		copied[source] = alias
 		var parents []string
@@ -229,7 +256,7 @@ func composeSessionPolicy(ctx context.Context, nono, base, user, program string,
 		return alias, nil
 	}
 	parent := base
-	if managed && (len(overrides) > 0 || len(paths) > 0 || dropSocketMediation || len(runtimeAllow) > 0) {
+	if managed && (len(overrides) > 0 || len(paths) > 0 || dropSocketMediation || len(runtimeAllow) > 0 || gitSSH != nil) {
 		parent, err = copyProfile(base, "", 0)
 		if err != nil {
 			return "", noop, err
@@ -240,8 +267,15 @@ func composeSessionPolicy(ctx context.Context, nono, base, user, program string,
 		parents = append(parents, user)
 	}
 	session := map[string]any{"extends": parents}
+	filesystem := map[string]any{}
 	if len(runtimeAllow) > 0 {
-		session["filesystem"] = map[string]any{"allow": runtimeAllow}
+		filesystem["allow"] = runtimeAllow
+	}
+	if managed && gitSSH != nil {
+		filesystem["read_file"] = gitSSH.files
+	}
+	if len(filesystem) > 0 {
+		session["filesystem"] = filesystem
 	}
 	data, _ := json.Marshal(session)
 	// An unpredictable carrier name cannot shadow a normally named parent.
