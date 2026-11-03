@@ -88,7 +88,7 @@ func TestLauncherDropsSocketMediationOnWSL2(t *testing.T) {
 				t.Fatalf("launch failed: status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
 			}
 			profile := strings.TrimSpace(string(stdout))
-			noted := strings.HasPrefix(stderr, "nono-wrapper: WSL2 cannot run the seccomp listener")
+			noted := strings.HasPrefix(stderr, "nono-wrapper: WSL2: Unix-socket filtering is disabled for compatibility")
 			if test.wsl2 && (!noted || !strings.HasPrefix(profile, profiles+string(filepath.Separator))) {
 				t.Fatalf("socket mediation was kept on WSL2: profile=%q, stderr=%q", profile, stderr)
 			}
@@ -107,7 +107,7 @@ func TestDoctorNotesMissingSocketMediationOnWSL2(t *testing.T) {
 	profiles := useWSL2Fixture(t, f)
 	stdout, stderr, status := runLauncher(t, f, "doctor", []string{"opencode"}, []string{"WSL_DISTRO_NAME=fixture", "WSL2_FIXTURE=1"})
 	if status != 0 || stderr != "" || strings.Count(probeOutput(stdout), "  ok    ") != 5 ||
-		strings.Count(string(stdout), "  note  WSL2 cannot run the seccomp listener") != 1 {
+		strings.Count(string(stdout), "  note  WSL2: Unix-socket filtering is disabled for compatibility") != 1 {
 		t.Fatalf("status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
 	}
 	if entries, err := os.ReadDir(profiles); err != nil || len(entries) != 3 {

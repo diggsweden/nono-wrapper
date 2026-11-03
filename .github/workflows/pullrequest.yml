@@ -27,7 +27,7 @@ jobs:
       project-type: go
       forge-ci-binary-ref: v0.91.13
       runtime-image: ghcr.io/diggsweden/forge-ci-runtime-base:v0.91.13
-      # Temporary: re-enable nanolinter after its next Codefloe release.
+      # Temporary: re-enable nanolinter after its next release.
       lint-engine: none
 
   test:

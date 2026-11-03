@@ -6,11 +6,16 @@ nono-wrapper - run OpenCode and Codex with nono's sandbox profiles
 
 ## SYNOPSIS
 
-**nono-wrapper** **opencode**|**codex** [*agent-argument*...]  
-**nono-wrapper** **config** **opencode**|**codex** *subcommand* [*argument*]  
-**nono-wrapper** **doctor** [**opencode**|**codex**...]  
-**nono-wrapper** **changes** *MARKER* [*DIRECTORY*]  
-**nono-wrapper** **man**  
+**nono-wrapper** **opencode**|**codex** [*agent-argument*...]
+
+**nono-wrapper** **config** **opencode**|**codex** *subcommand* [*argument*]
+
+**nono-wrapper** **doctor** [**opencode**|**codex**...]
+
+**nono-wrapper** **changes** *MARKER* [*DIRECTORY*]
+
+**nono-wrapper** **man**
+
 **nono-wrapper** **--help**|**--version**
 
 ## DESCRIPTION
@@ -48,10 +53,11 @@ Custom **NONO_PROFILE** policies must inherit **agent-policy** or provide
 equivalent restrictions. Reinstall profiles and restart sessions to apply
 policy updates.
 
-On WSL2 nono cannot mediate Unix sockets, so the wrapper starts the bundled
-profiles without **linux.af_unix_mediation** and says so on standard error:
-the agent can then connect to any Unix socket the user can. The minimum
-supported releases are WSL 2.7.7 and Ubuntu 26.04; neither is checked.
+On WSL2, the wrapper disables Unix-socket filtering for compatibility with
+<https://github.com/microsoft/WSL/issues/9548>. The agent may access local
+services available to your user. The wrapper prints a note on standard error.
+The minimum supported releases are WSL 2.7.7 and Ubuntu 26.04; neither is
+checked.
 
 ## COMMANDS
 
@@ -95,11 +101,13 @@ supported releases are WSL 2.7.7 and Ubuntu 26.04; neither is checked.
     server to 127.0.0.1 does not restrict the agent's outbound destinations.
     Accepts one decimal port from 1 to 65535, not ranges or UDP.
 
-**config** **opencode**|**codex** **add-dir** [**--read-write**] *PATH*, **remove-dir** *PATH*
+**config** **opencode**|**codex** **add-dir** [**--read-write**] *PATH*,
+**remove-dir** *PATH*
 :   Allow a directory, read-only unless **--read-write**, or remove the user
     allowance for it. The path must exist and is stored as an absolute path.
 
-**config** **opencode**|**codex** **add-file** [**--read-write**] *PATH*, **remove-file** *PATH*
+**config** **opencode**|**codex** **add-file** [**--read-write**] *PATH*,
+**remove-file** *PATH*
 :   The same for a single file. **add-file** resolves symlinks, shows the source
     and target when they differ, and saves the target path. Repointing the
     original link does not move this grant. **show** lists the saved target;
@@ -265,7 +273,8 @@ Allow a remote MCP HTTPS endpoint (use the server's actual path):
 
 Check what changed during a session:
 
-    marker=$(mktemp); nono-wrapper codex; nono-wrapper changes "$marker" .; rm -f "$marker"
+    marker=$(mktemp); nono-wrapper codex;
+    nono-wrapper changes "$marker" .; rm -f "$marker"
 
 ## SEE ALSO
 

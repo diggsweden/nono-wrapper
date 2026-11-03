@@ -130,8 +130,8 @@ launchers can need additional runtime grants.
 ## Platform notes
 
 The full container suite targets Linux x86_64. macOS and WSL2 are best
-effort; the notes below record what has and has not been tried. BSD is not
-supported yet: nono-wrapper builds only for Linux and macOS, and a build for
+effort; the notes below record what has and has not been tried. BSD is out of
+scope: nono-wrapper builds only for Linux and macOS, and a build for
 another target stops with "nono-wrapper supports only Linux and macOS".
 
 ### macOS (best effort)
@@ -159,7 +159,8 @@ is being selected; use the pinned native toolchain through mise.
 
 ### WSL2 (best effort)
 
-WSL2 starts with reduced protection: there is no Unix-socket mediation. The
-details, and the advice to keep projects on the Linux filesystem, are in
-[WSL2](policy.md#wsl2). The minimum release is WSL 2.7.7 (`wsl --update` in
-Windows).
+The wrapper disables Unix-socket filtering for compatibility with a known
+[WSL2 issue](https://github.com/microsoft/WSL/issues/9548). The agent may access
+local services available to your user. See [WSL2](policy.md#wsl2) for details
+and test coverage. Keep projects on the Linux filesystem rather than `/mnt/c`.
+The minimum release is WSL 2.7.7 (`wsl --update` in Windows).

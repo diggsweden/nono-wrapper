@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const socketMediationNotice = "WSL2 cannot run the seccomp listener that Unix-socket mediation needs (microsoft/WSL#9548), so the sandbox starts without it: the agent can connect to any Unix socket your user can, such as Docker's. Use native Linux or a virtual machine for the full policy."
+const socketMediationNotice = "WSL2: Unix-socket filtering is disabled for compatibility (https://github.com/microsoft/WSL/issues/9548). Local services using Unix sockets may be accessible with your user's permissions."
 
 // nono refuses linux.af_unix_mediation = "pathname" on WSL2 instead of
 // starting without it, so the wrapper drops the setting from its own profiles

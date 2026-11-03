@@ -169,24 +169,19 @@ explicit local setting; upstream socket grants are still inherited.
 
 ### WSL2
 
-WSL2 is best effort and starts with reduced protection.
+To work around a known [WSL2 seccomp-listener issue](https://github.com/microsoft/WSL/issues/9548),
+nono-wrapper disables Unix-socket filtering (`linux.af_unix_mediation`) for
+bundled profiles when nono reports WSL2. The agent may then connect to local
+services available to your user, such as Docker. The wrapper prints a short
+note at launch and in `doctor`; installed profiles are not modified.
 
-- WSL2 has no Unix-socket mediation. nono needs a seccomp listener for it,
-  which WSL2 refuses ([microsoft/WSL#9548](https://github.com/microsoft/WSL/issues/9548)),
-  and nono then declines to start. When nono reports WSL2, the wrapper
-  starts the bundled profiles without `linux.af_unix_mediation` and says so
-  on every launch and in `nono-wrapper doctor`: the agent can then connect to
-  any Unix socket your user can, such as Docker's. The installed profile
-  files are not changed, so running `nono` directly with them still fails on
-  WSL2.
 - The minimum supported release is WSL 2.7.7 (`wsl --update` in Windows).
   The wrapper does not check it.
 - Keep projects on the Linux filesystem. nono reports Landlock as unreliable
   on Windows mounts such as `/mnt/c`.
-- WSL2 support is not validated: no test here runs on WSL2. The behaviour
-  above follows nono 0.79.0's own checks, which the 0.80.0 release notes do
-  not change, and
-  [WSL2 notes](https://nono.sh/docs/cli/internals/wsl2).
+- WSL2-specific wrapper behavior is covered by simulated tests; this project
+  does not run integration tests on WSL2. See nono's
+  [WSL2 notes](https://nono.sh/docs/cli/internals/wsl2) for upstream details.
 
 ### What has been validated
 
@@ -202,7 +197,6 @@ restart running agent sessions. Existing sessions keep their original policy.
 
 ## Background
 
-The policy choices originated in
-[occwrap](https://codefloe.com/itiquette/occwrap). This repository now
+The policy choices originated in an earlier wrapper project. This repository
 extends the official nono agent packs rather than maintaining replacement
 filesystem profiles.

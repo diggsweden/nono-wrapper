@@ -411,9 +411,12 @@ limited to 1 MiB, and local tests exercise these outcomes using fake curl.
 
 ### Results and limits
 
-With the pinned versions in [Install](install.md#pinned-versions), Ubuntu
-26.04 and openSUSE Leap 16 passed the full network-enabled suite, including
-real Codex tool execution and every ChatGPT hostname check.
+Earlier container validation with the versions in
+[Install](install.md#sandbox-and-test-versions) passed on Ubuntu 26.04 and
+openSUSE Leap 16, including real Codex tool execution and the original
+ChatGPT hostname checks. The shared developer defaults and Git SSH have
+focused tests described above; the full container/network matrix has not
+been rerun for these changes.
 
 Interactive TUIs and approval prompts, completed OAuth/token exchange and
 authenticated model sessions need separate validation on both platforms.

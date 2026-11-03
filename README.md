@@ -17,8 +17,9 @@ developer network defaults and a report of each session.
 - Add hosts, directories and files per agent with `nono-wrapper config`. The
   running agent cannot change its own rules.
 
-Linux is the primary platform. macOS and WSL are best effort. BSD is not
-currently supported.
+Linux is the primary platform. See the [platform notes](docs/install.md#platform-notes)
+for macOS and WSL2. BSD is out of scope: the wrapper builds only for Linux
+and macOS.
 
 ## Quick Start
 
