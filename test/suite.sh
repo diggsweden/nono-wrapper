@@ -507,7 +507,7 @@ opencode-chatgpt FAILS GET https://chatgpt.com/
 opencode-chatgpt FAILS GET https://chatgpt.com/backend-api/codex/responses
 opencode-chatgpt FAILS POST https://chatgpt.com/backend-api/files
 opencode-chatgpt FAILS GET https://auth.openai.com/oauth/authorize
-opencode-chatgpt FAILS GET https://models.opencode.ai/api.json
+opencode-chatgpt WORKS GET https://models.opencode.ai/api.json
 codex-chatgpt WORKS GET https://chatgpt.com/
 codex-chatgpt WORKS POST https://chatgpt.com/backend-api/codex/responses
 codex-chatgpt WORKS POST https://auth.openai.com/oauth/token

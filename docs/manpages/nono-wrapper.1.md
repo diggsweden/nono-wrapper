@@ -76,6 +76,8 @@ supported releases are WSL 2.7.7 and Ubuntu 26.04; neither is checked.
     endpoint rules. Removing a URL matches its method and path; removing the
     last endpoint removes the user domain. Other wildcard and inherited
     allowances may still permit access.
+    MCP calls may share an endpoint such as /mcp; URL rules do not restrict
+    tools or projects named in request bodies. Use server-side permissions.
 
 **config** **opencode**|**codex** **allow-tcp-port**|**remove-tcp-port** *PORT*
 :   Let the agent and its programs connect to and listen on one TCP port.
@@ -238,6 +240,10 @@ Start OpenCode in the current project:
 Allow one more host for Codex:
 
     nono-wrapper config codex allow-domain api.github.com
+
+Allow a remote MCP HTTPS endpoint (use the server's actual path):
+
+    nono-wrapper config codex allow-domain 'https://mcp.example.com/mcp'
 
 Check what changed during a session:
 

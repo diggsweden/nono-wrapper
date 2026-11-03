@@ -23,6 +23,7 @@ test/              CLI/installation tests, container probes and version pins
 | `go.mod`, `go.sum` | pinned Go dependency versions and checksums |
 | `test/packs` | official pack pins shared by user installation and test images |
 | `profiles/agent-policy.jsonc` | shared environment/socket overrides and certificate compatibility |
+| `profiles/developer-network.jsonc` | shared online forge, reference and vulnerability-data hosts |
 | `profiles/opencode-base.jsonc` | composes the official OpenCode pack with the shared policy |
 | `profiles/codex-base.jsonc` | composes the official Codex pack with the shared policy |
 | `profiles/*-chatgpt.jsonc`, `profiles/*-offline.jsonc` | make the network choice |
@@ -81,7 +82,7 @@ just verify-reproducible
 ```
 
 This runs those build/generation recipes in two temporary clones with separate
-Go build caches. It compares the native binary, manual and all seven shipped
+Go build caches. It compares the native binary, manual and all eight shipped
 profile files. Missing, empty, extra profiles or different bytes fail. Go module
 downloads are disabled; the command neither installs packs/profiles nor launches
 nono, OpenCode or Codex. The caller's `.cache/` is untouched. Failures retain the

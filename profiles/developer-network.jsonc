@@ -1,0 +1,32 @@
+// SPDX-FileCopyrightText: The nono-wrapper Authors
+// SPDX-License-Identifier: CC0-1.0
+
+// Shared online defaults. Authentication remains the agent/user's choice.
+// Prefer concrete hosts so exact user endpoint rules can replace defaults.
+{
+  "meta": {
+    "name": "developer-network",
+    "version": "0.1.0",
+    "description": "Developer forges, reference sites and vulnerability-data services"
+  },
+  "environment": { "allow_vars": ["GIT_SSH_COMMAND", "GIT_SSH", "GIT_SSH_VARIANT"] },
+  "network": {
+    "allow_domain": [
+      // OpenAI API and file/image delivery. Login rules stay agent-specific.
+      "api.openai.com", "*.oaiusercontent.com",
+      // GitHub Git, API, archives, releases and SSH on port 443.
+      "github.com", "api.github.com", "raw.githubusercontent.com",
+      "codeload.github.com", "objects.githubusercontent.com",
+      "release-assets.githubusercontent.com", "ssh.github.com",
+      // Other forges; no language-package registries are enabled here.
+      "gitlab.com", "altssh.gitlab.com", "codefloe.com", "codeberg.org",
+      // Reference sources, including the common English/Swedish wiki sites.
+      "wikipedia.org", "www.wikipedia.org", "en.wikipedia.org", "sv.wikipedia.org",
+      "stackoverflow.com", "api.stackexchange.com",
+      // OSV, Go vulnerability data, Grype and Trivy database distribution.
+      "api.osv.dev", "vuln.go.dev", "grype.anchore.io",
+      "ghcr.io", "pkg-containers.githubusercontent.com",
+      "mirror.gcr.io", "storage.googleapis.com"
+    ]
+  }
+}

@@ -17,7 +17,7 @@ import (
 // inheritance remains nono's responsibility, including hook provenance.
 func bundledProfile(name string) bool {
 	switch name {
-	case "agent-policy", "opencode-base", "opencode-chatgpt", "opencode-offline",
+	case "agent-policy", "developer-network", "opencode-base", "opencode-chatgpt", "opencode-offline",
 		"codex-base", "codex-chatgpt", "codex-offline":
 		return true
 	}

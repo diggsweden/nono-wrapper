@@ -17,7 +17,7 @@ func TestReproducibleFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	files := []string{".cache/bin/nono-wrapper", ".cache/man/nono-wrapper.1"}
-	for _, profile := range []string{"agent-policy", "codex-base", "codex-chatgpt", "codex-offline", "opencode-base", "opencode-chatgpt", "opencode-offline"} {
+	for _, profile := range []string{"agent-policy", "developer-network", "codex-base", "codex-chatgpt", "codex-offline", "opencode-base", "opencode-chatgpt", "opencode-offline"} {
 		files = append(files, "profiles/"+profile+".jsonc")
 	}
 	for _, scenario := range []string{"equal", "binary-diff", "profile-diff", "missing-both", "empty-manpage", "extra-profile"} {

@@ -22,23 +22,33 @@ Directories are read-only unless you pass `--read-write`. A bare host grants
 every path and port on that host. `show` lists your additions, not the entire
 effective policy; removing an addition restores any inherited grant.
 See [Manage allowances](#manage-allowances-from-the-cli) for URL rules,
-files, ports and write access. The profile details below explain advanced use.
+files, ports and write access. For concrete examples, see
+[HTTPS paths and MCP endpoints](#https-paths-and-mcp-endpoints).
+The profile details below explain advanced use.
 
 ## Network profiles
 
 | Profile | Allowed network hosts | Additional inherited variables |
 | --- | --- | --- |
-| `opencode-chatgpt` (default) | `chatgpt.com`, `auth.openai.com` | none |
+| `opencode-chatgpt` (default) | ChatGPT/authentication, model catalogue and developer defaults | none |
 | `opencode-offline` | none | none |
 | `codex-offline` | none | `CODEX_HOME` |
-| `codex-chatgpt` (default) | `chatgpt.com`, `auth.openai.com` | `CODEX_HOME` |
+| `codex-chatgpt` (default) | ChatGPT/authentication and developer defaults | `CODEX_HOME` |
 
-Select a ChatGPT or offline profile, not `agent-policy` or either `*-base`
-composition profile: those do not restrict the network on their own.
+Select a ChatGPT or offline profile. `agent-policy`, `developer-network` and
+the `*-base` profiles are composition building blocks, not complete agent
+policies.
 
-The allowlists are in `profiles/opencode-chatgpt.jsonc` and
-`profiles/codex-chatgpt.jsonc`. Most entries carry endpoint rules, so nono
-intercepts TLS for that host and refuses any other HTTPS method or path:
+The online profiles also inherit `profiles/developer-network.jsonc`, the
+single source of shared defaults: GitHub, GitLab, Codefloe, Codeberg,
+English/Swedish Wikipedia, Stack Overflow, OpenAI API/file delivery and
+vulnerability-data services. The file lists exact hosts and explains their
+purpose. It grants no raw TCP ports, credentials, container sockets or
+scanner installation/cache permissions. Offline profiles do not inherit it.
+
+Agent-specific login rules remain in `profiles/opencode-chatgpt.jsonc` and
+`profiles/codex-chatgpt.jsonc`. Their endpoint rules make nono intercept TLS
+and refuse other HTTPS methods or paths:
 
 | Host | Allowed HTTPS requests |
 | --- | --- |
@@ -59,10 +69,8 @@ rules. The paths come from the pinned agent executables; review them when
 upgrading either CLI. An agent request that nono refuses receives a 403 with
 the body `{"error":"Forbidden"}`.
 
-The pinned OpenCode fetches its model catalogue from `models.opencode.ai`,
-which is not listed, so it uses the catalogue bundled with the executable. To
-refresh it, extend the profile's `network.allow_domain` with this entry; a
-slow reply from that host can delay OpenCode's startup:
+OpenCode may refresh its model catalogue using the bundled GET rule below.
+A slow reply can delay startup; the executable also contains a catalogue:
 
 ```jsonc
 {
@@ -105,7 +113,7 @@ existing directories and files:
 ```sh
 nono-wrapper config opencode allow-domain api.github.com
 nono-wrapper config opencode allow-domain '*.example.com'
-nono-wrapper config opencode allow-domain --method GET 'https://gitlab.example/api/v4/projects/123/**'
+nono-wrapper config opencode allow-domain --method GET 'https://gitlab.example.com/api/v4/projects/123/**'
 nono-wrapper config opencode allow-tcp-port 8081
 nono-wrapper config opencode add-dir /path/to/reference
 nono-wrapper config opencode add-dir --read-write /path/to/shared-project
@@ -205,9 +213,9 @@ only user allowances, not effective inherited policy.
 
 URL rules restrict HTTPS methods and paths, not ports. Plain HTTP to a listed
 host is not path-filtered; nono 0.80.0 has no HTTPS-only setting. They check
-neither query strings nor request bodies. **They cannot
-limit an MCP server to one project:** an MCP server receives every call on the
-same path. Use a token that can read only that project instead. Codex streams
+neither query strings nor request bodies. **A shared MCP endpoint does not
+separate tool or project permissions:** those calls use the same path. Use
+server-side permissions or a token scoped to the intended project. Codex streams
 over WebSockets, which nono refuses on hosts with URL rules, so keep
 `chatgpt.com` as a whole host.
 
@@ -223,7 +231,7 @@ Remove allowances with:
 
 ```sh
 nono-wrapper config opencode remove-domain api.github.com
-nono-wrapper config opencode remove-domain --method GET 'https://gitlab.example/api/v4/projects/123/**'
+nono-wrapper config opencode remove-domain --method GET 'https://gitlab.example.com/api/v4/projects/123/**'
 nono-wrapper config opencode remove-tcp-port 8081
 nono-wrapper config opencode remove-dir /path/to/reference
 nono-wrapper config opencode remove-file /path/to/settings.toml
@@ -239,6 +247,47 @@ bundled profile grants.
 
 Edits preserve JSONC comments and unrelated settings, validate with nono, and
 replace the file atomically. Repeating an existing allowance is a no-op.
+
+### HTTPS paths and MCP endpoints
+
+Use the published URL of the service you want to reach. For example:
+
+```sh
+# Allow GET requests to one API URL and paths below it.
+nono-wrapper config codex allow-domain --method GET 'https://api.example.com/projects/project-a'
+nono-wrapper config codex allow-domain --method GET 'https://api.example.com/projects/project-a/**'
+
+# Allow a remote MCP endpoint, rather than every HTTPS path on its host.
+nono-wrapper config codex allow-domain 'https://mcp.example.com/mcp'
+nono-wrapper config codex show
+```
+
+The exact API URL and the `/**` pattern are separate rules.
+Replace `codex` with `opencode` for OpenCode. Run configuration edits outside
+the sandbox and restart the agent. If you already added whole-domain access,
+remove that user allowance before adding an endpoint rule. Other wildcard
+or inherited grants may still allow more; see the
+[network allowance matrix](#network-allowance-matrix).
+
+The MCP example allows any HTTP method on the exact HTTPS path `/mcp`.
+Streamable HTTP uses POST and GET and can use DELETE to end a session, so a
+GET-only or POST-only rule may break the client. It does not limit the MCP
+tools, searches or projects requested in JSON-RPC bodies. Configure those
+permissions on the server or in its credentials. See the
+[MCP HTTP transport specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#streamable-http).
+If the service publishes project-specific MCP endpoint URLs, allow the
+relevant URL; the server still controls which operations it exposes.
+
+Configure the MCP server itself in Codex or OpenCode; this command only adds
+network access. OAuth login may also need discovery/token endpoints or
+another host: allow those separately as needed. A local stdio MCP server
+does not need an HTTP endpoint grant just to start; its child processes
+remain subject to the sandbox's filesystem and network rules.
+
+Arguments after `nono-wrapper codex` or `opencode` go to the agent; native
+nono's `--allow-domain` belongs to `nono run`. Use the wrapper's `config`
+commands for persistent allowances. The HTTPS rules do not path-filter plain
+HTTP traffic.
 
 ### User precedence and rule protection
 

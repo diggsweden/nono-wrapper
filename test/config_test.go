@@ -548,49 +548,49 @@ func TestConfigEndpointsAndPorts(t *testing.T) {
 		}
 	}
 
-	if output := run("allow-domain", "https://GitLab.example/"); !strings.Contains(output, "Allowed gitlab.example: all paths and ports.") {
+	if output := run("allow-domain", "https://GitLab.example.com/"); !strings.Contains(output, "Allowed gitlab.example.com: all paths and ports.") {
 		t.Fatalf("root URL must describe whole-domain access: %s", output)
 	}
-	want("root URL allows whole domain", `{"allow_domain":["gitlab.example"]}`)
-	run("remove-domain", "gitlab.example")
-	output := run("allow-domain", "--method", "get", "https://GitLab.example/api/v4/projects/123/**")
-	if !strings.Contains(output, "GET requests to gitlab.example matching /api/v4/projects/123/**") ||
+	want("root URL allows whole domain", `{"allow_domain":["gitlab.example.com"]}`)
+	run("remove-domain", "gitlab.example.com")
+	output := run("allow-domain", "--method", "get", "https://GitLab.example.com/api/v4/projects/123/**")
+	if !strings.Contains(output, "GET requests to gitlab.example.com matching /api/v4/projects/123/**") ||
 		!strings.Contains(output, "plain HTTP is not path-filtered") || !strings.Contains(output, "request bodies are not checked") {
 		t.Fatalf("endpoint description: %s", output)
 	}
 	want("endpoint added after explicit removal",
-		`{"allow_domain":[{"domain":"gitlab.example","endpoints":[{"method":"GET","path":"/api/v4/projects/123/**"}]}]}`)
-	if output := run("allow-domain", "--method", "GET", "https://gitlab.example/api/v4/projects/123/**"); !strings.Contains(output, "No change") {
+		`{"allow_domain":[{"domain":"gitlab.example.com","endpoints":[{"method":"GET","path":"/api/v4/projects/123/**"}]}]}`)
+	if output := run("allow-domain", "--method", "GET", "https://gitlab.example.com/api/v4/projects/123/**"); !strings.Contains(output, "No change") {
 		t.Fatalf("repeated endpoint: %s", output)
 	}
-	run("allow-domain", "https://gitlab.example/api/v4/projects/456/**")
+	run("allow-domain", "https://gitlab.example.com/api/v4/projects/456/**")
 	want("second endpoint joins the host",
-		`{"allow_domain":[{"domain":"gitlab.example","endpoints":[{"method":"GET","path":"/api/v4/projects/123/**"},{"method":"*","path":"/api/v4/projects/456/**"}]}]}`)
-	run("remove-domain", "https://gitlab.example/api/v4/projects/456/**")
+		`{"allow_domain":[{"domain":"gitlab.example.com","endpoints":[{"method":"GET","path":"/api/v4/projects/123/**"},{"method":"*","path":"/api/v4/projects/456/**"}]}]}`)
+	run("remove-domain", "https://gitlab.example.com/api/v4/projects/456/**")
 	want("one endpoint removed",
-		`{"allow_domain":[{"domain":"gitlab.example","endpoints":[{"method":"GET","path":"/api/v4/projects/123/**"}]}]}`)
-	if output := run("show"); !strings.Contains(output, `HTTPS endpoint: "gitlab.example" method="GET" path="/api/v4/projects/123/**"`) || !strings.Contains(output, "inherited grants are not listed") {
+		`{"allow_domain":[{"domain":"gitlab.example.com","endpoints":[{"method":"GET","path":"/api/v4/projects/123/**"}]}]}`)
+	if output := run("show"); !strings.Contains(output, `HTTPS endpoint: "gitlab.example.com" method="GET" path="/api/v4/projects/123/**"`) || !strings.Contains(output, "inherited grants are not listed") {
 		t.Fatalf("show must distinguish endpoints from whole domains: %s", output)
 	}
 	// Removal matches the stored method; * is the default for remove-domain.
-	if output := run("remove-domain", "https://gitlab.example/api/v4/projects/123/**"); !strings.Contains(output, "No change") {
+	if output := run("remove-domain", "https://gitlab.example.com/api/v4/projects/123/**"); !strings.Contains(output, "No change") {
 		t.Fatalf("removal with another method changed the rule: %s", output)
 	}
-	run("remove-domain", "--method", "GET", "https://gitlab.example/api/v4/projects/123/**")
+	run("remove-domain", "--method", "GET", "https://gitlab.example.com/api/v4/projects/123/**")
 	want("last endpoint removes the host", `{"allow_domain":[]}`)
-	writeLauncherFixture(t, path, `{"network":{"allow_domain":[{"domain":"gitlab.example","endpoints":[]}]}}`)
-	run("remove-domain", "gitlab.example")
-	run("allow-domain", "https://gitlab.example/api/**")
+	writeLauncherFixture(t, path, `{"network":{"allow_domain":[{"domain":"gitlab.example.com","endpoints":[]}]}}`)
+	run("remove-domain", "gitlab.example.com")
+	run("allow-domain", "https://gitlab.example.com/api/**")
 	want("object whole-host entry explicitly replaced",
-		`{"allow_domain":[{"domain":"gitlab.example","endpoints":[{"method":"*","path":"/api/**"}]}]}`)
-	run("remove-domain", "gitlab.example")
+		`{"allow_domain":[{"domain":"gitlab.example.com","endpoints":[{"method":"*","path":"/api/**"}]}]}`)
+	run("remove-domain", "gitlab.example.com")
 	want("whole host removed", `{"allow_domain":[]}`)
 	// Hand-written methods match case-insensitively.
-	writeLauncherFixture(t, path, `{"network":{"allow_domain":[{"domain":"gitlab.example","endpoints":[{"method":"get","path":"/api/**"}]}]}}`)
-	if output := run("allow-domain", "--method", "GET", "https://gitlab.example/api/**"); !strings.Contains(output, "No change") {
+	writeLauncherFixture(t, path, `{"network":{"allow_domain":[{"domain":"gitlab.example.com","endpoints":[{"method":"get","path":"/api/**"}]}]}}`)
+	if output := run("allow-domain", "--method", "GET", "https://gitlab.example.com/api/**"); !strings.Contains(output, "No change") {
 		t.Fatalf("lowercase method duplicated: %s", output)
 	}
-	run("remove-domain", "--method", "GET", "https://gitlab.example/api/**")
+	run("remove-domain", "--method", "GET", "https://gitlab.example.com/api/**")
 	want("lowercase method removed", `{"allow_domain":[]}`)
 
 	if output := run("allow-tcp-port", "8081"); !strings.Contains(output, "TCP port 8081: connect and listen") || !strings.Contains(output, "including non-loopback addresses") || !strings.Contains(output, "bypass domain filtering") {

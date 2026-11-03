@@ -7,8 +7,8 @@
 // Endpoint rules make nono intercept TLS and refuse other methods and paths
 // over HTTPS. Plain HTTP to a listed host is not covered by them.
 {
-  "extends": "codex-base",
-  "meta": { "name": "codex-chatgpt", "version": "0.4.0", "description": "Codex with ChatGPT browser login and OpenAI authentication" },
+  "extends": ["codex-base", "developer-network"],
+  "meta": { "name": "codex-chatgpt", "version": "0.5.0", "description": "Codex ChatGPT login with developer network defaults" },
   "network": {
     // Codex reads its own CA variable alongside the standard ones.
     "tls_intercept": { "ca_env_vars": ["CODEX_CA_CERTIFICATE"] },

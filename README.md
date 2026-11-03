@@ -67,7 +67,9 @@ session report.
 
 - **How-to** • [Install](docs/install.md) ·
   [Usage](docs/usage.md): starting agents, ChatGPT login and offline mode ·
-  [Configuration](docs/configuration.md): extra hosts, directories and files,
+  [Configuration](docs/configuration.md): extra hosts,
+  [HTTPS paths and MCP endpoints](docs/configuration.md#https-paths-and-mcp-endpoints),
+  directories and files,
   settings, proxies and SSH commit signing ·
   [Check and review](docs/verify-and-review.md) ·
   [Troubleshooting](docs/verify-and-review.md#troubleshooting)

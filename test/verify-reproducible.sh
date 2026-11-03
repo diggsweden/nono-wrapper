@@ -7,6 +7,7 @@ expected=(
   .cache/bin/nono-wrapper
   .cache/man/nono-wrapper.1
   profiles/agent-policy.jsonc
+  profiles/developer-network.jsonc
   profiles/codex-base.jsonc
   profiles/codex-chatgpt.jsonc
   profiles/codex-offline.jsonc
@@ -20,8 +21,8 @@ compare() {
   shopt -s nullglob
   for directory in "$first" "$second"; do
     profiles=("$directory"/profiles/*.jsonc)
-    if ((${#profiles[@]} != 7)); then
-      printf 'Expected seven shipped profiles in %s\n' "$directory" >&2
+    if ((${#profiles[@]} != 8)); then
+      printf 'Expected eight shipped profiles in %s\n' "$directory" >&2
       return 1
     fi
     for file in "${expected[@]}"; do
@@ -37,7 +38,7 @@ compare() {
       return 1
     fi
   done
-  printf '9 build files are byte-identical (binary, manpage, seven profiles)\n'
+  printf '10 build files are byte-identical (binary, manpage, eight profiles)\n'
 }
 
 if [[ $# == 3 && $1 == --compare ]]; then

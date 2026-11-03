@@ -89,6 +89,9 @@ Ports remain unrestricted; plain HTTP is not path-filtered, and request bodies
 are not checked. A URL without a path, or with /, means whole-domain access.
 Wildcard domains are supported only for whole-domain access.
 
+MCP requests can share one endpoint, such as /mcp. URL rules do not restrict
+MCP tools or projects named in request bodies; use server-side permissions.
+
 Remove the domain's user allowance before switching between whole-domain and
 endpoint rules. Removing a URL matches its method and path; removing a domain
 removes all its user endpoint rules. Removal also accepts exact stored keys,
@@ -100,7 +103,8 @@ changes apply to new sessions.
 Examples:
   nono-wrapper config opencode allow-domain api.github.com
   nono-wrapper config opencode allow-domain '*.example.com'
-  nono-wrapper config opencode allow-domain --method GET 'https://gitlab.example/api/v4/projects/123/**'`
+  nono-wrapper config opencode allow-domain --method GET 'https://gitlab.example.com/api/v4/projects/123/**'
+  nono-wrapper config opencode allow-domain 'https://mcp.example.com/mcp'`
 		command.Flags = []cli.Flag{&cli.StringFlag{Name: "method", Value: "*", Usage: "HTTP method of a URL rule, such as GET; * allows any"}}
 	case "port":
 		command.Description = "Lets the agent and its programs connect to and listen on one TCP port, from 1 to 65535. This is a host-independent grant: it can permit direct connections to non-loopback addresses on that port, outside domain filtering, even with an offline profile. It is not restricted to localhost and does not force a server's bind address. No ranges or UDP. Run outside nono; changes apply to new sessions."
@@ -290,7 +294,7 @@ func parseAllowance(resource, value, method string, add bool) (allowance, error)
 // HTTPS URL. Reject ports instead of silently granting broader access.
 func parseHostAllowance(value, method string, add bool) (allowance, error) {
 	rule := allowance{resource: "host"}
-	const usage = "expected a domain such as api.github.com, '*.example.com' or an HTTPS URL such as https://gitlab.example/api/v4/projects/123/**"
+	const usage = "expected a domain such as api.github.com, '*.example.com' or an HTTPS URL such as https://gitlab.example.com/api/v4/projects/123/**"
 	path := ""
 	// Removal matches stored keys, not the vocabulary for creating new grants.
 	// Never resolve DNS, expand wildcard matches or drop a stored port.

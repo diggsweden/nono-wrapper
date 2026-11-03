@@ -23,9 +23,10 @@ func TestComposeHostOverridesPreservesPolicy(t *testing.T) {
 				t.Fatal(err)
 			}
 			sources := map[string]string{
-				"opencode-chatgpt": `{"extends":"opencode-base","environment":{"allow_vars":["KEEP"]},"network":{"tls_intercept":{"ca_env_vars":["CUSTOM_CA"]},"allow_domain":[{"domain":"api.github.com","endpoints":[{"method":"GET","path":"/old"}]},"retained.example"]}}`,
-				"opencode-base":    `{"extends":["nolabs-ai/opencode","agent-policy"],"linux":{"af_unix_mediation":"pathname"}}`,
-				"agent-policy":     `{"filesystem":{"read":["$HOME/reference"]},"unsafe_macos_seatbelt_rules":["(deny appleevent-send)","(deny mach-lookup (global-name \"com.apple.coreservices.appleevents\"))"],"platform_overrides":{"linux":{"network":{"allow_domain":["API.GITHUB.COM.","platform.example"]}}}}`,
+				"opencode-chatgpt":  `{"extends":["opencode-base","developer-network"],"environment":{"allow_vars":["KEEP"]},"network":{"tls_intercept":{"ca_env_vars":["CUSTOM_CA"]},"allow_domain":["retained.example"]}}`,
+				"developer-network": `{"network":{"allow_domain":["api.github.com","developer-kept.example"]}}`,
+				"opencode-base":     `{"extends":["nolabs-ai/opencode","agent-policy"],"linux":{"af_unix_mediation":"pathname"}}`,
+				"agent-policy":      `{"filesystem":{"read":["$HOME/reference"]},"unsafe_macos_seatbelt_rules":["(deny appleevent-send)","(deny mach-lookup (global-name \"com.apple.coreservices.appleevents\"))"],"platform_overrides":{"linux":{"network":{"allow_domain":["API.GITHUB.COM.","platform.example"]}}}}`,
 			}
 			for name, data := range sources {
 				if err := os.WriteFile(filepath.Join(profiles, name+".jsonc"), []byte(data), 0o600); err != nil {
@@ -63,7 +64,7 @@ func TestComposeHostOverridesPreservesPolicy(t *testing.T) {
 					t.Fatalf("generated policy is outside the protected profiles area: %s", path)
 				}
 				entries, err := os.ReadDir(filepath.Dir(path))
-				if err != nil || len(entries) != 4 {
+				if err != nil || len(entries) != 5 {
 					t.Fatalf("missing profile snapshots: %v (%v)", entries, err)
 				}
 				var all strings.Builder
