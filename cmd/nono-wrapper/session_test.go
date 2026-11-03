@@ -47,7 +47,7 @@ func TestSessionAuditSuggestsOnlyPublicHostNames(t *testing.T) {
 	var output bytes.Buffer
 	printSessionAudit(&output, "codex", sessionAudit{SessionID: "0123456789abcdef", NetworkEvents: events})
 	text := output.String()
-	if strings.Count(text, "To allow") != 1 || !strings.Contains(text, "To allow api.example.com: nono-wrapper config codex add-host api.example.com\n") {
+	if strings.Count(text, "To allow") != 1 || !strings.Contains(text, "To allow api.example.com in future codex sessions, run outside the sandbox:\n    nono-wrapper config codex allow-domain api.example.com\n  Then restart the agent.\n") {
 		t.Fatalf("unexpected suggestions: %q", text)
 	}
 }

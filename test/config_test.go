@@ -47,11 +47,11 @@ func TestConfigHostAndPathEditing(t *testing.T) {
 			if output := run("show"); !strings.Contains(output, "(none)") {
 				t.Fatalf("empty configuration: %s", output)
 			}
-			run("remove-host", "absent.example")
+			run("remove-domain", "absent.example")
 			if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
 				t.Fatalf("read/no-op created a configuration directory: %v", err)
 			}
-			run("add-host", "API.GITHUB.COM.")
+			run("allow-domain", "API.GITHUB.COM.")
 			data, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatal(err)
@@ -60,7 +60,7 @@ func TestConfigHostAndPathEditing(t *testing.T) {
 			if err != nil || info.Mode().Perm() != 0o600 {
 				t.Fatalf("new user configuration should be owner-only: %v", err)
 			}
-			if output := run("add-host", "api.github.com"); !strings.Contains(output, "No change") {
+			if output := run("allow-domain", "api.github.com"); !strings.Contains(output, "No change") {
 				t.Fatalf("duplicate addition was not a no-op: %s", output)
 			}
 			after, err := os.ReadFile(path)
@@ -113,7 +113,7 @@ func TestConfigHostAndPathEditing(t *testing.T) {
 			}
 			run("remove-file", file) // Deleted files must still be removable from policy.
 			run("remove-dir", directory)
-			if output := run("remove-host", "api.github.com"); !strings.Contains(output, "inherited or broader grants") {
+			if output := run("remove-domain", "api.github.com"); !strings.Contains(output, "inherited or broader grants") {
 				t.Fatalf("removal overstates access revocation: %s", output)
 			}
 			if output := run("show"); !strings.Contains(output, "(none)") {
@@ -160,20 +160,26 @@ func TestConfigPreservesManualJSONC(t *testing.T) {
 			t.Fatalf("%q: status=%d, stderr=%s", args, status, stderr)
 		}
 	}
-	run("add-host", "another.example")
+	run("allow-domain", "another.example")
 	data, _ := os.ReadFile(path)
 	for _, text := range []string{"Keep this explanation.", "Keep this endpoint restriction.", "EDITOR", "/user", "/repos/**", "GET", "another.example"} {
 		if !strings.Contains(string(data), text) {
 			t.Fatalf("lost manual configuration %q: %s", text, data)
 		}
 	}
-	run("add-host", "api.github.com")
+	run("allow-domain", "--method", "GET", "https://api.github.com/user")
+	after, _ := os.ReadFile(path)
+	if string(after) != string(data) {
+		t.Fatalf("repeating an endpoint across manual entries rewrote the profile: %s", after)
+	}
+	run("remove-domain", "api.github.com")
+	run("allow-domain", "api.github.com")
 	data, _ = os.ReadFile(path)
 	if strings.Contains(string(data), "endpoints") || !strings.Contains(string(data), `"api.github.com"`) || !strings.Contains(string(data), "EDITOR") {
-		t.Fatalf("explicit whole-host allowance did not replace its endpoint rules: %s", data)
+		t.Fatalf("explicit remove and allow did not replace its endpoint rules: %s", data)
 	}
 	run("remove-dir", filepath.Join(home, "docs"))
-	run("remove-host", "api.github.com")
+	run("remove-domain", "api.github.com")
 	data, _ = os.ReadFile(path)
 	if strings.Contains(string(data), "$HOME/docs") || strings.Contains(string(data), "api.github.com") || !strings.Contains(string(data), "another.example") {
 		t.Fatalf("failed to remove matching manual grants: %s", data)
@@ -187,7 +193,7 @@ func TestConfigPreservesManualJSONC(t *testing.T) {
 func TestConfigChangesRequireNormalTerminal(t *testing.T) {
 	for _, variable := range []string{"NONO_SESSION_ID=session", "NONO_CAP_FILE=/sandbox/capabilities.json"} {
 		f := newLauncherFixture(t, "opencode")
-		_, stderr, status := runLauncher(t, f, "", []string{"config", "opencode", "add-host", "api.github.com"}, []string{variable})
+		_, stderr, status := runLauncher(t, f, "", []string{"config", "opencode", "allow-domain", "api.github.com"}, []string{variable})
 		if status == 0 || !strings.Contains(stderr, "normal terminal outside nono") {
 			t.Fatalf("agent was permitted to edit configuration: status=%d, stderr=%s", status, stderr)
 		}
@@ -284,32 +290,52 @@ func TestConfigErrorsPreserveExistingFile(t *testing.T) {
 		name, contents string
 		args, env      []string
 	}{
-		{"invalid JSONC", "{broken", []string{"add-host", "api.github.com"}, nil},
-		{"non-object", "[]", []string{"add-host", "api.github.com"}, nil},
-		{"duplicate key", `{"network":{},"network":{}}`, []string{"add-host", "api.github.com"}, nil},
-		{"invalid section", `{"network":[]}`, []string{"add-host", "api.github.com"}, nil},
-		{"invalid list", `{"network":{"allow_domain":false}}`, []string{"add-host", "api.github.com"}, nil},
-		{"invalid host entry", `{"network":{"allow_domain":[null]}}`, []string{"add-host", "api.github.com"}, nil},
-		{"plain HTTP cannot be narrowed", "{}", []string{"add-host", "http://api.github.com/path"}, nil},
-		{"URL query", "{}", []string{"add-host", "https://api.github.com/path?private=1"}, nil},
-		{"URL query without a path", "{}", []string{"add-host", "https://api.github.com?private=1"}, nil},
-		{"URL user name", "{}", []string{"add-host", "https://user@api.github.com/path"}, nil},
-		{"invalid host port", "{}", []string{"add-host", "api.github.com:70000"}, nil},
-		{"method without a path", "{}", []string{"add-host", "--method", "GET", "api.github.com"}, nil},
-		{"invalid method", "{}", []string{"add-host", "--method", "G3T", "https://api.github.com/x"}, nil},
-		{"empty method", "{}", []string{"add-host", "--method", "", "https://api.github.com/x"}, nil},
-		{"path flag on a port", "{}", []string{"add-port", "--read-write", "8081"}, nil},
-		{"fractional port entry", `{"network":{"open_port":[8081.5]}}`, []string{"add-port", "8081"}, nil},
-		{"port zero", "{}", []string{"add-port", "0"}, nil},
-		{"port name", "{}", []string{"add-port", "http"}, nil},
-		{"invalid port entry", `{"network":{"open_port":["8081"]}}`, []string{"add-port", "8081"}, nil},
-		{"wildcard is not a host", "{}", []string{"add-host", "*.github.com"}, nil},
+		{"invalid JSONC", "{broken", []string{"allow-domain", "api.github.com"}, nil},
+		{"non-object", "[]", []string{"allow-domain", "api.github.com"}, nil},
+		{"duplicate key", `{"network":{},"network":{}}`, []string{"allow-domain", "api.github.com"}, nil},
+		{"invalid section", `{"network":[]}`, []string{"allow-domain", "api.github.com"}, nil},
+		{"invalid list", `{"network":{"allow_domain":false}}`, []string{"allow-domain", "api.github.com"}, nil},
+		{"invalid host entry", `{"network":{"allow_domain":[null]}}`, []string{"allow-domain", "api.github.com"}, nil},
+		{"plain HTTP cannot be narrowed", "{}", []string{"allow-domain", "http://api.github.com/path"}, nil},
+		{"URL query", "{}", []string{"allow-domain", "https://api.github.com/path?private=1"}, nil},
+		{"URL query without a path", "{}", []string{"allow-domain", "https://api.github.com?private=1"}, nil},
+		{"URL user name", "{}", []string{"allow-domain", "https://user@api.github.com/path"}, nil},
+		{"domain port", "{}", []string{"allow-domain", "api.github.com:8443"}, nil},
+		{"HTTPS default port", "{}", []string{"allow-domain", "https://api.github.com:443/x"}, nil},
+		{"HTTPS non-default port", "{}", []string{"allow-domain", "https://api.github.com:8443/x"}, nil},
+		{"empty domain port", "{}", []string{"allow-domain", "api.github.com:"}, nil},
+		{"bare port", "{}", []string{"allow-domain", "443"}, nil},
+		{"single-label name", "{}", []string{"allow-domain", "localhost"}, nil},
+		{"IPv4", "{}", []string{"allow-domain", "192.0.2.1"}, nil},
+		{"IPv6", "{}", []string{"allow-domain", "[2001:db8::1]"}, nil},
+		{"numeric TLD", "{}", []string{"allow-domain", "example.123"}, nil},
+		{"bare wildcard", "{}", []string{"allow-domain", "*"}, nil},
+		{"embedded wildcard", "{}", []string{"allow-domain", "api.*.example.com"}, nil},
+		{"partial wildcard", "{}", []string{"allow-domain", "*example.com"}, nil},
+		{"wildcard endpoint", "{}", []string{"allow-domain", "https://*.example.com/api/**"}, nil},
+		{"URL fragment", "{}", []string{"allow-domain", "https://api.github.com/x#section"}, nil},
+		{"empty URL fragment", "{}", []string{"allow-domain", "https://api.github.com/x#"}, nil},
+		{"method without a path", "{}", []string{"allow-domain", "--method", "GET", "api.github.com"}, nil},
+		{"invalid method", "{}", []string{"allow-domain", "--method", "G3T", "https://api.github.com/x"}, nil},
+		{"empty method", "{}", []string{"allow-domain", "--method", "", "https://api.github.com/x"}, nil},
+		{"path flag on a port", "{}", []string{"allow-tcp-port", "--read-write", "8081"}, nil},
+		{"fractional port entry", `{"network":{"open_port":[8081.5]}}`, []string{"allow-tcp-port", "8081"}, nil},
+		{"port zero", "{}", []string{"allow-tcp-port", "0"}, nil},
+		{"port too high", "{}", []string{"allow-tcp-port", "65536"}, nil},
+		{"port range", "{}", []string{"allow-tcp-port", "3000-3010"}, nil},
+		{"UDP port", "{}", []string{"allow-tcp-port", "3000/udp"}, nil},
+		{"port name", "{}", []string{"allow-tcp-port", "http"}, nil},
+		{"invalid port entry", `{"network":{"open_port":["8081"]}}`, []string{"allow-tcp-port", "8081"}, nil},
+		{"endpoint would replace whole domain", `{"network":{"allow_domain":["api.github.com"]}}`, []string{"allow-domain", "https://api.github.com/x"}, nil},
+		{"endpoint would replace empty endpoint list", `{"network":{"allow_domain":[{"domain":"api.github.com","endpoints":[]}]}}`, []string{"allow-domain", "https://api.github.com/x"}, nil},
+		{"domain would replace endpoint", `{"network":{"allow_domain":[{"domain":"API.GITHUB.COM.","endpoints":[{"method":"GET","path":"/x"}]}]}}`, []string{"allow-domain", "api.github.com"}, nil},
+		{"mixed duplicate scopes", `{"network":{"allow_domain":["api.github.com",{"domain":"api.github.com","endpoints":[{"method":"GET","path":"/x"}]}]}}`, []string{"allow-domain", "api.github.com"}, nil},
 		{"missing path", "{}", []string{"add-dir", "missing-directory"}, nil},
 		{"empty path", "{}", []string{"add-dir", ""}, nil},
 		{"conflicting modes", "{}", []string{"add-dir", ".", "--read-only", "--read-write"}, nil},
 		{"directory as file", "{}", []string{"add-file", "."}, nil},
-		{"extra argument", "{}", []string{"remove-host", "one.example", "two.example"}, nil},
-		{"validation failure", "{}", []string{"add-host", "api.github.com"}, []string{"LAUNCHER_VALIDATE_FAIL=1"}},
+		{"extra argument", "{}", []string{"remove-domain", "one.example", "two.example"}, nil},
+		{"validation failure", "{}", []string{"allow-domain", "api.github.com"}, []string{"LAUNCHER_VALIDATE_FAIL=1"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			f := newLauncherFixture(t, "opencode")
@@ -346,7 +372,7 @@ func TestConfigSymlinkAndLock(t *testing.T) {
 	if err := os.Symlink(target, path); err != nil {
 		t.Fatal(err)
 	}
-	_, stderr, status := runLauncher(t, f, "", []string{"config", "opencode", "add-host", "api.github.com"}, nil)
+	_, stderr, status := runLauncher(t, f, "", []string{"config", "opencode", "allow-domain", "api.github.com"}, nil)
 	if status != 0 {
 		t.Fatalf("symlink edit failed: %s", stderr)
 	}
@@ -356,7 +382,7 @@ func TestConfigSymlinkAndLock(t *testing.T) {
 	}
 	before, _ := os.ReadFile(target)
 	writeLauncherFixture(t, target+".lock", "other editor\n")
-	_, stderr, status = runLauncher(t, f, "", []string{"config", "opencode", "add-host", "another.example"}, nil)
+	_, stderr, status = runLauncher(t, f, "", []string{"config", "opencode", "allow-domain", "another.example"}, nil)
 	if status == 0 || !strings.Contains(stderr, "lock user configuration") {
 		t.Fatalf("ignored another writer: status=%d, stderr=%s", status, stderr)
 	}
@@ -385,7 +411,7 @@ if [ "$CONFIG_TEST_MODE" = cancelled ]; then
 fi
 printf '// Another editor saved this.\n{}\n' >"$CONFIG_TEST_PATH"
 `)
-			_, stderr, status := runLauncher(t, f, "", []string{"config", "opencode", "add-host", "api.github.com"}, []string{
+			_, stderr, status := runLauncher(t, f, "", []string{"config", "opencode", "allow-domain", "api.github.com"}, []string{
 				"CONFIG_TEST_MODE=" + mode, "CONFIG_TEST_PATH=" + path,
 			})
 			if status == 0 || stderr == "" {
@@ -442,57 +468,169 @@ func TestConfigEndpointsAndPorts(t *testing.T) {
 		}
 	}
 
-	if output := run("add-host", "gitlab.example:8443"); !strings.Contains(output, "Allowed gitlab.example: every path and port.") {
-		t.Fatalf("host with port: %s", output)
+	if output := run("allow-domain", "https://GitLab.example/"); !strings.Contains(output, "Allowed gitlab.example: all paths and ports.") {
+		t.Fatalf("root URL must describe whole-domain access: %s", output)
 	}
-	want("port dropped", `{"allow_domain":["gitlab.example"]}`)
-	output := run("add-host", "--method", "get", "https://GitLab.example/api/v4/projects/123/**")
+	want("root URL allows whole domain", `{"allow_domain":["gitlab.example"]}`)
+	run("remove-domain", "gitlab.example")
+	output := run("allow-domain", "--method", "get", "https://GitLab.example/api/v4/projects/123/**")
 	if !strings.Contains(output, "GET requests to gitlab.example matching /api/v4/projects/123/**") ||
-		!strings.Contains(output, "cannot limit an MCP server") {
+		!strings.Contains(output, "plain HTTP is not path-filtered") || !strings.Contains(output, "request bodies are not checked") {
 		t.Fatalf("endpoint description: %s", output)
 	}
-	want("endpoint narrows the whole host",
+	want("endpoint added after explicit removal",
 		`{"allow_domain":[{"domain":"gitlab.example","endpoints":[{"method":"GET","path":"/api/v4/projects/123/**"}]}]}`)
-	if output := run("add-host", "--method", "GET", "https://gitlab.example/api/v4/projects/123/**"); !strings.Contains(output, "No change") {
+	if output := run("allow-domain", "--method", "GET", "https://gitlab.example/api/v4/projects/123/**"); !strings.Contains(output, "No change") {
 		t.Fatalf("repeated endpoint: %s", output)
 	}
-	run("add-host", "https://gitlab.example/api/v4/projects/456/**")
+	run("allow-domain", "https://gitlab.example/api/v4/projects/456/**")
 	want("second endpoint joins the host",
 		`{"allow_domain":[{"domain":"gitlab.example","endpoints":[{"method":"GET","path":"/api/v4/projects/123/**"},{"method":"*","path":"/api/v4/projects/456/**"}]}]}`)
-	run("remove-host", "https://gitlab.example/api/v4/projects/456/**")
+	run("remove-domain", "https://gitlab.example/api/v4/projects/456/**")
 	want("one endpoint removed",
 		`{"allow_domain":[{"domain":"gitlab.example","endpoints":[{"method":"GET","path":"/api/v4/projects/123/**"}]}]}`)
-	// Removal matches the stored method; * is the default for remove-host.
-	if output := run("remove-host", "https://gitlab.example/api/v4/projects/123/**"); !strings.Contains(output, "No change") {
+	if output := run("show"); !strings.Contains(output, `HTTPS endpoint: "gitlab.example" method="GET" path="/api/v4/projects/123/**"`) || !strings.Contains(output, "inherited grants are not listed") {
+		t.Fatalf("show must distinguish endpoints from whole domains: %s", output)
+	}
+	// Removal matches the stored method; * is the default for remove-domain.
+	if output := run("remove-domain", "https://gitlab.example/api/v4/projects/123/**"); !strings.Contains(output, "No change") {
 		t.Fatalf("removal with another method changed the rule: %s", output)
 	}
-	run("remove-host", "--method", "GET", "https://gitlab.example/api/v4/projects/123/**")
+	run("remove-domain", "--method", "GET", "https://gitlab.example/api/v4/projects/123/**")
 	want("last endpoint removes the host", `{"allow_domain":[]}`)
 	writeLauncherFixture(t, path, `{"network":{"allow_domain":[{"domain":"gitlab.example","endpoints":[]}]}}`)
-	run("add-host", "https://gitlab.example/api/**")
-	want("object whole-host entry narrowed",
+	run("remove-domain", "gitlab.example")
+	run("allow-domain", "https://gitlab.example/api/**")
+	want("object whole-host entry explicitly replaced",
 		`{"allow_domain":[{"domain":"gitlab.example","endpoints":[{"method":"*","path":"/api/**"}]}]}`)
-	run("remove-host", "gitlab.example")
+	run("remove-domain", "gitlab.example")
 	want("whole host removed", `{"allow_domain":[]}`)
 	// Hand-written methods match case-insensitively.
 	writeLauncherFixture(t, path, `{"network":{"allow_domain":[{"domain":"gitlab.example","endpoints":[{"method":"get","path":"/api/**"}]}]}}`)
-	if output := run("add-host", "--method", "GET", "https://gitlab.example/api/**"); !strings.Contains(output, "No change") {
+	if output := run("allow-domain", "--method", "GET", "https://gitlab.example/api/**"); !strings.Contains(output, "No change") {
 		t.Fatalf("lowercase method duplicated: %s", output)
 	}
-	run("remove-host", "--method", "GET", "https://gitlab.example/api/**")
+	run("remove-domain", "--method", "GET", "https://gitlab.example/api/**")
 	want("lowercase method removed", `{"allow_domain":[]}`)
 
-	if output := run("add-port", "8081"); !strings.Contains(output, "localhost port 8081") {
+	if output := run("allow-tcp-port", "8081"); !strings.Contains(output, "TCP port 8081: connect and listen") || !strings.Contains(output, "including non-loopback addresses") || !strings.Contains(output, "bypass domain filtering") {
 		t.Fatalf("port description: %s", output)
 	}
-	run("add-port", "08081")
-	run("add-port", "5432")
+	run("allow-tcp-port", "08081")
+	run("allow-tcp-port", "5432")
 	want("ports", `{"allow_domain":[],"open_port":[8081,5432]}`)
-	if output := run("show"); !strings.Contains(output, "localhost port: 8081") {
+	if output := run("show"); !strings.Contains(output, "TCP port (connect/listen; not loopback-only): 8081") {
 		t.Fatalf("show lists ports: %s", output)
 	}
-	run("remove-port", "8081")
+	run("remove-tcp-port", "8081")
 	want("port removed", `{"allow_domain":[],"open_port":[5432]}`)
+	run("allow-tcp-port", "1")
+	run("allow-tcp-port", "65535")
+	want("TCP port boundaries", `{"allow_domain":[],"open_port":[5432,1,65535]}`)
+}
+
+func TestConfigWildcardDomains(t *testing.T) {
+	for _, agent := range []string{"opencode", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			f := newLauncherFixture(t, agent)
+			path := filepath.Join(filepath.Dir(f.bin), ".config/nono/profiles", agent+"-user.jsonc")
+			run := func(args ...string) string {
+				t.Helper()
+				stdout, stderr, status := runLauncher(t, f, "", append([]string{"config", agent}, args...), nil)
+				if status != 0 || stderr != "" {
+					t.Fatalf("%q: status=%d stdout=%q stderr=%q", args, status, stdout, stderr)
+				}
+				return string(stdout)
+			}
+			output := run("allow-domain", "*.EXAMPLE.COM.")
+			for _, text := range []string{"subdomains at any depth, excluding example.com", "Applies to new " + agent + " sessions", "restart the agent"} {
+				if !strings.Contains(output, text) {
+					t.Fatalf("wildcard scope/lifecycle missing %q: %s", text, output)
+				}
+			}
+			if output := run("allow-domain", "*.example.com"); !strings.Contains(output, "No change") {
+				t.Fatalf("wildcard normalization was not idempotent: %s", output)
+			}
+			run("allow-domain", "example.com")
+			run("allow-domain", "api.example.com")
+			run("remove-domain", "example.com")
+			if got := configContents(t, path)["network"]["allow_domain"]; !slices.Equal(got, []string{"*.example.com", "api.example.com"}) {
+				t.Fatalf("exact-domain removal changed other scopes: %v", got)
+			}
+			run("remove-domain", "*.example.com")
+			if got := configContents(t, path)["network"]["allow_domain"]; !slices.Equal(got, []string{"api.example.com"}) {
+				t.Fatalf("wildcard removal changed exact domain: %v", got)
+			}
+			run("remove-domain", "api.example.com")
+			if output := run("show"); !strings.Contains(output, "(none)") {
+				t.Fatalf("domain removals left a grant: %s", output)
+			}
+		})
+	}
+}
+
+func TestConfigRemovesExactStoredDomainKeys(t *testing.T) {
+	for _, agent := range []string{"opencode", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			f := newLauncherFixture(t, agent)
+			path := filepath.Join(filepath.Dir(f.bin), ".config/nono/profiles", agent+"-user.jsonc")
+			keys := []string{"\x1b[31mevil.example", "192.0.2.1", "buildserver", "*", "*.example.com", "api.example.com", "example.com:8443"}
+			data, err := json.Marshal(map[string]any{"network": map[string]any{"allow_domain": keys}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			writeLauncherFixture(t, path, string(data))
+			for i, key := range keys {
+				stdout, stderr, status := runLauncher(t, f, "", []string{"config", agent, "remove-domain", key}, nil)
+				if status != 0 {
+					t.Fatalf("removing %q: status=%d stderr=%q", key, status, stderr)
+				}
+				if strings.Contains(string(stdout), "\x1b") {
+					t.Fatalf("stored key escaped into terminal control output: %q", stdout)
+				}
+				if got := configContents(t, path)["network"]["allow_domain"]; !slices.Equal(got, keys[i+1:]) {
+					t.Fatalf("removal must match one stored key, not expand %q: %v", key, got)
+				}
+			}
+			// Removal must also support stored endpoint rules outside the add grammar.
+			writeLauncherFixture(t, path, `{"network":{"allow_domain":[{"domain":"*.example.com","endpoints":[{"method":"GET","path":"/api/**"}]},{"domain":"192.0.2.1","endpoints":[{"method":"GET","path":"/api/**"}]}]}}`)
+			for _, host := range []string{"*.example.com", "192.0.2.1"} {
+				_, stderr, status := runLauncher(t, f, "", []string{"config", agent, "remove-domain", "--method", "GET", "https://" + host + "/api/**"}, nil)
+				if status != 0 {
+					t.Fatalf("removing stored endpoint %q: status=%d stderr=%q", host, status, stderr)
+				}
+			}
+			if got := configContents(t, path)["network"]["allow_domain"]; len(got) != 0 {
+				t.Fatalf("removing the last endpoints left a grant: %v", got)
+			}
+			entries, err := os.ReadDir(filepath.Dir(path))
+			if err != nil || len(entries) != 1 {
+				t.Fatalf("removal left temporary files: %v (%v)", entries, err)
+			}
+		})
+	}
+}
+
+func TestConfigScopeConflictExplainsExplicitReplacement(t *testing.T) {
+	f := newLauncherFixture(t, "opencode")
+	for _, step := range []struct {
+		args   []string
+		status int
+	}{
+		{[]string{"allow-domain", "example.com"}, 0},
+		{[]string{"allow-domain", "https://example.com/api/**"}, 65},
+		{[]string{"remove-domain", "example.com"}, 0},
+		{[]string{"allow-domain", "https://example.com/api/**"}, 0},
+		{[]string{"allow-domain", "example.com"}, 65},
+	} {
+		_, stderr, status := runLauncher(t, f, "", append([]string{"config", "opencode"}, step.args...), nil)
+		if status != step.status || step.status == 65 && !strings.Contains(stderr, `remove-domain "example.com"`) {
+			t.Fatalf("%q: status=%d want=%d stderr=%q", step.args, status, step.status, stderr)
+		}
+	}
 }
 
 func TestConfigAddDirAsksBeforeIncludingConfigRepositories(t *testing.T) {

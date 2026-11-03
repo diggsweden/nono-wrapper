@@ -57,7 +57,7 @@ const rootDescription = `Examples:
   nono-wrapper opencode                              start OpenCode in this directory
   nono-wrapper codex                                 start Codex in this directory
   nono-wrapper verify                                check the installed profiles
-  nono-wrapper config opencode add-host api.github.com
+  nono-wrapper config opencode allow-domain api.github.com
 
 Help forwarding:
   nono-wrapper help codex       wrapper help

@@ -697,7 +697,7 @@ func TestCLIHelpAndUsage(t *testing.T) {
 		{"wrapper version", []string{"--version"}, 0, runtime.Version()},
 		{"launcher help", []string{"help", "codex"}, 0, "NONO_PROFILE"},
 		{"configuration help", []string{"config", "--help"}, 0, "Manage persistent user allowances"},
-		{"agent configuration help", []string{"config", "opencode", "--help"}, 0, "add-host"},
+		{"agent configuration help", []string{"config", "opencode", "--help"}, 0, "allow-domain"},
 		{"directory configuration help", []string{"config", "codex", "add-dir", "--help"}, 0, "read-only"},
 		{"verify help", []string{"verify", "--help"}, 0, "offline profiles"},
 		{"audit help", []string{"audit", "--help"}, 0, "MARKER"},

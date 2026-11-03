@@ -170,8 +170,8 @@ if printf 'updated\n' >"$HOME/user-file" 2>/dev/null; then echo USER-FILE-WRITE;
 for rule in "$XDG_CONFIG_HOME"/nono/profiles/*.jsonc; do
   if (printf '{}\n' >"$rule") 2>/dev/null; then echo ACTIVE-RULE-WRITE; fi
 done
-if nono-wrapper config opencode add-host agent-self-grant.example >/dev/null 2>&1; then echo AGENT-CONFIG-EDIT; fi
-if (unset NONO_SESSION_ID NONO_CAP_FILE; nono-wrapper config opencode add-host agent-self-grant.example) >/dev/null 2>&1; then
+if nono-wrapper config opencode allow-domain agent-self-grant.example >/dev/null 2>&1; then echo AGENT-CONFIG-EDIT; fi
+if (unset NONO_SESSION_ID NONO_CAP_FILE; nono-wrapper config opencode allow-domain agent-self-grant.example) >/dev/null 2>&1; then
   echo AGENT-CONFIG-EDIT-WITHOUT-ENV
 fi
 if printf '{"meta":{"name":"review-proposal","version":"1.0.0"},"network":{"allow_domain":["suggested.example"]}}\n' >"$XDG_CONFIG_HOME/nono/profile-drafts/review-proposal.json"; then
@@ -274,7 +274,7 @@ for agent in opencode codex; do
   expect WORKS "a named profile composes additional environment policy" said 'forwarded=yes'
   expect WORKS "a composed profile still filters unrelated variables" said 'secret=absent'
 
-  expect WORKS "the config CLI adds a user host" nono-wrapper config "$agent" add-host api.github.com
+  expect WORKS "the config CLI allows a user domain" nono-wrapper config "$agent" allow-domain api.github.com
   expect WORKS "the config CLI adds a read-only directory" nono-wrapper config "$agent" add-dir "$home/extra"
   expect WORKS "the config CLI adds a writable directory" nono-wrapper config "$agent" add-dir --read-write "$home/user-writable"
   expect WORKS "the config CLI adds a read-only file" nono-wrapper config "$agent" add-file "$home/user-file"
@@ -294,7 +294,7 @@ for agent in opencode codex; do
   expect WORKS "the user profile retains the environment filter" said 'secret=absent'
   expect FAILS "user allowances keep active profiles read-only" said ACTIVE-RULE-WRITE
   expect FAILS "clearing session variables cannot bypass rule protection" said AGENT-CONFIG-EDIT-WITHOUT-ENV
-  expect WORKS "the config CLI can override a bundled host" nono-wrapper config "$agent" add-host chatgpt.com
+  expect WORKS "the config CLI can override a bundled host" nono-wrapper config "$agent" allow-domain chatgpt.com
   : >inspect-user-policy
   status=0
   out=$(SUITE_SECRET=leak nono-wrapper "$agent" 2>&1) || status=$?
@@ -308,7 +308,7 @@ for agent in opencode codex; do
     expect FAILS "generated policy directories are removed after exit" test -e "$policy"
   done
   rm inspect-user-policy
-  expect WORKS "removing a host override restores the bundled rule" nono-wrapper config "$agent" remove-host chatgpt.com
+  expect WORKS "removing a host override restores the bundled rule" nono-wrapper config "$agent" remove-domain chatgpt.com
   out=$(nono why --json --profile "$agent-offline" --extends "$agent-user" --host api.github.com 2>&1) || true
   expect WORKS "user host additions cannot unblock an offline profile" said '"status": "denied"'
   status=0
@@ -316,7 +316,7 @@ for agent in opencode codex; do
   expect WORKS "nono rejects an offline profile combined with host additions" test "$status" -ne 0
   expect WORKS "the offline conflict identifies contradictory network settings" said '--block-net and --allow-domain are contradictory'
   expect FAILS "conflicting offline settings never launch the agent" said STANDIN-RAN
-  expect WORKS "the config CLI removes a user host" nono-wrapper config "$agent" remove-host api.github.com
+  expect WORKS "the config CLI removes a user domain" nono-wrapper config "$agent" remove-domain api.github.com
   expect WORKS "the config CLI updates a file's access" nono-wrapper config "$agent" add-file --read-write "$home/user-file"
   status=0
   out=$(NONO_PROFILE="$agent-offline" HTTPS_PROXY=https://unsupported.example nono-wrapper "$agent" 2>&1) || status=$?

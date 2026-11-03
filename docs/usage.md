@@ -90,8 +90,8 @@ Its commands are:
 | `nono-wrapper opencode [arguments...]` | launch OpenCode under nono |
 | `nono-wrapper codex [arguments...]` | launch Codex under nono |
 | `nono-wrapper config opencode\|codex show` | list user-added allowances |
-| `nono-wrapper config opencode\|codex add-host\|remove-host HOST\|URL` | manage user host and URL allowances |
-| `nono-wrapper config opencode\|codex add-port\|remove-port PORT` | manage localhost port allowances |
+| `nono-wrapper config opencode\|codex allow-domain\|remove-domain DOMAIN\|HTTPS_URL` | manage user domain and HTTPS endpoint allowances |
+| `nono-wrapper config opencode\|codex allow-tcp-port\|remove-tcp-port PORT` | manage host-independent TCP connect/listen allowances |
 | `nono-wrapper config opencode\|codex add-dir\|remove-dir PATH` | manage user directory allowances |
 | `nono-wrapper config opencode\|codex add-file\|remove-file PATH` | manage user file allowances |
 | `nono-wrapper verify [opencode\|codex ...]` | check one or both installed offline profiles |
@@ -118,7 +118,7 @@ The `config` commands are described in [Configuration](configuration.md);
 | 0 | success |
 | 1 | `verify`: a check failed; `audit`: changed files are listed |
 | 64 | usage error: an unknown command or flag, or wrong arguments |
-| 65 | a malformed value, such as an invalid host name |
+| 65 | a malformed value or a conflicting whole-domain/endpoint edit |
 | 66 | a named file or directory does not exist |
 | 70 | an unexpected failure |
 | 77 | permission denied, or refused by policy |
@@ -143,10 +143,19 @@ normal exits, interrupted sessions and non-interactive commands such as
 (allowed and denied), denial reasons when available, and commands for
 inspecting the full audit and checking access with `nono why`.
 
-For each refused host, the report ends with the command that allows it, such
-as `To allow api.github.com: nono-wrapper config opencode add-host
-api.github.com`. Allow only hosts the agent needs: the suggestion is not a
-recommendation.
+For each eligible refused hostname, the report shows a persistent allowance
+command, such as `nono-wrapper config opencode allow-domain api.github.com`.
+Run it outside the sandbox and restart the agent. Endpoint refusals do not
+suggest broadening access to the entire domain. Allow only domains the agent
+needs: the suggestion is not a recommendation, and an explicit network block
+or deny rule can still prevent access.
+
+Native nono diagnostics may suggest `--allow-domain`. That flag belongs to
+`nono run`, not the wrapper: arguments after `nono-wrapper opencode` or
+`codex` go to the agent. Use the wrapper's `config AGENT allow-domain`
+command for persistent additions. See the [network allowance
+matrix](configuration.md#network-allowance-matrix) for ports, wildcards and
+HTTPS endpoint rules.
 
 Identical network events are grouped with a count. These are **audit-event
 counts**, not request counts: one HTTPS request can produce separate
@@ -245,7 +254,7 @@ local commands and verification; they cannot contact ChatGPT for a model
 session. User directory and file allowances still apply. nono 0.80.0 rejects
 combining `network.block` with host allowances, so remove user-added hosts
 before using an offline profile, for example
-`nono-wrapper config opencode remove-host api.github.com`.
+`nono-wrapper config opencode remove-domain api.github.com`.
 
 ## Codex: one sandbox, approvals retained
 

@@ -49,18 +49,36 @@ supported releases are WSL 2.7.7 and Ubuntu 26.04; neither is checked.
     **mise which** for the real executable.
 
 **config** **opencode**|**codex** **show**
-:   List the hosts, ports, directories and files the user has added.
+:   List user-added domains, HTTPS method/path rules, TCP ports and
+    paths. Bundled and inherited grants are not listed.
 
-**config** **opencode**|**codex** **add-host**|**remove-host** [**--method** *METHOD*] *HOST*|*URL*
-:   Allow a host, or remove the user allowance for it. A name such as
-    api.github.com allows every path and port. An https:// URL with a path
-    allows only matching requests (\* is one path segment, \*\* any number),
-    with **--method**, such as GET, limiting the HTTP method. Request bodies
-    are not checked.
+**config** **opencode**|**codex** **allow-domain**|**remove-domain**
+[**--method** *METHOD*] *DOMAIN*|*HTTPS_URL*
+:   Allow an exact domain on all paths and ports, or remove its user rules.
+    A quoted '\*.example.com' includes subdomains at any depth but not bare
+    example.com. Only a leading \*. wildcard is supported. Single-label
+    names, numeric addresses and explicit ports (including :443) are rejected
+    for new grants. Removal accepts exact stored keys, including addresses,
+    single-label names and wildcard patterns, without expanding other entries.
+    An https:// URL with a non-root path adds an HTTPS endpoint rule (\* is
+    one path segment, \*\* any number); **--method** defaults to \* (any).
+    URLs without a path, or with /, mean whole-domain access.
+    Endpoint rules require an exact hostname; wildcard domains are supported
+    only for whole-domain access.
+    URL credentials, queries and fragments are rejected. Ports are unrestricted;
+    plain HTTP is not path-filtered, and request bodies are not checked.
+    Remove the exact user domain before switching between whole-domain and
+    endpoint rules. Removing a URL matches its method and path; removing the
+    last endpoint removes the user domain. Other wildcard and inherited
+    allowances may still permit access.
 
-**config** **opencode**|**codex** **add-port**|**remove-port** *PORT*
-:   Let the agent and its programs listen on and connect to a localhost TCP
-    port, such as a test server's.
+**config** **opencode**|**codex** **allow-tcp-port**|**remove-tcp-port** *PORT*
+:   Let the agent and its programs connect to and listen on one TCP port.
+    This is host-independent: on Linux it can permit direct connections to
+    non-loopback addresses, bypassing domain filtering even with an offline
+    profile. It is not limited to localhost or one remote domain. Binding a
+    server to 127.0.0.1 does not restrict the agent's outbound destinations.
+    Accepts one decimal port from 1 to 65535, not ranges or UDP.
 
 **config** **opencode**|**codex** **add-dir** [**--read-write**] *PATH*, **remove-dir** *PATH*
 :   Allow a directory, read-only unless **--read-write**, or remove the user
@@ -70,7 +88,10 @@ supported releases are WSL 2.7.7 and Ubuntu 26.04; neither is checked.
 :   The same for a single file.
 
 Configuration changes apply to new sessions and must be made from a normal
-terminal, outside a nono session.
+terminal, outside a nono session. Restart the agent to use them. The former
+host/port command names have no compatibility aliases; profile files are
+unchanged. Native nono's **--allow-domain** flag belongs to **nono run**;
+use **config** *AGENT* **allow-domain** for persistent wrapper allowances.
 
 **verify** [**opencode**|**codex**...]
 :   Report tool versions, the project root and the proxy setting, then run
@@ -169,7 +190,7 @@ Start OpenCode in the current project:
 
 Allow one more host for Codex:
 
-    nono-wrapper config codex add-host api.github.com
+    nono-wrapper config codex allow-domain api.github.com
 
 Check what changed during a session:
 

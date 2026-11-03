@@ -59,7 +59,11 @@ func TestExitCodeContract(t *testing.T) {
 		{name: "unknown flag", args: []string{"--frobnicate"}, status: exitUsage},
 		{name: "unknown help topic", args: []string{"help", "frobnicate"}, status: exitUsage},
 		{name: "wrong argument count", args: []string{"audit"}, status: exitUsage},
-		{name: "malformed host", args: []string{"config", "opencode", "add-host", "http://example.org/path"}, status: exitDataErr},
+		{name: "malformed host", args: []string{"config", "opencode", "allow-domain", "http://example.org/path"}, status: exitDataErr},
+		{name: "removed add-host command", args: []string{"config", "opencode", "add-host", "example.org"}, status: exitUsage},
+		{name: "removed remove-host command", args: []string{"config", "opencode", "remove-host", "example.org"}, status: exitUsage},
+		{name: "removed add-port command", args: []string{"config", "codex", "add-port", "3000"}, status: exitUsage},
+		{name: "removed remove-port command", args: []string{"config", "codex", "remove-port", "3000"}, status: exitUsage},
 		{name: "missing marker", args: []string{"audit", "missing-marker"}, status: exitNoInput},
 		{name: "missing directory", args: []string{"config", "opencode", "add-dir", "/nonexistent/nono-wrapper"}, status: exitNoInput},
 		{
@@ -67,7 +71,7 @@ func TestExitCodeContract(t *testing.T) {
 			setup: func(t *testing.T, _ string) {
 				t.Setenv("NONO_SESSION_ID", "session")
 			},
-			args:   []string{"config", "opencode", "add-host", "example.org"},
+			args:   []string{"config", "opencode", "allow-domain", "example.org"},
 			status: exitNoPerm,
 		},
 		{

@@ -27,14 +27,14 @@ import (
 func configCommand() *cli.Command {
 	command := &cli.Command{
 		Name: "config", Usage: "Manage persistent user allowances",
-		Description:  "User files survive install-local. Changes apply to new sessions. Removing a user grant does not remove inherited access.\n\nExamples:\n  nono-wrapper config opencode show\n  nono-wrapper config opencode add-host api.github.com\n  nono-wrapper config codex add-dir --read-write /path/to/shared-project",
+		Description:  "Run edits from your normal terminal outside nono. User files survive install-local. Changes apply to new sessions. Removing a user grant does not remove inherited access.\n\nExamples:\n  nono-wrapper config opencode show\n  nono-wrapper config opencode allow-domain api.github.com\n  nono-wrapper config codex allow-tcp-port 3000\n  nono-wrapper config codex add-dir --read-write /path/to/shared-project",
 		OnUsageError: usageError,
 		Action:       helpOrUnknown,
 	}
 	for _, agent := range []string{"opencode", "codex"} {
 		child := &cli.Command{Name: agent, Usage: "Manage " + agent + "-user.jsonc", OnUsageError: usageError, Action: helpOrUnknown}
 		child.Commands = append(child.Commands, &cli.Command{
-			Name: "show", Usage: "List user-added hosts, directories and files", OnUsageError: usageError,
+			Name: "show", Usage: "List user-added domains, HTTPS endpoints, TCP ports and paths", OnUsageError: usageError,
 			Action: func(_ context.Context, cmd *cli.Command) error {
 				if cmd.NArg() != 0 {
 					return cli.Exit("show takes no arguments", exitUsage)
@@ -61,23 +61,49 @@ func configEditCommand(agent, resource string, add bool) *cli.Command {
 	if add {
 		verb, usage = "add", "Allow a "
 	}
-	argument, noun := "PATH", map[string]string{"host": "host", "port": "localhost port", "dir": "directory", "file": "file"}[resource]
+	argument, noun := "PATH", map[string]string{"host": "host", "port": "TCP port", "dir": "directory", "file": "file"}[resource]
+	commandResource := resource
 	switch resource {
 	case "host":
-		argument = "HOST|URL"
+		argument, noun, commandResource = "DOMAIN|HTTPS_URL", "domain or HTTPS endpoint", "domain"
 	case "port":
-		argument = "PORT"
+		argument, noun, commandResource = "PORT", "TCP port", "tcp-port"
+	}
+	if add && (resource == "host" || resource == "port") {
+		verb = "allow"
 	}
 	command := &cli.Command{
-		Name: verb + "-" + resource, Usage: usage + noun,
+		Name: verb + "-" + commandResource, Usage: usage + noun,
 		ArgsUsage: argument, OnUsageError: usageError,
 	}
 	switch resource {
 	case "host":
-		command.Description = "HOST is a name such as api.github.com and allows every path. A URL such as https://gitlab.example/api/v4/projects/123/** allows only matching HTTPS paths: * matches one path segment, ** any number. A port is accepted but not stored: nono allows a listed host on every port.\n\nExamples:\n  nono-wrapper config opencode add-host api.github.com\n  nono-wrapper config opencode add-host --method GET 'https://gitlab.example/api/v4/projects/123/**'"
+		command.Description = `DOMAIN allows one exact hostname on every path and port.
+A quoted '*.example.com' allows subdomains at any depth, not example.com itself.
+Numeric addresses, single-label names and explicit ports are rejected;
+domain ports cannot be restricted.
+
+An HTTPS URL with an exact hostname and a non-root path adds an endpoint rule:
+* matches one path segment, ** any number. --method limits its HTTP method.
+Ports remain unrestricted; plain HTTP is not path-filtered, and request bodies
+are not checked. A URL without a path, or with /, means whole-domain access.
+Wildcard domains are supported only for whole-domain access.
+
+Remove the domain's user allowance before switching between whole-domain and
+endpoint rules. Removing a URL matches its method and path; removing a domain
+removes all its user endpoint rules. Removal also accepts exact stored keys,
+including IP addresses, single-label names and wildcard patterns that cannot
+be newly allowed. It never expands a pattern to remove other entries.
+Other wildcard or inherited grants may still allow access. Run outside nono;
+changes apply to new sessions.
+
+Examples:
+  nono-wrapper config opencode allow-domain api.github.com
+  nono-wrapper config opencode allow-domain '*.example.com'
+  nono-wrapper config opencode allow-domain --method GET 'https://gitlab.example/api/v4/projects/123/**'`
 		command.Flags = []cli.Flag{&cli.StringFlag{Name: "method", Value: "*", Usage: "HTTP method of a URL rule, such as GET; * allows any"}}
 	case "port":
-		command.Description = "Lets the agent and the programs it runs, such as test servers, listen on and connect to this TCP port on localhost. It does not open the port to other hosts' traffic beyond what the program itself binds."
+		command.Description = "Lets the agent and its programs connect to and listen on one TCP port, from 1 to 65535. This is a host-independent grant: it can permit direct connections to non-loopback addresses on that port, outside domain filtering, even with an offline profile. It is not restricted to localhost and does not force a server's bind address. No ranges or UDP. Run outside nono; changes apply to new sessions."
 	}
 	if add && (resource == "dir" || resource == "file") {
 		command.Flags = []cli.Flag{
@@ -140,9 +166,13 @@ func configEditCommand(agent, resource string, add bool) *cli.Command {
 		if add {
 			fmt.Fprintf(cmd.Root().Writer, "Allowed %s.\n", rule.describe())
 		} else {
-			fmt.Fprintf(cmd.Root().Writer, "Removed the user allowance for %s; inherited or broader grants may still allow access.\n", rule.describe())
+			description := rule.describe()
+			if rule.resource == "host" && rule.endpoint == nil {
+				description = fmt.Sprintf("domain key %q", rule.value)
+			}
+			fmt.Fprintf(cmd.Root().Writer, "Removed the user allowance for %s; inherited or broader grants may still allow access.\n", description)
 		}
-		fmt.Fprintf(cmd.Root().Writer, "Updated %q. Applies to the next session.\n", path)
+		fmt.Fprintf(cmd.Root().Writer, "Updated %q. Applies to new %s sessions; restart the agent to use it.\n", path, agent)
 		return nil
 	}
 	return command
@@ -157,7 +187,7 @@ func configPath(agent string) (string, error) {
 }
 
 // allowance is one user rule: a host, optionally narrowed to one endpoint; a
-// localhost port; or a directory or file with its access mode.
+// TCP port; or a directory or file with its access mode.
 type allowance struct {
 	resource  string // host, port, dir or file
 	value     string // host name, port number or absolute path
@@ -174,15 +204,19 @@ func (rule allowance) describe() string {
 	switch rule.resource {
 	case "host":
 		if rule.endpoint == nil {
-			return rule.value + ": every path and port"
+			scope := rule.value + ": all paths and ports"
+			if strings.HasPrefix(rule.value, "*.") {
+				scope += "; subdomains at any depth, excluding " + strings.TrimPrefix(rule.value, "*.")
+			}
+			return scope
 		}
 		method := rule.endpoint.Method + " requests"
 		if method == "* requests" {
 			method = "requests of any method"
 		}
-		return fmt.Sprintf("%s to %s matching %s. The host is now limited to its URL rules; request bodies are not checked, so this cannot limit an MCP server to one project", method, rule.value, rule.endpoint.Path)
+		return fmt.Sprintf("HTTPS %s to %s matching %s. Ports are unrestricted; plain HTTP is not path-filtered. Other wildcard or inherited grants may still allow access; request bodies are not checked", method, rule.value, rule.endpoint.Path)
 	case "port":
-		return "localhost port " + rule.value + ": the agent and its programs may listen on it and connect to it"
+		return "TCP port " + rule.value + ": connect and listen, including non-loopback addresses; direct TCP access can bypass domain filtering"
 	}
 	mode := "read-only"
 	if rule.readWrite {
@@ -198,7 +232,7 @@ func parseAllowance(resource, value, method string, add bool) (allowance, error)
 	}
 	switch resource {
 	case "host":
-		return parseHostAllowance(value, method)
+		return parseHostAllowance(value, method, add)
 	case "port":
 		port, err := parsePort(value)
 		if err != nil {
@@ -228,13 +262,21 @@ func parseAllowance(resource, value, method string, add bool) (allowance, error)
 	return rule, nil
 }
 
-// parseHostAllowance accepts a host name, host:port or an HTTPS URL. nono
-// allows a listed host on every port, so a port is checked and dropped. A URL
-// path becomes an endpoint rule; plain HTTP would bypass it and is refused.
-func parseHostAllowance(value, method string) (allowance, error) {
+// parseHostAllowance accepts an exact domain, a leading *. wildcard or an
+// HTTPS URL. Reject ports instead of silently granting broader access.
+func parseHostAllowance(value, method string, add bool) (allowance, error) {
 	rule := allowance{resource: "host"}
-	const usage = "expected a host such as api.github.com or an HTTPS URL such as https://gitlab.example/api/v4/projects/123/**"
+	const usage = "expected a domain such as api.github.com, '*.example.com' or an HTTPS URL such as https://gitlab.example/api/v4/projects/123/**"
 	path := ""
+	// Removal matches stored keys, not the vocabulary for creating new grants.
+	// Never resolve DNS, expand wildcard matches or drop a stored port.
+	if !add && !strings.Contains(value, "://") {
+		if method != "*" {
+			return rule, errors.New("--method needs an HTTPS URL with a non-root path")
+		}
+		rule.value = hostKey(value)
+		return rule, nil
+	}
 	if strings.Contains(value, "://") {
 		target, err := url.Parse(value)
 		switch {
@@ -242,20 +284,20 @@ func parseHostAllowance(value, method string) (allowance, error) {
 			return rule, errors.New(usage)
 		case !strings.EqualFold(target.Scheme, "https"):
 			return rule, fmt.Errorf("only https:// URLs can be narrowed to paths; plain HTTP would bypass the rule.\n%s", usage)
-		case target.User != nil || target.RawQuery != "" || target.ForceQuery || target.Fragment != "":
+		case target.User != nil || target.RawQuery != "" || target.ForceQuery || strings.Contains(value, "#"):
 			return rule, fmt.Errorf("a URL rule matches a path only, without a query, fragment or user name.\n%s", usage)
 		}
 		value, path = target.Host, target.EscapedPath()
 	}
-	if host, port, err := net.SplitHostPort(value); err == nil {
-		if _, err := parsePort(port); err != nil {
-			return rule, fmt.Errorf("%w.\n%s", err, usage)
-		}
-		value = host
+	if add && net.ParseIP(strings.Trim(value, "[]")) != nil {
+		return rule, fmt.Errorf("IP addresses are not domains.\n%s", usage)
 	}
-	value = strings.ToLower(strings.TrimSuffix(value, "."))
-	if !validHostname(value) {
-		return rule, errors.New(usage)
+	if add && strings.Contains(value, ":") {
+		return rule, errors.New("domain allowances apply to every port; an explicit domain port cannot be enforced. Omit the port to allow the domain on all ports. allow-tcp-port is a separate host-independent grant, not a domain-port restriction")
+	}
+	value = hostKey(value)
+	if add && !validDomain(value) {
+		return rule, fmt.Errorf("%s; numeric and single-label names are not accepted", usage)
 	}
 	rule.value = value
 	if path == "/" || path == "" {
@@ -263,6 +305,9 @@ func parseHostAllowance(value, method string) (allowance, error) {
 			return rule, errors.New("--method needs a URL with a path, such as https://" + value + "/api/**")
 		}
 		return rule, nil
+	}
+	if add && strings.HasPrefix(value, "*.") {
+		return rule, errors.New("HTTPS endpoint rules require an exact hostname; wildcard domains are supported only for whole-domain access")
 	}
 	method = strings.ToUpper(method)
 	valid := method != ""
@@ -298,6 +343,12 @@ func validHostname(value string) bool {
 		}
 	}
 	return valid
+}
+
+func validDomain(value string) bool {
+	value = strings.TrimPrefix(value, "*.")
+	tld := value[strings.LastIndex(value, ".")+1:]
+	return validHostname(value) && strings.Contains(value, ".") && strings.Trim(tld, "0123456789") != ""
 }
 
 func expandHomePath(path string) string {
@@ -512,6 +563,11 @@ func appendConfig(doc *hujson.Value, section, field string, value any) error {
 }
 
 func changeAllowance(doc *hujson.Value, rule allowance, add bool) (bool, error) {
+	if rule.resource == "host" && add {
+		if err := checkDomainScope(doc, rule); err != nil {
+			return false, err
+		}
+	}
 	switch {
 	case rule.resource == "port":
 		return changePort(doc, rule.value, add)
@@ -593,7 +649,7 @@ func changeAllowance(doc *hujson.Value, rule allowance, add bool) (bool, error) 
 	return changed, nil
 }
 
-// changePort edits network.open_port: localhost listen and connect access.
+// changePort edits network.open_port: host-independent TCP listen/connect access.
 func changePort(doc *hujson.Value, port string, add bool) (bool, error) {
 	array, err := configArray(doc, "network", "open_port")
 	if err != nil {
@@ -625,15 +681,36 @@ func changePort(doc *hujson.Value, port string, add bool) (bool, error) {
 	return true, appendConfig(doc, "network", "open_port", number)
 }
 
-// changeEndpoint adds or removes one endpoint rule for a host. Whole-host
-// access would make the rule pointless, so adding one narrows the host; the
-// last endpoint's removal removes the host, since an empty list allows it all.
+// Reject implicit scope replacements before changing any entries, including
+// duplicate hand-written entries. Distinct wildcard patterns remain separate.
+func checkDomainScope(doc *hujson.Value, rule allowance) error {
+	array, err := configArray(doc, "network", "allow_domain")
+	if err != nil || array == nil {
+		return err
+	}
+	for _, element := range array.Elements {
+		element = element.Clone()
+		element.Standardize()
+		entry, err := decodeHostRule(element.Pack())
+		if err != nil {
+			return invalidConfig{err}
+		}
+		if entry.Domain == rule.value && (len(entry.Endpoints) > 0) != (rule.endpoint != nil) {
+			return cli.Exit(fmt.Sprintf("domain %q already has a different user allowance scope; use remove-domain %q before switching between whole-domain and HTTPS endpoint rules", rule.value, rule.value), exitDataErr)
+		}
+	}
+	return nil
+}
+
+// changeEndpoint adds or removes one endpoint rule for a host. The last
+// endpoint's removal removes the host, since an empty list allows it all.
 func changeEndpoint(doc *hujson.Value, rule allowance, add bool) (bool, error) {
 	array, err := configArray(doc, "network", "allow_domain")
 	if err != nil {
 		return false, err
 	}
 	changed, present := false, false
+	appendAt := ""
 	var elements []hujson.ArrayElement
 	if array != nil {
 		elements = array.Elements
@@ -659,12 +736,6 @@ func changeEndpoint(doc *hujson.Value, rule allowance, add bool) (bool, error) {
 		}
 		// A name, or an object without endpoints, allows the whole host.
 		if len(entry.Endpoints) == 0 {
-			if add {
-				if err := patchConfig(doc, "remove", base, nil); err != nil {
-					return false, err
-				}
-				changed = true
-			}
 			continue
 		}
 		index := slices.IndexFunc(entry.Endpoints, func(endpoint endpointRule) bool {
@@ -673,11 +744,8 @@ func changeEndpoint(doc *hujson.Value, rule allowance, add bool) (bool, error) {
 		switch {
 		case add && index >= 0:
 			present = true
-		case add && !present:
-			if err := patchConfig(doc, "add", base+"/endpoints/-", *rule.endpoint); err != nil {
-				return false, err
-			}
-			present, changed = true, true
+		case add:
+			appendAt = base + "/endpoints/-"
 		case !add && index >= 0:
 			if len(entry.Endpoints) == 1 {
 				err = patchConfig(doc, "remove", base, nil)
@@ -691,7 +759,13 @@ func changeEndpoint(doc *hujson.Value, rule allowance, add bool) (bool, error) {
 		}
 	}
 	if add && !present {
-		if err := appendConfig(doc, "network", "allow_domain", hostRule{Domain: rule.value, Endpoints: []endpointRule{*rule.endpoint}}); err != nil {
+		var err error
+		if appendAt != "" {
+			err = patchConfig(doc, "add", appendAt, *rule.endpoint)
+		} else {
+			err = appendConfig(doc, "network", "allow_domain", hostRule{Domain: rule.value, Endpoints: []endpointRule{*rule.endpoint}})
+		}
+		if err != nil {
 			return false, err
 		}
 		changed = true
@@ -773,8 +847,8 @@ func showUserConfig(path, agent string, output io.Writer) error {
 	fmt.Fprintf(output, "User allowances in %q:\n", path)
 	count := 0
 	for _, group := range []struct{ section, field, label string }{
-		{"network", "allow_domain", "host"},
-		{"network", "open_port", "localhost port"},
+		{"network", "allow_domain", "domain"},
+		{"network", "open_port", "TCP port (connect/listen; not loopback-only)"},
 		{"filesystem", "read", "directory (read-only)"},
 		{"filesystem", "write", "directory (write-only)"},
 		{"filesystem", "allow", "directory (read/write)"},
@@ -791,6 +865,22 @@ func showUserConfig(path, agent string, output io.Writer) error {
 		}
 		for _, entry := range array.Elements {
 			entry = entry.Clone()
+			if group.field == "allow_domain" {
+				entry.Standardize()
+				rule, err := decodeHostRule(entry.Pack())
+				if err != nil {
+					return invalidConfig{err}
+				}
+				if len(rule.Endpoints) == 0 {
+					fmt.Fprintf(output, "  domain: %q (all paths and ports)\n", rule.Domain)
+				} else {
+					for _, endpoint := range rule.Endpoints {
+						fmt.Fprintf(output, "  HTTPS endpoint: %q method=%q path=%q (all ports; plain HTTP is not path-filtered)\n", rule.Domain, endpoint.Method, endpoint.Path)
+					}
+				}
+				count++
+				continue
+			}
 			entry.Minimize()
 			fmt.Fprintf(output, "  %s: %s\n", group.label, entry.Pack())
 			count++

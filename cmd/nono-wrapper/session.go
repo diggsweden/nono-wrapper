@@ -188,13 +188,12 @@ func printSessionAudit(output io.Writer, agent string, audit sessionAudit) {
 			continue
 		}
 		suggested[host] = true
-		fmt.Fprintf(output, "  To allow %s: nono-wrapper config %s add-host %s\n", host, agent, host)
+		fmt.Fprintf(output, "  To allow %s in future %s sessions, run outside the sandbox:\n    nono-wrapper config %s allow-domain %s\n  Then restart the agent.\n", host, agent, agent, host)
 	}
 	fmt.Fprintf(output, "  Full audit: nono audit show %s\n", audit.SessionID)
 	fmt.Fprintln(output, "  Check access: nono why --profile PROFILE --host HOST (or --path PATH --op read)")
 }
 
 func suggestableHost(host string) bool {
-	tld := host[strings.LastIndex(host, ".")+1:]
-	return validHostname(host) && strings.Contains(host, ".") && strings.Trim(tld, "0123456789") != ""
+	return !strings.HasPrefix(host, "*.") && validDomain(host)
 }

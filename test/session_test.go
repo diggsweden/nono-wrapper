@@ -45,13 +45,13 @@ func TestLauncherReportsNetworkEvents(t *testing.T) {
 					`"deny" "svt.se:443" reason="host not in allowlist" (2 events)`,
 					`method="GET" path="/private" reason="endpoint denied"`,
 					"nono audit show 0123456789abcdef", "nono why --profile PROFILE --host HOST",
-					"To allow svt.se: nono-wrapper config " + spec.agent + " add-host svt.se\n",
+					"To allow svt.se in future " + spec.agent + " sessions, run outside the sandbox:\n    nono-wrapper config " + spec.agent + " allow-domain svt.se\n  Then restart the agent.\n",
 				} {
 					if !strings.Contains(stderr, want) {
 						t.Fatalf("report missing %q:\n%s", want, stderr)
 					}
 				}
-				// Endpoint refusals on an allowed host need a URL rule, not add-host.
+				// Endpoint refusals must not suggest whole-domain access.
 				if strings.Count(stderr, "To allow") != 1 {
 					t.Fatalf("expected one grant suggestion: %s", stderr)
 				}

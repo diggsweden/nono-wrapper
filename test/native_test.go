@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,7 +26,7 @@ func TestNativeIntegration(t *testing.T) {
 	}
 	for _, tool := range []string{"nono", "opencode", "codex", "just", "git"} {
 		if _, err := exec.LookPath(tool); err != nil {
-			t.Fatalf("%s is required; run just install-dev-tools: %v", tool, err)
+			t.Fatalf("%s is required; install agents through DevBase and sandbox/build tools with just install-dev-tools: %v", tool, err)
 		}
 	}
 
@@ -99,6 +100,38 @@ func TestNativeIntegration(t *testing.T) {
 		t.Fatal("installed manual is missing")
 	}
 	run(project, nil, wrapper, "verify")
+	// Validate saved rules with real nono, without contacting any destination.
+	// Keep a baseline domain so removing a test rule never means open networking.
+	for _, agent := range []string{"opencode", "codex"} {
+		run(project, nil, wrapper, "config", agent, "allow-domain", "retained.example")
+		checkHost := func(host, status string) {
+			t.Helper()
+			output := run(project, nil, "nono", "why", "--profile", agent+"-user", "--host", host, "--json")
+			var result struct{ Status string }
+			if err := json.Unmarshal([]byte(output), &result); err != nil || result.Status != status {
+				t.Fatalf("%s host %q: want %s, got %s (%v)", agent, host, status, output, err)
+			}
+		}
+		run(project, nil, wrapper, "config", agent, "allow-domain", "example.com")
+		checkHost("example.com", "allowed")
+		checkHost("api.example.com", "denied")
+		run(project, nil, wrapper, "config", agent, "remove-domain", "example.com")
+		run(project, nil, wrapper, "config", agent, "allow-domain", "*.example.com")
+		checkHost("example.com", "denied")
+		checkHost("api.example.com", "allowed")
+		checkHost("deep.api.example.com", "allowed")
+		checkHost("notexample.com", "denied")
+		run(project, nil, wrapper, "config", agent, "remove-domain", "*.example.com")
+		checkHost("api.example.com", "denied")
+		run(project, nil, wrapper, "config", agent, "allow-domain", "--method", "GET", "https://api.example.com/api/**")
+		checkHost("https://api.example.com/api/items", "allowed")
+		checkHost("https://api.example.com/other", "denied")
+		run(project, nil, wrapper, "config", agent, "remove-domain", "--method", "GET", "https://api.example.com/api/**")
+		checkHost("api.example.com", "denied")
+		run(project, nil, wrapper, "config", agent, "allow-tcp-port", "3000")
+		run(project, nil, wrapper, "config", agent, "remove-tcp-port", "3000")
+		run(project, nil, wrapper, "config", agent, "remove-domain", "retained.example")
+	}
 	run(project, []string{"NONO_PROFILE=opencode-offline"}, wrapper, "opencode", "session", "list")
 	run(project, []string{"NONO_PROFILE=codex-offline"}, wrapper, "codex", "features", "list")
 

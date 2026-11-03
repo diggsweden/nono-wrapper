@@ -12,10 +12,10 @@ Run these from your normal terminal, outside an agent session. Changes apply
 to the next session; use `codex` instead of `opencode` for Codex:
 
 ```sh
-nono-wrapper config opencode add-host api.github.com
+nono-wrapper config opencode allow-domain api.github.com
 nono-wrapper config opencode add-dir /path/to/existing/reference
 nono-wrapper config opencode show
-nono-wrapper config opencode remove-host api.github.com
+nono-wrapper config opencode remove-domain api.github.com
 ```
 
 Directories are read-only unless you pass `--read-write`. A bare host grants
@@ -103,9 +103,10 @@ choose which agent's allowances to manage. Replace `/path/to/...` with
 existing directories and files:
 
 ```sh
-nono-wrapper config opencode add-host api.github.com
-nono-wrapper config opencode add-host --method GET 'https://gitlab.example/api/v4/projects/123/**'
-nono-wrapper config opencode add-port 8081
+nono-wrapper config opencode allow-domain api.github.com
+nono-wrapper config opencode allow-domain '*.example.com'
+nono-wrapper config opencode allow-domain --method GET 'https://gitlab.example/api/v4/projects/123/**'
+nono-wrapper config opencode allow-tcp-port 8081
 nono-wrapper config opencode add-dir /path/to/reference
 nono-wrapper config opencode add-dir --read-write /path/to/shared-project
 nono-wrapper config opencode add-file /path/to/settings.toml
@@ -114,7 +115,9 @@ nono-wrapper config opencode show
 ```
 
 Each command says what it allowed, for example
-`Allowed gitlab.example: every path and port.`
+`Allowed api.github.com: all paths and ports.` Changes apply to new sessions;
+restart the agent to use them. Run configuration edits from your normal
+terminal outside nono.
 
 `add-dir` asks before granting a directory that holds configuration
 repositories, the same way a launch does
@@ -127,30 +130,80 @@ different mode updates its user allowance and replaces matching bundled path
 grants at launch. Paths must exist when adding them; relative paths are
 stored as absolute paths.
 
-`add-host` takes a host name such as `api.github.com`, which allows every path
-on every port: nono does not restrict a listed host by port, so
-`gitlab.example:8443` is stored as `gitlab.example`. An `https://` URL with a
-path allows only matching HTTPS requests: `*` matches one path segment and
-`**` any number. `--method GET` limits the rule to one HTTP method, such as
-read-only API calls; the default `*` allows any. A URL rule narrows the host:
-it replaces whole-host access for that host, and further URLs add to it.
+### Network allowance matrix
 
-URL rules check the method and path, not the request body. **They cannot
+The examples below follow `nono-wrapper config opencode`; replace `opencode`
+with `codex` for Codex. Domain allowances describe remote destinations;
+TCP-port allowances describe a host-independent connect/listen exception.
+They are separate grants.
+
+| Command or input | Meaning |
+| --- | --- |
+| `allow-domain example.com` | Exact hostname, all paths and ports; no implicit subdomains. |
+| `allow-domain api.example.com` | That exact subdomain only. |
+| `allow-domain '*.example.com'` | Subdomains at any depth, including `deep.api.example.com`, but not bare `example.com`. Quote the wildcard so the shell does not expand it. |
+| `allow-domain API.EXAMPLE.COM.` | Normalized to `api.example.com`. |
+| `allow-domain 'https://example.com/api/**'` | Matching HTTPS paths, any HTTP method. `*` matches one path segment; `**` matches any number. |
+| `allow-domain --method GET 'https://example.com/api/**'` | Matching HTTPS GET requests. |
+| `allow-domain https://example.com` or `https://example.com/` | Whole-domain access, all paths and ports; not an HTTPS-only restriction. |
+| `allow-domain example.com:8443` | Rejected: domain ports cannot be restricted. Explicit ports in URLs, including `:443`, are also rejected. |
+| `allow-domain 443`, `localhost`, or an IP address | Rejected for new grants: use a domain name. TCP-port grants are a separate, host-independent exception. |
+| `allow-domain '*'` or `'api.*.example.com'` | Rejected: only a leading `*.` wildcard is supported. |
+| `allow-domain 'https://*.example.com/api/**'` | Rejected: endpoint rules require an exact hostname. Use wildcard domains only for whole-domain access. |
+| An `http://` URL, or a URL with credentials, query, or fragment | Rejected: these do not express supported endpoint restrictions. |
+| `allow-tcp-port 3000` | TCP connect/listen on this port, including non-loopback addresses on Linux; can bypass domain filtering even with an offline profile. |
+| `allow-tcp-port 0`, `65536`, `3000-3010`, or `3000/udp` | Rejected: one decimal TCP port from 1 to 65535 is required. |
+| `remove-domain example.com` | Remove that exact user host entry, including all its endpoint rules. Does not remove `'*.example.com'`. |
+| `remove-domain --method GET 'https://example.com/api/**'` | Remove only that method/path rule; removing the last endpoint removes the user host entry. |
+| `remove-domain 192.0.2.1`, `buildserver`, or `'*'` | Remove that exact stored key, even though it cannot be newly allowed. Wildcards are not expanded to remove other entries. |
+| `remove-tcp-port 3000` | Remove the user-added TCP port. |
+
+The only network flag is `--method`, for a URL with a non-root path. Its
+default is `*` (any method); method names are normalized to uppercase.
+Domain names are case-insensitive and a trailing dot is ignored. Numeric
+top-level labels and single-label names are rejected for new grants. Removal
+matches existing keys, so an allowance never becomes impossible to remove
+because the add grammar is stricter. Stored wildcard or numeric-host endpoint
+rules can also be removed by their exact HTTPS method/path. No DNS lookup is
+needed to save or remove a rule.
+
+Whole-domain and endpoint rules for the same user domain cannot silently
+replace each other. Remove that domain's user allowance before changing its
+scope:
+
+```sh
+nono-wrapper config opencode remove-domain example.com
+nono-wrapper config opencode allow-domain --method GET 'https://example.com/api/**'
+```
+
+Further URLs add endpoint rules; repeating an existing rule is a no-op.
+Distinct wildcard patterns and exact domains remain separate. An exact URL
+rule does not cancel a broader wildcard or inherited allowance. `show`
+distinguishes whole domains, HTTPS endpoints and TCP ports, but lists
+only user allowances, not effective inherited policy.
+
+URL rules restrict HTTPS methods and paths, not ports. Plain HTTP to a listed
+host is not path-filtered; nono 0.80.0 has no HTTPS-only setting. They check
+neither query strings nor request bodies. **They cannot
 limit an MCP server to one project:** an MCP server receives every call on the
 same path. Use a token that can read only that project instead. Codex streams
 over WebSockets, which nono refuses on hosts with URL rules, so keep
 `chatgpt.com` as a whole host.
 
-`add-port PORT` lets the agent and the programs it runs, such as a test
-server, listen on and connect to that localhost port. It writes nono's
-`network.open_port`, and works with both the ChatGPT and offline profiles.
+`allow-tcp-port PORT` writes nono's `network.open_port`. On Linux the exception
+permits TCP connect/listen by port, not by host: direct connections to
+non-loopback addresses can succeed outside the domain-filtering proxy, even
+with an offline profile. It is not a way to allow only `example.com:3000` or
+only localhost. Binding a development server to `127.0.0.1` limits that server's
+listener; it does not restrict the agent's outbound connection destinations.
+It grants TCP, not UDP, and accepts no port ranges.
 
 Remove allowances with:
 
 ```sh
-nono-wrapper config opencode remove-host api.github.com
-nono-wrapper config opencode remove-host 'https://gitlab.example/api/v4/projects/123/**'
-nono-wrapper config opencode remove-port 8081
+nono-wrapper config opencode remove-domain api.github.com
+nono-wrapper config opencode remove-domain --method GET 'https://gitlab.example/api/v4/projects/123/**'
+nono-wrapper config opencode remove-tcp-port 8081
 nono-wrapper config opencode remove-dir /path/to/reference
 nono-wrapper config opencode remove-file /path/to/settings.toml
 ```
@@ -159,15 +212,15 @@ Removing a directory or file clears that exact path's user-added read, write
 and read/write entries, restoring any matching bundled grant. It also works
 after the path has been deleted.
 **Removal does not revoke access inherited from another profile or a broader
-directory grant.** `show` lists user allowances only; `nono profile show opencode-chatgpt` (or
-`codex-chatgpt`) shows everything the bundled profile grants.
+directory grant.** `show` lists user allowances only;
+`nono profile show opencode-chatgpt` (or `codex-chatgpt`) shows everything the
+bundled profile grants.
 
 Edits preserve JSONC comments and unrelated settings, validate with nono, and
 replace the file atomically. Repeating an existing allowance is a no-op.
-`add-host` means whole-host access: it replaces endpoint-restricted entries
-for that host in the user file. Removing a host removes its user entries,
-including endpoint rules; removing a URL removes that one rule, with the same
-`--method` it was added with.
+The profile file format is unchanged. The prerelease network commands are
+now `allow-domain`, `remove-domain`, `allow-tcp-port` and
+`remove-tcp-port`; former host/port command names have no aliases.
 
 ### User precedence and rule protection
 
@@ -181,7 +234,7 @@ resources:
 | File | The user's access mode replaces bundled grants for the same canonical file path, including grants written in the general filesystem lists. |
 
 Distinct hosts and paths keep their existing rules.
-For example, `add-host chatgpt.com` overrides OpenCode's bundled endpoint
+For example, `allow-domain chatgpt.com` overrides OpenCode's bundled endpoint
 restriction for that host. Removing the user entry restores the bundled rule.
 Host comparisons ignore case and a trailing dot; different wildcard patterns
 remain separate rules.
