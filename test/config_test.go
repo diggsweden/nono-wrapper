@@ -128,6 +128,86 @@ func TestConfigHostAndPathEditing(t *testing.T) {
 	}
 }
 
+func TestConfigFileAllowancePinsSymlinkTarget(t *testing.T) {
+	for _, agent := range []string{"opencode", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			f := newLauncherFixture(t, agent)
+			home := filepath.Dir(f.bin)
+			first := filepath.Join(home, "instructions/project-a/AGENTS.md")
+			second := filepath.Join(home, "instructions/project-b/AGENTS.md")
+			alias := filepath.Join(home, "state/AGENTS.md")
+			profile := filepath.Join(home, ".config/nono/profiles", agent+"-user.jsonc")
+			for _, path := range []string{first, second, alias} {
+				if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			writeLauncherFixture(t, first, "First instructions.\n")
+			writeLauncherFixture(t, second, "Other instructions.\n")
+			if err := os.Symlink(first, alias); err != nil {
+				t.Fatal(err)
+			}
+			run := func(args ...string) string {
+				t.Helper()
+				stdout, stderr, status := runLauncher(t, f, "", append([]string{"config", agent}, args...), nil)
+				if status != 0 || stderr != "" {
+					t.Fatalf("%q: status=%d stdout=%q stderr=%q", args, status, stdout, stderr)
+				}
+				return string(stdout)
+			}
+			output := run("add-file", alias)
+			if !strings.Contains(output, first) || !strings.Contains(output, alias) || !strings.Contains(output, "read-only") {
+				t.Fatalf("missing target, source or access mode: %s", output)
+			}
+			document := configContents(t, profile)
+			if !slices.Equal(document["filesystem"]["read_file"], []string{first}) || len(document["filesystem"]["allow_file"]) != 0 {
+				t.Fatalf("file allowance was not pinned read-only: %#v", document)
+			}
+			if output := run("add-file", alias); !strings.Contains(output, "No change") {
+				t.Fatalf("repeating the pinned allowance was not a no-op: %s", output)
+			}
+			if err := os.Remove(alias); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(second, alias); err != nil {
+				t.Fatal(err)
+			}
+			if output := run("show"); !strings.Contains(output, first) || strings.Contains(output, second) || strings.Contains(output, alias) {
+				t.Fatalf("repointing the link changed the displayed allowance: %s", output)
+			}
+			run("remove-file", first)
+			if document := configContents(t, profile); len(document["filesystem"]["read_file"]) != 0 {
+				t.Fatalf("could not remove the saved target after repointing: %#v", document)
+			}
+		})
+	}
+}
+
+func TestConfigRejectsInterpretedFileTarget(t *testing.T) {
+	f := newLauncherFixture(t, "codex")
+	home := filepath.Dir(f.bin)
+	target := filepath.Join(home, "literal-$HOME/AGENTS.md")
+	alias := filepath.Join(f.project, "AGENTS.md")
+	profile := filepath.Join(home, ".config/nono/profiles/codex-user.jsonc")
+	for _, path := range []string{target, profile} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeLauncherFixture(t, target, "Generic instructions.\n")
+	writeLauncherFixture(t, profile, "{}\n")
+	if err := os.Symlink(target, alias); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, status := runLauncher(t, f, "", []string{"config", "codex", "add-file", alias}, nil)
+	if status != 65 || !strings.Contains(stderr, "profile variable references") {
+		t.Fatalf("accepted a file target that nono would reinterpret: status=%d stderr=%q", status, stderr)
+	}
+	if data, err := os.ReadFile(profile); err != nil || string(data) != "{}\n" {
+		t.Fatalf("rejected file target changed the profile: %q (%v)", data, err)
+	}
+}
+
 func TestConfigPreservesManualJSONC(t *testing.T) {
 	f := newLauncherFixture(t, "opencode")
 	home := filepath.Dir(f.bin)

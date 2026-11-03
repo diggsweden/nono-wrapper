@@ -130,6 +130,27 @@ different mode updates its user allowance and replaces matching bundled path
 grants at launch. Paths must exist when adding them; relative paths are
 stored as absolute paths.
 
+### Linked instruction files
+
+A directory grant covers files in that directory, not the targets of symlinks
+that point elsewhere. For example, if `~/.codex/AGENTS.md` links to a shared
+instructions file outside `.codex`, grant that file explicitly:
+
+```sh
+nono-wrapper config codex add-file "$HOME/.codex/AGENTS.md"
+```
+
+`add-file` resolves symlinks, including those in parent directories, prints
+the source and target when they differ, and saves the target path read-only
+unless `--read-write` is requested. `show` lists that saved target. Repointing
+the original link does not move the grant to its new target; other grants
+may independently allow access there. Targets that would be reinterpreted
+as profile-variable expressions are rejected.
+
+After repointing or removing the link, use the saved path from
+`config AGENT show` with `remove-file` to remove the original allowance.
+Restart the agent after edits.
+
 ### Network allowance matrix
 
 The examples below follow `nono-wrapper config opencode`; replace `opencode`
@@ -218,9 +239,6 @@ bundled profile grants.
 
 Edits preserve JSONC comments and unrelated settings, validate with nono, and
 replace the file atomically. Repeating an existing allowance is a no-op.
-The profile file format is unchanged. The prerelease network commands are
-now `allow-domain`, `remove-domain`, `allow-tcp-port` and
-`remove-tcp-port`; former host/port command names have no aliases.
 
 ### User precedence and rule protection
 

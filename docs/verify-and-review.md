@@ -50,6 +50,7 @@ a sandbox denial.
 | A writable grant overlaps a protected launch location | Read both paths in the error. Check the workspace, `NONO_ALLOW`, user path grants and relocated state. Move the executable/state or narrow the grant; adding write access cannot fix this refusal. |
 | Login fails or a service is unreachable | Check the session report for a matching network refusal. If there is none, check the agent's login/provider and the service response. A 403 alone does not identify who refused the request. See [login](usage.md#first-time-chatgpt-login) and [network allowances](configuration.md#network-allowance-matrix). |
 | A file cannot be read or written | Establish the exact path and operation. Check whether it is in the workspace or covered by a user or inherited grant. Start with read-only access when reading is all that is needed; see [user configuration](configuration.md#user-configuration). |
+| A linked `AGENTS.md` cannot be read | The target may be outside the granted directory. Use `config AGENT add-file PATH` to save a read-only grant for the resolved file, then restart. See [linked instruction files](configuration.md#linked-instruction-files). |
 | An allowance change has no effect | Confirm the agent named in `config`, inspect its user additions with `config AGENT show`, and restart the session. Broader grants or deny rules may still determine access. |
 | The session report is unavailable | Use the printed `nono audit list` command to locate the recorded session. A reporting failure does not change the agent's exit status. |
 

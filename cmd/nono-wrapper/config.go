@@ -112,6 +112,9 @@ Examples:
 		}
 		command.Usage += " (read-only unless --read-write)"
 		command.Description = "Adds or updates this path's user allowance. The path must exist. Paths are stored as absolute paths."
+		if resource == "file" {
+			command.Description += " Symlinks are resolved and the target path is saved; repointing the original link does not grant access to its new target. Use show to find the saved path for removal."
+		}
 	}
 	command.Action = func(ctx context.Context, cmd *cli.Command) error {
 		if cmd.NArg() != 1 || (cmd.Bool("read-only") && cmd.Bool("read-write")) {
@@ -159,6 +162,9 @@ Examples:
 		if err != nil {
 			return err
 		}
+		if rule.sourcePath != "" {
+			fmt.Fprintf(cmd.Root().Writer, "Resolved file %q to %q.\n", rule.sourcePath, rule.value)
+		}
 		if !changed {
 			fmt.Fprintf(cmd.Root().Writer, "No change to %q.\n", path)
 			return nil
@@ -189,10 +195,11 @@ func configPath(agent string) (string, error) {
 // allowance is one user rule: a host, optionally narrowed to one endpoint; a
 // TCP port; or a directory or file with its access mode.
 type allowance struct {
-	resource  string // host, port, dir or file
-	value     string // host name, port number or absolute path
-	endpoint  *endpointRule
-	readWrite bool
+	resource   string // host, port, dir or file
+	value      string // host name, port number or absolute path
+	sourcePath string // original file path when symlink resolution changes it
+	endpoint   *endpointRule
+	readWrite  bool
 }
 
 func (rule allowance) isPath() bool {
@@ -250,6 +257,23 @@ func parseAllowance(resource, value, method string, add bool) (allowance, error)
 		return rule, quotePathError(err)
 	}
 	if add {
+		if resource == "file" {
+			resolved, err := filepath.EvalSymlinks(path)
+			if err != nil {
+				return rule, quotePathError(err)
+			}
+			key, err := policyPathKey(resolved)
+			if err != nil {
+				return rule, err
+			}
+			if key != resolved {
+				return rule, fmt.Errorf("file target must not contain profile variable references: %q", resolved)
+			}
+			if resolved != path {
+				rule.sourcePath = path
+				path = resolved
+			}
+		}
 		info, err := os.Stat(path)
 		if err != nil {
 			return rule, quotePathError(err)
@@ -635,21 +659,36 @@ func changeAllowance(doc *hujson.Value, rule allowance, add bool) (bool, error) 
 				return false, fmt.Errorf("invalid entry in %s.%s", section, field)
 			}
 			candidate := element.Value.(hujson.Literal).String()
+			raw := candidate
 			if resource != "host" && !strings.HasSuffix(field, "_file") && strings.Contains(candidate, "*") {
 				continue
 			}
 			if resource == "host" {
 				candidate = strings.ToLower(strings.TrimSuffix(candidate, "."))
 			} else {
-				candidate, err = policyPathKey(candidate)
+				candidate, err = expandPolicyPath(candidate)
 				if err != nil {
 					return false, err
+				}
+				if add && resource == "file" && candidate == rule.sourcePath {
+					candidate = valueKey
+				} else {
+					candidate, err = canonicalConfigPath(candidate)
+					if err != nil {
+						return false, err
+					}
 				}
 			}
 			if candidate != valueKey && (resource == "host" || !samePolicyPath(candidate, valueKey)) {
 				continue
 			}
 			if add && field == target && !(resource == "host" && array.Elements[i].Value.Kind() == '{') {
+				if resource == "file" && raw != value {
+					if err := patchConfig(doc, "replace", "/"+section+"/"+field+"/"+strconv.Itoa(i), value); err != nil {
+						return false, err
+					}
+					changed = true
+				}
 				present = true
 				continue
 			}

@@ -53,6 +53,16 @@ type pathRule struct {
 // Resolve symlinks (and existing ancestors for absent paths) so spelling a path
 // through $HOME, XDG variables or a symlink cannot bypass precedence/protection.
 func policyPathKey(path string) (string, error) {
+	path, err := expandPolicyPath(path)
+	if err != nil {
+		return "", err
+	}
+	return canonicalConfigPath(path)
+}
+
+// Expand profile variables without following symlinks, so edits can match
+// the user's selected source path even if its link target changes.
+func expandPolicyPath(path string) (string, error) {
 	home := os.Getenv("HOME")
 	workdir, err := os.Getwd()
 	if err != nil {
@@ -99,7 +109,7 @@ func policyPathKey(path string) (string, error) {
 	if err != nil {
 		return "", quotePathError(err)
 	}
-	return canonicalConfigPath(path)
+	return path, nil
 }
 
 // A generated state grant is a literal directory, not a profile expression

@@ -90,12 +90,14 @@ supported releases are WSL 2.7.7 and Ubuntu 26.04; neither is checked.
     allowance for it. The path must exist and is stored as an absolute path.
 
 **config** **opencode**|**codex** **add-file** [**--read-write**] *PATH*, **remove-file** *PATH*
-:   The same for a single file.
+:   The same for a single file. **add-file** resolves symlinks, shows the source
+    and target when they differ, and saves the target path. Repointing the
+    original link does not move this grant. **show** lists the saved target;
+    use that path with **remove-file** after a link is repointed or removed.
 
 Configuration changes apply to new sessions and must be made from a normal
-terminal, outside a nono session. Restart the agent to use them. The former
-host/port command names have no compatibility aliases; profile files are
-unchanged. Native nono's **--allow-domain** flag belongs to **nono run**;
+terminal, outside a nono session. Restart the agent to use them.
+Native nono's **--allow-domain** flag belongs to **nono run**;
 use **config** *AGENT* **allow-domain** for persistent wrapper allowances.
 
 **doctor** [**opencode**|**codex**...]
