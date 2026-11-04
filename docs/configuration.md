@@ -951,9 +951,24 @@ Enterprise proxies can independently refuse SSH tunnels, including on 443.
 ## Signing commits through an SSH agent
 
 When `SSH_AUTH_SOCK` names a socket, the wrapper grants that one socket so
-the agent can sign commits with Git's SSH signing. Repository Git settings do
-not add host-file permissions. Use Git's inline public-key form so signing
-needs the socket without an additional key-file grant.
+the agent can sign commits with Git's SSH signing. Bundled sessions also grant
+read-only access to existing standard OpenSSH public-key files selected by
+`$HOME/.ssh/*.pub`. Thus `user.signingkey=~/.ssh/key.pub` can use a loaded
+agent key without a manual permission rule. This does not load a private key
+into the agent or permit reading it from disk.
+
+The selection is declared in runtime JSONC's `public_key_files`. Before granting
+an exact read-file capability and protection exception, the wrapper checks that
+the candidate is a regular, non-redirected file containing one valid public-key
+line. Symlinks (including parent redirects), malformed files, private keys
+renamed to `.pub`, multi-line bundles and files over 1 MiB are skipped. No `.ssh`
+directory grant or new write access is added; private keys and personal SSH
+configuration remain excluded by default. Explicit user-granted capabilities
+are still the user's responsibility. New public-key filenames need a new session.
+Public-key comments are visible too: do not put secrets into public-key files.
+
+Git's inline public-key form remains useful for nonstandard or symlinked key
+locations, without an additional key-file grant.
 
 In the project whose commits you want to sign, set `user.signingkey` to
 `key::` followed by the full public-key line for a key already loaded in your

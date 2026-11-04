@@ -120,6 +120,14 @@ func composeSessionPolicy(ctx context.Context, nono, base, user, program string,
 		if err != nil {
 			return "", noop, err
 		}
+		publicKeys, err := configuredPublicKeyPaths(defaults)
+		if err != nil {
+			return "", noop, err
+		}
+		if len(publicKeys) > 0 {
+			runtimeFilesystem["read_file"] = publicKeys
+		}
+		bypasses = append(bypasses, publicKeys...)
 		if len(bypasses) > 0 {
 			runtimeFilesystem["bypass_protection"] = bypasses
 		}
