@@ -34,7 +34,7 @@ var launcherSpecs = []struct {
 }
 
 func expectedRunProfile(profile string, privateLoopback bool) []string {
-	args := []string{"run", "--profile", profile}
+	args := []string{"run", "--profile", profile, "--no-diagnostics"}
 	if privateLoopback && runtime.GOOS == "linux" {
 		args = append(args, "--isolate", "net,loopback")
 	}

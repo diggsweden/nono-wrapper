@@ -27,7 +27,7 @@ import (
 func configCommand() *cli.Command {
 	command := &cli.Command{
 		Name: "config", Usage: "Manage persistent user allowances",
-		Description:  "Run edits from your normal terminal outside nono. User files survive install-local. Changes apply to new sessions. Removing a user grant does not remove inherited access.\n\nExamples:\n  nono-wrapper config opencode show\n  nono-wrapper config opencode allow-domain api.github.com\n  nono-wrapper config codex allow-tcp-port 3000\n  nono-wrapper config codex add-dir --read-write /path/to/shared-project",
+		Description:  "Run edits from your normal terminal outside nono. User files survive install-local. Changes apply to new sessions. Removing a user grant does not remove inherited access.\n\nExamples:\n  nono-wrapper config opencode show\n  nono-wrapper config opencode allow-domain api.github.com\n  nono-wrapper config codex open-port 3000\n  nono-wrapper config codex allow /path/to/shared-project",
 		OnUsageError: usageError,
 		Action:       helpOrUnknown,
 	}
@@ -51,12 +51,30 @@ func configCommand() *cli.Command {
 				child.Commands = append(child.Commands, configEditCommand(agent, resource, add))
 			}
 		}
+		for _, file := range []bool{false, true} {
+			for _, writable := range []bool{false, true} {
+				resource, name := "dir", "read"
+				if writable {
+					name = "allow"
+				}
+				if file {
+					resource, name = "file", name+"-file"
+				}
+				alias := configEditCommandWithAccess(agent, resource, true, &writable)
+				alias.Name = name
+				child.Commands = append(child.Commands, alias)
+			}
+		}
 		command.Commands = append(command.Commands, child)
 	}
 	return command
 }
 
 func configEditCommand(agent, resource string, add bool) *cli.Command {
+	return configEditCommandWithAccess(agent, resource, add, nil)
+}
+
+func configEditCommandWithAccess(agent, resource string, add bool, forcedReadWrite *bool) *cli.Command {
 	verb, usage := "remove", "Remove the user allowance for a "
 	if add {
 		verb, usage = "add", "Allow a "
@@ -75,6 +93,13 @@ func configEditCommand(agent, resource string, add bool) *cli.Command {
 	command := &cli.Command{
 		Name: verb + "-" + commandResource, Usage: usage + noun,
 		ArgsUsage: argument, OnUsageError: usageError,
+	}
+	if resource == "port" {
+		command.Aliases = []string{command.Name}
+		command.Name = "remove-open-port"
+		if add {
+			command.Name = "open-port"
+		}
 	}
 	switch resource {
 	case "host":
@@ -124,6 +149,14 @@ Examples:
 		if resource == "file" {
 			command.Description += " Symlinks are resolved and the target path is saved; repointing the original link does not grant access to its new target. Use show to find the saved path for removal."
 		}
+		if forcedReadWrite != nil {
+			command.Flags = nil
+			mode := "read-only"
+			if *forcedReadWrite {
+				mode = "read/write"
+			}
+			command.Usage = "Allow " + mode + " access to a " + noun
+		}
 	}
 	command.Action = func(ctx context.Context, cmd *cli.Command) error {
 		if cmd.NArg() != 1 || (cmd.Bool("read-only") && cmd.Bool("read-write")) {
@@ -146,6 +179,9 @@ Examples:
 			return cli.Exit(err.Error(), exitDataErr)
 		}
 		rule.readWrite = cmd.Bool("read-write")
+		if forcedReadWrite != nil {
+			rule.readWrite = *forcedReadWrite
+		}
 		if add && rule.resource == "dir" {
 			access := "read-only"
 			if rule.readWrite {

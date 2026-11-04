@@ -27,6 +27,10 @@ var agentInstallURLs = map[string]string{
 }
 
 func launch(ctx context.Context, agent string, args []string, stderr io.Writer) error {
+	return launchWithOptions(ctx, agent, args, stderr, launchOptions{})
+}
+
+func launchWithOptions(ctx context.Context, agent string, args []string, stderr io.Writer, options launchOptions) error {
 	nono, err := exec.LookPath("nono")
 	if err != nil {
 		return cli.Exit("nono is not on PATH; install: https://nono.sh/docs/cli/getting_started/installation", exitNotFound)
@@ -71,9 +75,17 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 		return err
 	}
 	profile := os.Getenv("NONO_PROFILE")
+	if options.profile != "" {
+		profile = options.profile
+	}
 	chosen := profile != ""
 	if !chosen {
 		profile = agent + "-chatgpt"
+		if options.blockNet {
+			// nono rejects --block-net with an online profile's domain filter.
+			// Select our offline entry point instead of inheriting online rules.
+			profile = agent + "-offline"
+		}
 	}
 	if bundledProfile(profile) {
 		developerPaths, err := prepareDeveloperPaths(protected)
@@ -104,6 +116,7 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 	if err != nil {
 		return err
 	}
+	block = block || options.blockNet
 	profileArgs := []string{"--profile", profile}
 	selectedProfile := profile
 	finalShown := shown
@@ -194,6 +207,16 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 	if err != nil {
 		return err
 	}
+	grants = append(grants, options.paths...)
+	if len(options.paths) > 0 && compositionUser != "" && bundledProfile(profile) {
+		rules, err := profilePathRules(userShown)
+		if err != nil {
+			return err
+		}
+		if err := checkPathOverrides(rules, grants); err != nil {
+			return err
+		}
+	}
 	if err := checkProtectedWrites(grants, protected); err != nil {
 		return err
 	}
@@ -211,6 +234,13 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 	}
 	name := fmt.Sprintf("%s-%x", agent, nonce)
 	nonoArgs := append([]string{"run"}, profileArgs...)
+	// Native failure hints expose the internal shell guard and offer saving a
+	// generated session profile. The wrapper owns reporting by default instead.
+	// Keep native diagnostics available explicitly through the run command.
+	if !options.nativeDiagnostics {
+		nonoArgs = append(nonoArgs, "--no-diagnostics")
+	}
+	nonoArgs = append(nonoArgs, options.nonoArgs...)
 	standalone := agent == "opencode" && openCodeStandalone(args)
 	if standalone && runtime.GOOS == "linux" {
 		// OpenCode owns its dynamic-port server and its lifetime. Give both
@@ -238,6 +268,9 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 	nonoArgs = append(nonoArgs, args...)
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if options.silent {
+		stderr = io.Discard
 	}
 	return runSession(ctx, nono, nonoArgs, agent, name, stderr, environment)
 }

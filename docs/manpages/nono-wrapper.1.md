@@ -8,6 +8,8 @@ nono-wrapper - run OpenCode and Codex with nono's sandbox profiles
 
 **nono-wrapper** **opencode**|**codex** [*agent-argument*...]
 
+**nono-wrapper** **run** [*sandbox-option*...] **opencode**|**codex** [**--**] [*agent-argument*...]
+
 **nono-wrapper** **config** **opencode**|**codex** *subcommand* [*argument*]
 
 **nono-wrapper** **doctor** [**opencode**|**codex**...]
@@ -84,6 +86,24 @@ service or grant its parent directory, rootful sockets or container storage.
 user, including outside its network filter.** This is intentional host-user
 access, not a confined container interface.
 
+**run** [*sandbox-option*...] **opencode**|**codex** [**--**] [*agent-argument*...]
+:   Run with temporary, additive nono-style permissions. Put all sandbox options
+    before the agent name. Everything after it belongs to the agent, including
+    **--help**; one optional **--** separator is consumed by the wrapper.
+    Supports **--profile** (**-p**), **--allow** (**-a**, read/write),
+    **--read** (**-r**), **--write** (**-w**, write-only), **--allow-file**,
+    **--read-file**, **--write-file**, **--allow-domain**, **--open-port**,
+    **--block-net**, **--isolate**, **--silent** (**-s**) and **--no-diagnostics**.
+    Path, domain and port options are repeatable. **--profile** overrides
+    **NONO_PROFILE**. Inherited deny rules, workspace checks and protections for
+    active policies, managed executables and Mise remain in force.
+    **--open-port** permits connect and listen, including non-loopback addresses;
+    it can bypass domain filtering and conflicts with Linux private loopback.
+    **--isolate net,loopback** gives Linux tests private dynamic TCP ports, not
+    access to host localhost. It requires user/network namespace support and a
+    blocked or proxied network policy without direct TCP grants. Nono validates
+    namespace names and conflicts; failures never fall back to host networking.
+
 **opencode** [*agent-argument*...], **codex** [*agent-argument*...]
 :   Start the agent under nono. Every argument, including **--help**, goes to
     the agent. If the agent on **PATH** is a mise shim, the wrapper asks
@@ -123,6 +143,14 @@ access, not a confined container interface.
     profile. It is not limited to localhost or one remote domain. Binding a
     server to 127.0.0.1 does not restrict the agent's outbound destinations.
     Accepts one decimal port from 1 to 65535, not ranges or UDP.
+    The preferred spellings are **open-port** and **remove-open-port**;
+    the old names remain aliases.
+
+**config** **opencode**|**codex** **allow**|**read** *PATH*
+:   Persist read/write (**allow**) or read-only (**read**) directory access.
+    **allow-file** and **read-file** do the same for individual files.
+    These use nono's access-mode names. The older **add-dir** and **add-file**
+    commands retain their read-only default for compatibility.
 
 **config** **opencode**|**codex** **add-dir** [**--read-write**] *PATH*,
 **remove-dir** *PATH*
@@ -177,7 +205,7 @@ use **config** *AGENT* **allow-domain** for persistent wrapper allowances.
 **-h**, **--help**
 :   Show help for the wrapper or for one of its commands.
 
-**-v**, **--version**
+**-V**, **-v**, **--version**
 :   Show the build and Go toolchain version.
 
 ## ENVIRONMENT

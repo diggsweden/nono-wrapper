@@ -58,12 +58,14 @@ Run 'nono-wrapper --help' for all commands and options.
 const rootDescription = `Examples:
   nono-wrapper opencode                              start OpenCode in this directory
   nono-wrapper codex                                 start Codex in this directory
+  nono-wrapper run --read /path/to/reference codex    temporary read-only grant
   nono-wrapper doctor                                check the installation
   nono-wrapper config opencode allow-domain api.github.com
 
 Help forwarding:
   nono-wrapper help codex       wrapper help
   nono-wrapper codex --help     Codex help, run under the sandbox
+  nono-wrapper run --help       sandbox options; put these before the agent
 
 Environment:
   NONO_PROFILE                 profile to use instead of AGENT-chatgpt
@@ -72,6 +74,7 @@ Environment:
   NONO_WRAPPER_SSH_AGENT=0     do not share the SSH agent socket
   GIT_SSH_COMMAND, GIT_SSH      explicit Git SSH transport overrides
   GIT_SSH_VARIANT              explicit Git SSH client variant
+  CONTAINER_HOST, CONTAINER_CONNECTION  explicit container transport overrides
   HTTPS_PROXY, HTTP_PROXY      upstream proxy for the sandbox's network proxy
 
 Without NONO_WRAPPER_ROOT, agents start only below ~/development.
@@ -160,9 +163,17 @@ func (err invalidConfig) Unwrap() error { return err.error }
 
 func command() *cli.Command {
 	return &cli.Command{
-		Name:    "nono-wrapper",
-		Usage:   "Run OpenCode and Codex with nono's sandbox profiles",
-		Version: buildVersion(),
+		Name:        "nono-wrapper",
+		Usage:       "Run OpenCode and Codex with nono's sandbox profiles",
+		Version:     buildVersion(),
+		HideVersion: true,
+		Flags: []cli.Flag{&cli.BoolFlag{Name: "version", Aliases: []string{"V", "v"}, Usage: "Show version", Action: func(_ context.Context, cmd *cli.Command, value bool) error {
+			if value {
+				cli.ShowVersion(cmd.Root())
+				return cli.Exit("", 0)
+			}
+			return nil
+		}}},
 		// Shell completion uses the framework's action-free completion protocol.
 		EnableShellCompletion: true,
 		Description:           rootDescription,
@@ -171,6 +182,7 @@ func command() *cli.Command {
 		OnUsageError:   usageError,
 		Action:         helpOrUnknown,
 		Commands: []*cli.Command{
+			runCommand(),
 			agentCommand("opencode", "OpenCode"),
 			agentCommand("codex", "Codex"),
 			configCommand(),
@@ -361,11 +373,15 @@ func agentCommand(agent, name string) *cli.Command {
 		HideHelp:        true,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			err := launch(ctx, agent, cmd.Args().Slice(), cmd.Root().ErrWriter)
-			var exit cli.ExitCoder
-			if err != nil && !errors.As(err, &exit) {
-				return cli.Exit(err, exitLaunch)
-			}
-			return err
+			return agentLaunchError(err)
 		},
 	}
+}
+
+func agentLaunchError(err error) error {
+	var exit cli.ExitCoder
+	if err != nil && !errors.As(err, &exit) {
+		return cli.Exit(err, exitLaunch)
+	}
+	return err
 }

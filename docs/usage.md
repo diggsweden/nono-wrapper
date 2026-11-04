@@ -174,6 +174,63 @@ return those values itself. Run without a command, `nono-wrapper` shows a
 short help on standard error and exits 64. `nono-wrapper --help` and
 `man nono-wrapper` print the same table.
 
+## Temporary sandbox options
+
+Use `run` for nono-style options that apply only to one session:
+
+```sh
+nono-wrapper run --allow /path/to/shared-project opencode
+nono-wrapper run --read /path/to/reference codex -- --help
+nono-wrapper run --profile codex-offline codex -- features list
+```
+
+Sandbox options go **before the agent name**. Everything after the name goes to
+the agent; one optional `--` separator is consumed. The existing
+`nono-wrapper opencode` and `nono-wrapper codex` shortcuts are unchanged.
+
+`--allow` means read/write, `--read` read-only and `--write` write-only. File
+variants use `--allow-file`, `--read-file` and `--write-file`. Path flags,
+`--allow-domain` and `--open-port` are repeatable. `--profile` overrides
+`NONO_PROFILE`; `--block-net` blocks networking. With no explicit profile it
+selects the agent's bundled offline profile instead of inheriting online rules.
+It cannot be combined with `--allow-domain` or `--open-port`; explicit profiles
+and user rules must also be compatible with nono's offline policy. Native deny
+rules and wrapper safety checks still apply; an added read-only grant does not
+revoke inherited writes. `--open-port` permits TCP connect and listen, including
+non-loopback destinations, and conflicts with OpenCode's private-loopback mode.
+
+For persistent access, use `config AGENT allow PATH` (read/write), `read PATH`
+(read-only), or their `allow-file`/`read-file` variants. `open-port` and
+`remove-open-port` are preferred over the compatible `allow-tcp-port` and
+`remove-tcp-port` aliases. Existing `add-dir`/`add-file` commands remain read-only
+unless `--read-write` is supplied.
+
+`run --silent` suppresses nono output and the wrapper report, but not the agent's
+output. `-V` and the compatible `-v` both show the wrapper version.
+
+### Mapping to nono
+
+| Wrapper spelling | Native meaning | Lifetime / compatibility |
+| --- | --- | --- |
+| `run --profile/-p` | `nono run --profile/-p` | One launch; overrides `NONO_PROFILE` |
+| `run --allow/-a`, `--read/-r`, `--write/-w` | Read/write, read-only, write-only | Additive, temporary directory grants |
+| `run --allow-file`, `--read-file`, `--write-file` | Same modes for an exact file | Temporary file grants |
+| `run --allow-domain` | Native domain/HTTPS endpoint grant | Temporary; repeat the flag for each rule |
+| `run --open-port` | Native bidirectional TCP exception | Not a localhost-only or domain-scoped grant |
+| `run --silent/-s` | Native silent output plus no wrapper report | Agent stdout/stderr still pass through |
+| `run --no-diagnostics=false` | Restore native diagnostics and save prompts | Wrapper suppresses these by default; audit remains on |
+| `config AGENT allow`, `read` | Save `filesystem.allow`, `filesystem.read` | Persistent; native access-mode names |
+| `config AGENT open-port` | Save `network.open_port` | `allow-tcp-port` remains an alias |
+| `config AGENT add-dir`, `add-file` | Legacy read-only path editors | Unchanged; use `--read-write` to widen |
+| `--version/-V` | Version, as in nono | Old wrapper `-v` remains a version alias |
+
+Each repeated path/domain/port flag takes one literal value: commas in a path or
+URL are not separators. Flags after `AGENT` belong to that agent, not nono or
+the wrapper. `run` is an explicit supported subset of nono's options, not
+arbitrary flag forwarding: it keeps the wrapper's workspace, executable,
+profile-composition and audit behavior. In particular, the workspace-root guard
+is not nono's `--workdir` variable-expansion option.
+
 ## Automatic session report
 
 Both agent commands print a report on **stderr after every run**, including
@@ -197,10 +254,9 @@ suggest broadening access to the entire domain. Allow only domains the agent
 needs: the suggestion is not a recommendation, and an explicit network block
 or deny rule can still prevent access.
 
-Native nono diagnostics may suggest `--allow-domain`. That flag belongs to
-`nono run`, not the wrapper: arguments after `nono-wrapper opencode` or
-`codex` go to the agent. Use the wrapper's `config AGENT allow-domain`
-command for persistent additions. See the [network allowance
+Arguments after `nono-wrapper opencode` or `codex` go to the agent. For a
+temporary domain grant, put `--allow-domain` before the agent in the `run` form;
+use `config AGENT allow-domain` for persistent additions. See the [network allowance
 matrix](configuration.md#network-allowance-matrix) for ports, wildcards and
 HTTPS endpoint rules.
 

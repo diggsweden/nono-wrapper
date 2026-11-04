@@ -524,6 +524,10 @@ below is an optional experiment for Codex.
 The wrapper can pass the native namespace option through for a single offline
 Codex session, without creating or changing a profile:
 
+```sh
+nono-wrapper run --block-net --isolate net,loopback codex -- features list
+```
+
 Start with an offline experiment. Save this as
 `~/.config/nono/profiles/codex-loopback.jsonc` (under `XDG_CONFIG_HOME` if set):
 
@@ -573,7 +577,8 @@ Isolation rejects effective `open_port`, `connect_port`, `listen_port` and
 `no_proxy` grants. Your automatically applied user profile must not add
 them; use a disposable HOME/configuration if you want to keep existing
 settings intact. Codex does not get a namespace flag automatically; its
-isolation comes from this optional profile. OpenCode 2 gets the flag at
+isolation comes from an explicit `run --isolate` option or an optional profile.
+OpenCode 2 gets the flag at
 launch time, except for `serve` and explicit `--server` connections.
 
 Private loopback is not nested-container support. Netlink sockets and writes to
