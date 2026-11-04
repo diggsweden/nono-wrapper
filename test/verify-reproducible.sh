@@ -55,7 +55,7 @@ if [[ -n $(git -C "$root" status --porcelain --untracked-files=normal) ]]; then
 fi
 commit=$(git -C "$root" rev-parse HEAD)
 export GOTOOLCHAIN=local GOWORK=off GOENV=off GOFLAGS=-mod=readonly
-export CGO_ENABLED=0 GOAMD64=v1 GOARM64=v8.0 TZ=UTC LC_ALL=C GOPROXY=off GOSUMDB=off
+export CGO_ENABLED=0 GOAMD64=v1 GOARM64=v8.0 TZ=UTC LC_ALL=C GOPROXY=off GONOPROXY=none GOSUMDB=off
 export GOOS GOARCH
 GOOS=$(go env GOHOSTOS)
 GOARCH=$(go env GOHOSTARCH)

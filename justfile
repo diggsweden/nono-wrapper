@@ -40,16 +40,21 @@ help recipe="":
 # Select this project's tools even when other tools are configured globally.
 [doc('Install pinned tools')]
 [group('setup')]
-install-dev-tools: (_job "install-dev-tools" "tools=locked nono/Go/Just/ShellCheck; agents=provided by DevBase; scope=user installation; network=allowed")
+install-dev-tools: (_job "install-dev-tools" "tools=checkout-pinned nono/Go/Just/ShellCheck; agents=provided by DevBase; scope=user installation; network=allowed")
     @command -v mise >/dev/null 2>&1 || { printf 'mise is required; see docs/install.md. On macOS: sudo port install mise\n' >&2; exit 127; }
-    mise --cd {{ quote(justfile_directory()) }} install --locked nono go just aqua:koalaman/shellcheck
+    mise --cd {{ quote(justfile_directory()) }} install nono go just aqua:koalaman/shellcheck
 
 # Compile the host executable into the ignored build directory.
 [doc('Build nono-wrapper')]
 [group('build')]
 build: (_job "build" "target=native host; CGO=disabled; output=.cache/bin/nono-wrapper")
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export GOTOOLCHAIN=local GOPROXY=off GONOPROXY=none GOSUMDB=off GOWORK=off GOENV=off GOFLAGS=''
+    host_os=$(go env GOHOSTOS)
+    host_arch=$(go env GOHOSTARCH)
     mkdir -p {{ quote(justfile_directory() / ".cache/bin") }}
-    GOTOOLCHAIN=local CGO_ENABLED=0 GOOS="$(GOTOOLCHAIN=local go env GOHOSTOS)" GOARCH="$(GOTOOLCHAIN=local go env GOHOSTARCH)" go -C {{ quote(justfile_directory()) }} build -mod=readonly -trimpath -buildvcs=false -o .cache/bin/nono-wrapper ./cmd/nono-wrapper
+    CGO_ENABLED=0 GOOS="$host_os" GOARCH="$host_arch" go -C {{ quote(justfile_directory()) }} build -mod=readonly -trimpath -buildvcs=false -o .cache/bin/nono-wrapper ./cmd/nono-wrapper
 
 [doc('Generate the manpage without installation')]
 [group('build')]

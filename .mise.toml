@@ -7,17 +7,14 @@
 # pinned independently in test/tools for reproducibility.
 
 [settings]
-lockfile = true
-# Do not set `locked` here: mise settings apply to every active config, so it
-# would also demand lockfile entries for the user's global tools and break
-# their shims in this directory. `just install-dev-tools` passes --locked for
-# this checkout's tools only.
+# Keep explicit versions below without generating a host-tool lockfile.
+lockfile = false
 
 [tools]
 nono = "0.80.0"
 
-go = "1.27.2"
-just = "1.58.0"
+go = "1.27.3"
+just = "1.59.0"
 "aqua:koalaman/shellcheck" = "0.11.0"
 
 [hooks]

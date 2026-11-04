@@ -159,6 +159,50 @@ func runTask(t *testing.T, f taskFixture, task string, env ...string) (string, i
 	return string(output), cmd.ProcessState.ExitCode()
 }
 
+func TestBuildUsesNativeTargetAndOfflineDependencies(t *testing.T) {
+	for _, target := range []struct{ os, arch string }{
+		{"linux", "amd64"}, {"linux", "arm64"}, {"darwin", "arm64"},
+	} {
+		t.Run(target.os+"/"+target.arch, func(t *testing.T) {
+			f := newTaskFixture(t)
+			goTool := filepath.Join(f.tools, "go")
+			if err := os.Remove(goTool); err != nil {
+				t.Fatal(err)
+			}
+			writeLauncherFixture(t, goTool, `#!/bin/sh
+set -eu
+if [ "$1" = env ]; then
+  case "$2" in
+    GOHOSTOS) printf '%s\n' "$TASK_HOST_OS" ;;
+    GOHOSTARCH) printf '%s\n' "$TASK_HOST_ARCH" ;;
+    *) exit 99 ;;
+  esac
+  exit
+fi
+[ "$1" = -C ] && [ "$3" = build ] || exit 99
+[ "$GOOS" = "$TASK_HOST_OS" ] && [ "$GOARCH" = "$TASK_HOST_ARCH" ]
+[ "$GOTOOLCHAIN" = local ] && [ "$CGO_ENABLED" = 0 ]
+[ "$GOPROXY" = off ] && [ "$GOSUMDB" = off ]
+[ "${GONOPROXY:-}" = none ]
+[ "$GOWORK" = off ] && [ "$GOENV" = off ] && [ -z "$GOFLAGS" ]
+case " $* " in *' -mod=readonly '*) ;; *) exit 99 ;; esac
+printf '%s/%s\n' "$GOOS" "$GOARCH" >"$TASK_PODMAN_LOG"
+`)
+			output, status := runTask(t, f, "build", "TASK_HOST_OS="+target.os, "TASK_HOST_ARCH="+target.arch,
+				"GOOS=windows", "GOARCH=386", "GOFLAGS=-tags=unexpected", "GOPROXY=https://example.invalid",
+				"GOPRIVATE=*", "GONOPROXY=*",
+				"GOWORK=/missing/workspace", "GOENV=/missing/environment")
+			if status != 0 {
+				t.Fatalf("native offline build: %s", output)
+			}
+			built, err := os.ReadFile(f.log)
+			if err != nil || string(built) != target.os+"/"+target.arch+"\n" {
+				t.Fatalf("wrong build target: %q (%v)", built, err)
+			}
+		})
+	}
+}
+
 func TestInstallLocal(t *testing.T) {
 	for _, mode := range []string{"default", "xdg", "install-dir precedence"} {
 		t.Run(mode, func(t *testing.T) {

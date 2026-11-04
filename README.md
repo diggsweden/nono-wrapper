@@ -32,7 +32,7 @@ Follow [Install](docs/install.md) for the prerequisites and installation
 steps. From the checkout, the short version is:
 
 ```sh
-mise install --locked nono go just aqua:koalaman/shellcheck
+mise install nono go just aqua:koalaman/shellcheck
 mise use -g nono@0.80.0
 just install-local
 nono-wrapper doctor codex

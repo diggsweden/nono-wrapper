@@ -49,8 +49,8 @@ trap 'exit 143' TERM
 in_image() {
   name=$1
   shift
-  # Hash as the caller: mise.lock may be mode 0600. Only public hashes need
-  # to be readable by the container's unprivileged test user.
+  # Hash as the caller: only public hashes need to be readable by the
+  # container's unprivileged test user, not the source configuration.
   sh "$root/test/image-inputs.sh" "$name" >"$scratch/expected.inputs" || return 1
   chmod 0644 "$scratch/expected.inputs" || return 1
   rm -f -- "$scratch/container"

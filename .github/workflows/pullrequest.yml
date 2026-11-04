@@ -42,7 +42,7 @@ jobs:
         uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
         with:
           version: 2026.10.8
-          install_args: --locked go just aqua:koalaman/shellcheck
+          install_args: go just aqua:koalaman/shellcheck
       - name: Download Go dependencies
         run: go mod download
       - name: Lint scripts and Go

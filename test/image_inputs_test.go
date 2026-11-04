@@ -15,7 +15,7 @@ import (
 )
 
 var imageInputFiles = []string{
-	".mise.toml", "mise.lock", "test/Containerfile", "test/install-deps.sh", "test/install-packs.sh",
+	".mise.toml", "test/Containerfile", "test/install-deps.sh", "test/install-packs.sh",
 	"test/prepare.sh", "test/image-inputs.sh", "test/require-linux.sh",
 }
 
@@ -163,7 +163,7 @@ func TestImageInputsCheckCallerRecord(t *testing.T) {
 	writeLauncherFixture(t, expected, string(data))
 	// The container may not be able to read source configuration files. The
 	// caller's read-only record supplies the expected fingerprint instead.
-	if err := os.Remove(filepath.Join(root, "mise.lock")); err != nil {
+	if err := os.Remove(filepath.Join(root, ".mise.toml")); err != nil {
 		t.Fatal(err)
 	}
 	if output, status := runImageInputs(t, root, "--check", manifest, expected); status != 0 {

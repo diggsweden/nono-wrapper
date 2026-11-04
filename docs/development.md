@@ -18,7 +18,7 @@ test/              CLI/installation tests, container probes and version pins
 
 | File | Purpose |
 | --- | --- |
-| `.mise.toml`, `mise.lock` | pinned host tools and platform-specific download checksums |
+| `.mise.toml` | explicit host sandbox/build-tool versions; host-tool lockfiles are disabled |
 | `justfile` | setup, local installation and test recipes |
 | `go.mod`, `go.sum` | pinned Go dependency versions and checksums |
 | `test/packs` | official pack pins shared by user installation and test images |
@@ -63,12 +63,38 @@ after the dependencies have been prepared. `just build` produces the host
 executable; `just install-local` rebuilds it, installs and pins the official
 packs, installs our profiles, and checks their inheritance.
 
+`just build` disables module downloads and uses the local Go toolchain with
+read-only module metadata. Prepare dependencies with `just install-dev-tools`
+first. Building does not install profiles, pull packs or launch an agent.
+
 For native macOS development checks (best effort), use mise for the
 repository-pinned tools. Apple's built-in Bash 3.2 works; a separate Bash
 installation is not required. From zsh or another shell without mise
 activation, use `mise exec -- just verify`. The macOS sandbox/runtime
 validation limits in
 [What has been validated](policy.md#what-has-been-validated) still apply.
+
+### Host, artifact and execution platforms
+
+On M1, a native build uses a `darwin/arm64` Go toolchain and produces a
+`darwin/arm64` wrapper. MacPorts supplies macOS prerequisites; mise selects the
+repository-pinned build tools. No Linux container or CPU emulation is needed
+for this build.
+
+The artifact target, test execution environment and CI runner are independent.
+The release declaration in `.forge-ci/artifacts.yml` includes Linux and Darwin
+amd64/arm64 artifacts, while `.github/workflows/pullrequest.yml` currently runs
+the native checks on Ubuntu amd64 only. Cross-built Darwin or Linux arm64 files
+are not proof that tests ran on those platforms. Native Mac acceptance needs an
+actual Darwin arm64 runner; Linux arm64 containers on an M1 Linux VM prove only
+Linux behavior. Identify any emulated execution explicitly.
+
+Keep native build/fixture checks, isolated real-agent acceptance and distribution
+container tests as distinct execution capabilities. The current container tool
+archives are Linux amd64 pins; a Linux arm64 lane needs independently verified
+agent archives and image preparation. That is not required to build the wrapper
+natively on M1. `just test-native` remains an explicit pack-installing acceptance
+operation in a temporary home, separate from the build-only path.
 
 ### Reproducible native builds
 
@@ -98,11 +124,11 @@ bash test/verify-reproducible.sh --compare /absolute/first/checkout /absolute/se
 
 ### Updating pins
 
-Commit `.mise.toml` and `mise.lock` together when updating sandbox/build
-tools. DevBase owns host OpenCode and Codex versions. Container-test agent
-archives in `test/tools` are independently pinned for reproducibility;
-regenerate the host lockfile with `mise lock` and review official pack
-compatibility in `test/packs` when updating the sandbox runtime.
+Update `.mise.toml` when changing sandbox/build-tool versions.
+DevBase owns host OpenCode and Codex versions. Container-test agent
+archives in `test/tools` are independently pinned for reproducibility.
+Review official pack compatibility in `test/packs` when updating the sandbox
+runtime. Host-tool lockfiles are currently disabled.
 Commit `go.mod` and `go.sum` together when updating the Go dependencies.
 Upgrade CLI and pack pins together when compatibility changes.
 
@@ -207,7 +233,7 @@ credential-free diagnostics. macOS/WSL2 Git SSH integration remains untested.
 
 `.github/workflows/pullrequest.yml` runs on pull requests and pushes to
 `main`. It calls Digg Sweden's Forge CI v0.91.13 and runs the isolated unit
-suite, `just lint` and native build with the checkout's locked tools. The general
+suite, `just lint` and native build with the checkout's selected tools. The general
 lint phase is temporarily disabled with `lint-engine: none` while waiting for
 the next nanolinter release on Codefloe; its lint/security checks are not
 running. ShellCheck, Go formatting and vet still run through `just lint`.
@@ -358,7 +384,7 @@ pack-install layer.
 
 Each image records its selected base-image reference and checksums for the
 Containerfile, dependency and pack installation scripts, preparation,
-fingerprint and controller-guard scripts, and `.mise.toml`/`mise.lock`.
+fingerprint and controller-guard scripts, and `.mise.toml`.
 The runner hashes those inputs as the caller with `sha256sum` or
 `shasum -a 256` and supplies a read-only expected record to the container, so
 owner-only configuration files can keep their permissions. Startup checks the

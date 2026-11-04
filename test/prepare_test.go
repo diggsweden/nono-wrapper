@@ -50,7 +50,7 @@ func newPrepareFixture(t *testing.T, archive []byte) taskFixture {
 		}
 		writeLauncherFixture(t, filepath.Join(f.root, "test", file), string(content))
 	}
-	for _, file := range []string{".mise.toml", "mise.lock"} {
+	for _, file := range []string{".mise.toml"} {
 		content, err := os.ReadFile(filepath.Join(testRepository(t), file))
 		if err != nil {
 			t.Fatal(err)

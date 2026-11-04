@@ -4,11 +4,69 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
+	"time"
 )
+
+func TestReproducibleGenerationRefusesPrivateToolDownloads(t *testing.T) {
+	t.Parallel()
+	source, err := os.ReadFile(filepath.Join(testRepository(t), "test", "verify-reproducible.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	exports := regexp.MustCompile(`(?m)^export [^\n]+`).FindAllString(string(source), -1)
+	if len(exports) == 0 {
+		t.Fatal("reproducibility script must declare its offline environment")
+	}
+	goRoot := ""
+	for _, entry := range buildEnv {
+		if value, ok := strings.CutPrefix(entry, "GOROOT="); ok {
+			goRoot = value
+		}
+	}
+	if goRoot == "" {
+		t.Fatal("test setup did not resolve the Go toolchain")
+	}
+	for _, private := range []string{"implicit", "explicit"} {
+		t.Run(private, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			for name, contents := range map[string]string{
+				"go.mod": "module example.invalid/offline-tool-review\n\ngo 1.24.0\n\nrequire example.invalid/review.git v1.0.0\n\ntool example.invalid/review.git/cmd/probe\n",
+				"go.sum": "example.invalid/review.git v1.0.0 h1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n" +
+					"example.invalid/review.git v1.0.0/go.mod h1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n",
+			} {
+				if err := os.WriteFile(filepath.Join(root, name), []byte(contents), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+			defer cancel()
+			command := exec.CommandContext(ctx, "/bin/bash", "-euo", "pipefail", "-c",
+				strings.Join(exports, "\n")+"\nexec \"$OFFLINE_GO\" tool probe")
+			command.Dir = root
+			// .git avoids HTTP discovery; GOVCS blocks VCS before any network access.
+			command.Env = []string{
+				"PATH=" + os.Getenv("PATH"), "HOME=" + root, "OFFLINE_GO=" + filepath.Join(goRoot, "bin", "go"),
+				"GOMODCACHE=" + filepath.Join(root, "modules"), "GOCACHE=" + filepath.Join(root, "build-cache"),
+				"GOPRIVATE=example.invalid", "GOVCS=*:off",
+			}
+			if private == "explicit" {
+				command.Env = append(command.Env, "GONOPROXY=*")
+			}
+			output, err := command.CombinedOutput()
+			if err == nil || !strings.Contains(string(output), "module lookup disabled by GOPROXY=off") {
+				t.Fatalf("missing tool must fail at the offline resolver, not use VCS: %v\n%s", err, output)
+			}
+		})
+	}
+}
 
 // The helper compares inert fixtures; no wrapper or agent is executed.
 func TestReproducibleFiles(t *testing.T) {

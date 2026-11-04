@@ -32,7 +32,7 @@ image_inputs() {
   printf '%s\n%s\n' "$reference" "$target"
   (
     cd "$root"
-    sha256 .mise.toml mise.lock test/Containerfile test/install-deps.sh test/install-packs.sh test/prepare.sh test/image-inputs.sh test/require-linux.sh
+    sha256 .mise.toml test/Containerfile test/install-deps.sh test/install-packs.sh test/prepare.sh test/image-inputs.sh test/require-linux.sh
   )
 }
 

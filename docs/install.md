@@ -29,14 +29,13 @@ Run these steps as your normal user from this repository's checkout.
 ## 1. Install the tools
 
 ```sh
-mise install --locked nono go just aqua:koalaman/shellcheck
+mise install nono go just aqua:koalaman/shellcheck
 ```
 
-This installs the pinned tools and Go dependencies. `--locked` accepts only
-the versions and checksums recorded in `mise.lock`; naming the tools keeps
-that check away from tools in your global mise configuration, which have no
-entries there. If mise asks for trust, review `.mise.toml` and run
-`mise trust` before retrying.
+This installs the versions selected in `.mise.toml` and prepares Go
+dependencies. Host-tool lockfiles are currently disabled. Naming the tools
+keeps installation scoped to this checkout's sandbox/build tools. If mise
+asks for trust, review `.mise.toml` and run `mise trust` before retrying.
 
 Check that your shell uses these tools: `go version` in this checkout must
 print the Go version from `.mise.toml`. If it prints another one, mise is not
@@ -91,7 +90,7 @@ Rerun `just install-local` after changing the Go code or bundled profiles.
 | Component | Selected by | Check after an update |
 | --- | --- | --- |
 | Host OpenCode/Codex | DevBase or your installer | Run `doctor AGENT`, then launch that agent and check login and project operations. |
-| nono | This checkout's `.mise.toml` and `mise.lock` | Run `doctor` for the agents you use and validate real agent integration. |
+| nono | This checkout's `.mise.toml` | Run `doctor` for the agents you use and validate real agent integration. |
 | Official packs | This checkout's `test/packs` | Reinstall with `just install-local`, then validate agent integration. |
 | Bundled profiles | This repository | Reinstall, restart sessions and check the affected access rules. |
 | User allowances | You or your platform configuration | Restart the affected agent and verify the intended access. |
@@ -136,8 +135,8 @@ another target stops with "nono-wrapper supports only Linux and macOS".
 
 ### macOS (best effort)
 
-`mise.lock` includes Linux and macOS downloads for x64 and ARM64. Native
-checks, an isolated installation and offline-profile smoke checks have passed
+Mise selects the host tools for the current platform. Native checks, an
+isolated installation and offline-profile smoke checks have passed
 on macOS 27 ARM64; macOS x64 is untested. Interactive and authenticated macOS
 agent sessions still need validation. See
 [What has been validated](policy.md#what-has-been-validated).

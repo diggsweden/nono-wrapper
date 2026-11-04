@@ -5,7 +5,10 @@
 # Downloaded tools, compiled wrapper and test helper
 /.cache/
 
-# Machine-local mise overrides; .mise.toml and mise.lock are tracked
+# Host-tool locks are currently disabled; .mise.toml keeps shared versions.
+/mise.lock
+
+# Machine-local mise overrides
 /.mise.local.toml
 /mise.local.toml
 /mise.local.lock
