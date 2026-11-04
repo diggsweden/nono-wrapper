@@ -104,6 +104,23 @@ Agent arguments are forwarded exactly: `nono-wrapper codex --help` displays
 Codex's help under nono. Use `nono-wrapper help codex` for the wrapper's
 description of that subcommand.
 
+Before resolving policy, the wrapper creates the agent's standard state and
+cache directories, with owner-only permissions for new directories. This
+prevents a cold first launch from losing declared grants because the paths
+do not exist yet. It requires an absolute home/state location and refuses
+paths that would expose active nono policy files. For bundled profiles, its
+protected session profile also grants the exact non-default state paths;
+explicit user path restrictions take precedence. External profiles selected
+with `NONO_PROFILE` keep their own permission policy.
+
+Before starting the agent, the wrapper inspects the effective filesystem
+manifest, including inherited grants and launch-time additions. Writable
+access to the agent, nono, the wrapper, its resolved Mise executable, or a
+known Mise control/data tree is refused. This includes state symlinks,
+workspace grants and `NONO_ALLOW`; read-only access is permitted.
+Install managed binaries outside the writable workspace, including local
+builds of the wrapper itself.
+
 Checkout builds identify themselves as `devel`. A module version and VCS
 revision are shown when the Go build includes them; help links to the project
 documentation.

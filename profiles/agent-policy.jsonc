@@ -38,6 +38,9 @@
   // nono's own groups: readable temporary files on Linux, and read-only mise,
   // Go and Java tool locations. Toolchain variables above point into these.
   "groups": {
+    // The broad HOME cache grant also covers Mise's code-loading cache.
+    // Agent and toolchain caches are granted individually instead.
+    "exclude": ["user_caches_linux"],
     "include": ["linux_temp_read", "mise_manager", "go_runtime", "go_runtime_linux", "java_runtime"]
   },
   "filesystem": {

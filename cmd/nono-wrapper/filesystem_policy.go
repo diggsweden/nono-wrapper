@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 type pathAccess uint8
@@ -48,7 +49,7 @@ type pathRule struct {
 	file   bool
 }
 
-// Match nono 0.79's profile path variables before comparing resource identities.
+// Match nono's profile path variables before comparing resource identities.
 // Resolve symlinks (and existing ancestors for absent paths) so spelling a path
 // through $HOME, XDG variables or a symlink cannot bypass precedence/protection.
 func policyPathKey(path string) (string, error) {
@@ -99,6 +100,29 @@ func policyPathKey(path string) (string, error) {
 		return "", quotePathError(err)
 	}
 	return canonicalConfigPath(path)
+}
+
+// A generated state grant is a literal directory, not a profile expression
+// or glob. Validate exactly the canonical string that will be serialized.
+func literalRuntimePath(path string) (string, error) {
+	if !filepath.IsAbs(path) {
+		return "", invalidConfig{fmt.Errorf("runtime path must be absolute: %q", path)}
+	}
+	actual, err := canonicalConfigPath(path)
+	if err != nil {
+		return "", err
+	}
+	if strings.ContainsAny(actual, "*?[") {
+		return "", invalidConfig{fmt.Errorf("runtime path must not contain profile glob patterns: %q", actual)}
+	}
+	expanded, err := policyPathKey(actual)
+	if err != nil {
+		return "", err
+	}
+	if actual != expanded {
+		return "", invalidConfig{fmt.Errorf("runtime path must not contain profile variable references: %q", actual)}
+	}
+	return actual, nil
 }
 
 func profilePathRules(data []byte) ([]pathRule, error) {
@@ -212,28 +236,38 @@ func verifyPathOverrides(ctx context.Context, nono, profile, program string, sho
 	if len(rules) == 0 {
 		return nil
 	}
+	grants, err := effectivePathGrants(ctx, nono, profile, program, shown)
+	if err != nil {
+		return err
+	}
+	return checkPathOverrides(rules, grants)
+}
+
+// Inspect native inheritance and groups, then account for launch-time grants
+// absent from the export. All permission checks share this effective view.
+func effectivePathGrants(ctx context.Context, nono, profile, program string, shown []byte) ([]pathRule, error) {
 	check := exec.CommandContext(ctx, nono, "profile", "show", "--format", "manifest", profile)
 	var diagnostic strings.Builder
 	check.Stderr = &diagnostic
 	data, err := check.Output()
 	if ctx.Err() != nil {
-		return ctx.Err()
+		return nil, ctx.Err()
 	}
 	if err != nil {
-		return fmt.Errorf("inspect effective filesystem grants: %w\n%s", err, diagnostic.String())
+		return nil, fmt.Errorf("inspect effective filesystem grants: %w\n%s", err, diagnostic.String())
 	}
 	grants, err := manifestPathGrants(data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Account for launch-time grants that are not part of the profile export.
 	if program != "" {
 		grants = append(grants, pathRule{program, pathRead, true})
 	}
 	if socket := sshAgentArgs(); len(socket) == 2 {
-		path, err := policyPathKey(socket[1])
+		path, err := canonicalConfigPath(socket[1])
 		if err != nil {
-			return err
+			return nil, err
 		}
 		grants = append(grants, pathRule{path, pathRead, true})
 	}
@@ -241,9 +275,13 @@ func verifyPathOverrides(ctx context.Context, nono, profile, program string, sho
 		if raw == "" {
 			continue
 		}
-		path, err := policyPathKey(raw)
+		// CLI paths are filesystem paths, not profile-variable expressions.
+		path, err := filepath.Abs(raw)
+		if err == nil {
+			path, err = canonicalConfigPath(path)
+		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 		grants = append(grants, pathRule{path, pathRead | pathWrite, false})
 	}
@@ -255,11 +293,15 @@ func verifyPathOverrides(ctx context.Context, nono, profile, program string, sho
 		Filesystem map[string][]string `json:"filesystem"`
 	}
 	if err := json.Unmarshal(shown, &resolved); err != nil {
-		return fmt.Errorf("invalid resolved filesystem policy: %w", err)
+		return nil, fmt.Errorf("invalid resolved filesystem policy: %w", err)
 	}
 	workdir, err := os.Getwd()
 	if err != nil {
-		return err
+		return nil, err
+	}
+	workdir, err = canonicalConfigPath(workdir)
+	if err != nil {
+		return nil, err
 	}
 	workdirAccess := pathRead
 	if resolved.Workdir.Access == "readwrite" {
@@ -273,7 +315,7 @@ func verifyPathOverrides(ctx context.Context, nono, profile, program string, sho
 		for _, raw := range resolved.Filesystem[field] {
 			path, err := policyPathKey(raw)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			file := field == "unix_socket_bind"
 			if _, err := os.Stat(path); file && os.IsNotExist(err) {
@@ -282,7 +324,106 @@ func verifyPathOverrides(ctx context.Context, nono, profile, program string, sho
 			grants = append(grants, pathRule{path, pathRead | pathWrite, file})
 		}
 	}
-	return checkPathOverrides(rules, grants)
+	return grants, nil
+}
+
+// Protect executable files, invocation entries and known Mise data trees. A file's
+// containing directory is not itself a protected tree: standalone binaries
+// may live in HOME without making every sibling state directory unwritable.
+func protectedLaunchPaths(executables ...executable) ([]pathRule, error) {
+	own, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	var protected []pathRule
+	seen := map[pathRule]bool{}
+	add := func(path string, file bool) {
+		rule := pathRule{path, pathRead, file}
+		if !seen[rule] {
+			seen[rule] = true
+			protected = append(protected, rule)
+		}
+	}
+	paths = append(paths, own)
+	if entry, err := exec.LookPath(os.Args[0]); err == nil {
+		paths = append(paths, entry)
+	}
+	// Activated Mise shells may put raw tool bins on PATH instead of shims.
+	// The manager still needs protection even when resolution did not invoke it.
+	if manager, err := exec.LookPath("mise"); err == nil {
+		paths = append(paths, manager)
+	}
+	for _, executable := range executables {
+		paths = append(paths, executable.path, executable.manager, executable.entry)
+	}
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		entries, err := executableEntries(path)
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			add(entry, true)
+		}
+		actual, err := canonicalConfigPath(path)
+		if err != nil {
+			return nil, err
+		}
+		add(actual, true)
+	}
+	mise, err := miseProtectedPaths()
+	if err != nil {
+		return nil, err
+	}
+	for _, rule := range mise {
+		add(rule.path, rule.file)
+	}
+	return protected, nil
+}
+
+func grantPathPrefix(grant pathRule) string {
+	path := grant.path
+	if index := strings.IndexAny(path, "*?["); index >= 0 && !grant.file {
+		path = filepath.Dir(path[:index] + "glob")
+	}
+	return path
+}
+
+func checkProtectedWrites(grants, protected []pathRule) error {
+	for _, grant := range grants {
+		if grant.access&pathWrite == 0 {
+			continue
+		}
+		path := grantPathPrefix(grant)
+		if err := protectRuleWrite(path); err != nil {
+			return err
+		}
+		for _, target := range protected {
+			overlaps := samePolicyPath(path, target.path) || !grant.file && pathWithin(target.path, path)
+			if !target.file {
+				overlaps = overlaps || pathWithin(path, target.path)
+			}
+			if overlaps {
+				return fmt.Errorf("writable grant %q overlaps protected launch location %q; move state or workspace, or narrow the grant", grant.path, target.path)
+			}
+			// A directory grant could contain an unseen hard-link alias. Reject
+			// multiply linked protected files rather than scan entire workspaces
+			// and caches to try to locate every alias.
+			if !grant.file && target.file {
+				info, err := os.Stat(target.path)
+				if err != nil && !os.IsNotExist(err) {
+					return quotePathError(err)
+				}
+				if err == nil && info.Mode().IsRegular() && info.Sys().(*syscall.Stat_t).Nlink > 1 {
+					return fmt.Errorf("protected launch file %q has multiple hard links; use a single-link copy before granting writable directory %q", target.path, grant.path)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func manifestPathGrants(data []byte) ([]pathRule, error) {
@@ -327,12 +468,9 @@ func manifestPathGrants(data []byte) ([]pathRule, error) {
 func checkPathOverrides(rules, grants []pathRule) error {
 	present := make([]pathAccess, len(rules))
 	for _, grant := range grants {
-		path := grant.path
+		path := grantPathPrefix(grant)
 		// A surviving directory glob may cover the requested path. Treat its
 		// fixed prefix conservatively instead of claiming a restriction worked.
-		if index := strings.IndexByte(path, '*'); index >= 0 && !grant.file {
-			path = filepath.Dir(path[:index] + "glob")
-		}
 		if grant.access&pathWrite != 0 {
 			if err := protectRuleWrite(path); err != nil {
 				return err

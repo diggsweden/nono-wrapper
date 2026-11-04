@@ -36,8 +36,8 @@ nolabs-ai/codex ──────── codex-base ───── chatgpt / of
 These extensions deliberately retain upstream grants. With the pinned packs
 on Linux:
 
-- **Both agents** get read/write project access and the whole `~/.cache`
-  directory, plus read access to Node, Rust, Python and Nix runtime locations
+- **Both agents** get read/write project access and individually granted caches,
+  plus read access to Node, Rust, Python and Nix runtime locations
   and user Git configuration.
 - **OpenCode** gets its own state, plus read/write `~/.claude`, `~/.codex` and
   `~/.npm`. Its `~/.agents` grant is read-only.
@@ -50,6 +50,10 @@ We do not keep a second copy of those grants. Local settings should express
 an intentional policy difference or a compatibility fix still missing
 upstream. The certificate grant can go once upstream covers openSUSE's
 certificate path.
+
+`agent-policy` excludes upstream's `user_caches_linux` group: its recursive
+`~/.cache` write grant would expose Mise's code-loading cache. Agent-specific
+cache grants and the Go build cache remain available.
 
 On top of that, `agent-policy` adds read access through nono's own groups:
 
@@ -72,7 +76,7 @@ password file `~/.m2/settings-security.xml` is not granted.
 **Write access to the Maven repository outlasts the session.** An agent can
 replace a plugin or dependency jar there, or a wrapper distribution, and your
 next Maven build outside the sandbox runs it with your full rights. The same
-holds for the writable `~/.cache` and, for OpenCode, `~/.npm`. Treat these
+holds for individually writable caches and, for OpenCode, `~/.npm`. Treat these
 caches like the project itself: review what a session changed, or clear them
 after an untrusted session.
 
@@ -96,6 +100,30 @@ matching rules in its bundled profiles, as described under
 [user precedence](configuration.md#user-precedence-and-rule-protection).
 Other inheritance remains native nono behavior.
 
+For bundled agent profiles, a protected session layer supplies exact
+non-default XDG/Codex runtime directories. It uses the same canonical paths
+as state preparation and omits an exact path when the user specifies its own
+access mode. Effective-policy checks reject broader grants that would defeat
+user restrictions. Inherited deny rules and signed pack references remain
+intact; external profiles receive no automatic runtime grants.
+
+Managed executables and launch configuration are invariants for all profiles.
+The wrapper
+resolves the selected agent and nono, including Mise shims, and checks the
+effective filesystem manifest plus launch-time grants before executing the
+agent. Writable grants covering those executables, the wrapper or resolved
+Mise binary, or overlapping known Mise configuration, trust/state, cache and
+data/installation trees, stop the launch. Global configuration matters as much
+as binaries: it can select tools, change trust settings and run host templates.
+Invocation entries are protected as well as resolved binaries, so a writable
+shim directory cannot replace a dispatcher while leaving its target intact.
+This includes symlinked parent directories and intermediate symlink targets.
+Protected files with multiple hard links are rejected when a directory is
+writable: an alias could live anywhere under that grant. Use a single-link
+copy of the protected file; the wrapper does not scan workspaces or caches
+for aliases.
+These checks apply even when no user path override or runtime layer is needed.
+
 The pinned official packs supply no provider host allowlists or environment
 allowlists, so those lists currently come from these extensions. Review both
 packs and nono's defaults when upgrading, and run the network checks to catch
@@ -115,8 +143,9 @@ explicit local setting; upstream socket grants are still inherited.
 - On macOS, the bundled profiles deny Apple Events and access to
   `com.apple.coreservices.appleevents`. Both rules are needed: denying only
   `appleevent-send` did not prevent native calls addressed directly to an
-  existing terminal process. The wrapper refuses the official-profile fallback
-  on macOS when its bundled profile is missing. Custom `NONO_PROFILE` policies
+  existing terminal process. Missing bundled profiles stop the wrapper on
+  every platform instead of falling back to a different upstream policy.
+  Custom `NONO_PROFILE` policies
   must inherit `agent-policy` or supply equivalent restrictions; custom raw
   Seatbelt rules can override inherited rules and need separate review.
 - Host allowlists limit destinations, not uploads. Endpoint rules narrow a

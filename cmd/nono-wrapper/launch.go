@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -58,15 +57,22 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 			return fmt.Errorf("cannot share this working directory: %w", err)
 		}
 	}
-	program, err = filepath.EvalSymlinks(program)
+	agentExecutable, err := resolveExecutable(ctx, agent, program)
 	if err != nil {
-		return fmt.Errorf("resolve %s executable: %w", agent, err)
+		return err
 	}
-	if filepath.Base(program) == "mise" {
-		program, err = miseTool(ctx, program, agent)
-		if err != nil {
-			return err
-		}
+	nonoExecutable, err := resolveExecutable(ctx, "nono", nono)
+	if err != nil {
+		return err
+	}
+	program, nono = agentExecutable.path, nonoExecutable.path
+	protected, err := protectedLaunchPaths(agentExecutable, nonoExecutable)
+	if err != nil {
+		return err
+	}
+	runtimePaths, err := prepareAgentState(agent, protected)
+	if err != nil {
+		return err
 	}
 	profile := os.Getenv("NONO_PROFILE")
 	chosen := profile != ""
@@ -84,20 +90,6 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if loadErr != nil && !chosen && officialProfileOnly(ctx, nono, profile, agent) {
-		if runtime.GOOS == "darwin" {
-			return fmt.Errorf("cannot load profile %q; refusing the official-profile fallback on macOS because it omits the Apple Events broker denial.\nRun 'just install-local' from the nono-agent-profiles checkout to install the bundled profiles", profile)
-		}
-		previous := profile
-		profile = officialPacks[agent]
-		shown, diagnostic, loadErr = showProfile(ctx, nono, profile)
-		if loadErr == nil {
-			fmt.Fprintf(stderr, "nono-wrapper: profile %q is not installed; using nono's official %q profile without the nono-agent-profiles rules\n", previous, profile)
-		}
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
 	if loadErr != nil {
 		fmt.Fprint(stderr, diagnostic)
 		return fmt.Errorf("cannot load profile %q.\nRun 'just install-local' from the nono-agent-profiles checkout to install our profiles and the pinned nolabs-ai/%s pack.\nSee docs/install.md in the nono-agent-profiles checkout", profile, officialPacks[agent])
@@ -107,6 +99,8 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 		return err
 	}
 	profileArgs := []string{"--profile", profile}
+	selectedProfile := profile
+	finalShown := shown
 	dropSocketMediation := socketMediationUnavailable(ctx, nono, profile, shown)
 	if err := ctx.Err(); err != nil {
 		return err
@@ -115,37 +109,52 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 		fmt.Fprintf(stderr, "nono-wrapper: %s\n", socketMediationNotice)
 	}
 	if user != "" && user != profile {
-		baseShown := shown
-		shown, diagnostic, loadErr = showProfile(ctx, nono, user)
+		userShown, userDiagnostic, userErr := showProfile(ctx, nono, user)
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if loadErr != nil {
-			fmt.Fprint(stderr, diagnostic)
+		if userErr != nil {
+			fmt.Fprint(stderr, userDiagnostic)
 			return fmt.Errorf("cannot load user profile %q; fix its file in your nono profiles directory", user)
 		}
-		userBlock, err := profileBlocksNetwork(shown, user)
+		userBlock, err := profileBlocksNetwork(userShown, user)
 		if err != nil {
 			return err
 		}
 		block = block || userBlock
-		composed, cleanup, err := composeUserOverrides(ctx, nono, profile, user, program, baseShown, shown, dropSocketMediation)
+		composed, cleanup, err := composeSessionPolicy(ctx, nono, profile, user, program, shown, userShown, dropSocketMediation, runtimePaths)
 		if err != nil {
 			return err
 		}
 		defer cleanup()
 		if composed != "" {
 			profileArgs = []string{"--profile", composed}
-		} else {
-			profileArgs = append(profileArgs, "--extends", user)
+			selectedProfile = composed
 		}
-	} else if dropSocketMediation {
-		composed, cleanup, err := composeUserOverrides(ctx, nono, profile, "", program, shown, nil, true)
+	} else if dropSocketMediation || len(runtimePaths) > 0 {
+		composed, cleanup, err := composeSessionPolicy(ctx, nono, profile, "", program, shown, nil, dropSocketMediation, runtimePaths)
 		if err != nil {
 			return err
 		}
 		defer cleanup()
-		profileArgs = []string{"--profile", composed}
+		if composed != "" {
+			profileArgs = []string{"--profile", composed}
+			selectedProfile = composed
+		}
+	}
+	if selectedProfile != profile {
+		var diagnostic string
+		finalShown, diagnostic, err = showProfile(ctx, nono, selectedProfile)
+		if err != nil {
+			return fmt.Errorf("inspect final session policy: %w\n%s", err, diagnostic)
+		}
+	}
+	grants, err := effectivePathGrants(ctx, nono, selectedProfile, program, finalShown)
+	if err != nil {
+		return err
+	}
+	if err := checkProtectedWrites(grants, protected); err != nil {
+		return err
 	}
 	proxyArgs, credentials, err := upstreamProxyArgs(block)
 	if err != nil {
@@ -174,6 +183,161 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 		return err
 	}
 	return runSession(ctx, nono, nonoArgs, agent, name, stderr)
+}
+
+// nono resolves filesystem grants before pack first-run hooks execute. Make
+// the known agent state paths exist first, so a cold launch receives the same
+// grants as a later one. Return only non-default locations that the bundled
+// session policy must add; external profiles keep native nono behavior.
+func prepareAgentState(agent string, protected []pathRule) ([]pathRule, error) {
+	home, err := os.UserHomeDir()
+	if err != nil || !filepath.IsAbs(home) {
+		return nil, fmt.Errorf("preparing agent state requires an absolute HOME")
+	}
+	type stateDirectory struct{ path, fallback string }
+	var paths []stateDirectory
+	if agent == "codex" {
+		fallback := filepath.Join(home, ".codex")
+		path := os.Getenv("CODEX_HOME")
+		if path == "" {
+			path = fallback
+		}
+		paths = append(paths, stateDirectory{path, fallback})
+	} else {
+		for _, name := range []string{".opencode", ".npm"} {
+			path := filepath.Join(home, name)
+			paths = append(paths, stateDirectory{path, path})
+		}
+		for _, location := range []struct{ variable, fallback string }{
+			{"XDG_CONFIG_HOME", ".config"}, {"XDG_DATA_HOME", ".local/share"},
+			{"XDG_CACHE_HOME", ".cache"}, {"XDG_STATE_HOME", ".local/state"},
+		} {
+			base := os.Getenv(location.variable)
+			if base == "" {
+				base = filepath.Join(home, location.fallback)
+			}
+			fallback := filepath.Join(home, location.fallback)
+			paths = append(paths, stateDirectory{filepath.Join(base, "opencode"), filepath.Join(fallback, "opencode")})
+			if location.variable == "XDG_DATA_HOME" {
+				paths = append(paths, stateDirectory{filepath.Join(base, "opentui"), filepath.Join(fallback, "opentui")})
+			}
+		}
+	}
+	var runtimePaths []pathRule
+	for _, directory := range paths {
+		path := directory.path
+		if !filepath.IsAbs(path) {
+			return nil, invalidConfig{fmt.Errorf("agent state directory must be absolute: %q", path)}
+		}
+		actual, err := literalRuntimePath(path)
+		if err != nil {
+			return nil, err
+		}
+		if err := protectRuleWrite(path); err != nil {
+			return nil, fmt.Errorf("cannot prepare agent state: %w", err)
+		}
+		if err := checkProtectedWrites([]pathRule{{actual, pathRead | pathWrite, false}}, protected); err != nil {
+			return nil, fmt.Errorf("cannot prepare agent state: %w", err)
+		}
+		if err := os.MkdirAll(path, 0o700); err != nil {
+			return nil, quotePathError(err)
+		}
+		fallback, err := canonicalConfigPath(directory.fallback)
+		if err != nil {
+			return nil, err
+		}
+		if !samePolicyPath(actual, fallback) {
+			runtimePaths = append(runtimePaths, pathRule{actual, pathRead | pathWrite, false})
+		}
+	}
+	return runtimePaths, nil
+}
+
+type executable struct{ path, manager, entry string }
+
+// Keep the invocation entry as well as its resolved target. Writable access
+// to a shim's parent could replace the shim without modifying its target.
+func fileEntryPath(path string) (string, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	parent, err := canonicalConfigPath(filepath.Dir(path))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(parent, filepath.Base(path)), nil
+}
+
+// Preserve directory symlinks too: replacing one redirects future invocations
+// without writing either the final entry or the resolved executable.
+func executableEntries(path string) ([]string, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	var entries []string
+	seen := map[string]bool{}
+	pending := []string{path}
+	for len(pending) > 0 {
+		path := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+		if seen[path] {
+			continue
+		}
+		seen[path] = true
+		entry, err := fileEntryPath(path)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+		for current := path; filepath.Dir(current) != current; current = filepath.Dir(current) {
+			entry, err := fileEntryPath(current)
+			if err != nil {
+				return nil, err
+			}
+			info, err := os.Lstat(entry)
+			if os.IsNotExist(err) {
+				continue
+			}
+			if err != nil {
+				return nil, quotePathError(err)
+			}
+			if info.Mode()&os.ModeSymlink == 0 {
+				continue
+			}
+			entries = append(entries, entry)
+			target, err := os.Readlink(entry)
+			if err != nil {
+				return nil, quotePathError(err)
+			}
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(filepath.Dir(entry), target)
+			}
+			pending = append(pending, target)
+		}
+	}
+	return entries, nil
+}
+
+// Resolve the supervisor and agent before inspecting policy. A shim is not
+// the executable whose filesystem permissions must stay read-only.
+func resolveExecutable(ctx context.Context, name, path string) (executable, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return executable{}, err
+	}
+	entry := path
+	path, err = filepath.EvalSymlinks(path)
+	if err != nil {
+		return executable{}, fmt.Errorf("resolve %s executable: %w", name, err)
+	}
+	resolved := executable{path: path, entry: entry}
+	if filepath.Base(path) == "mise" {
+		resolved.manager = path
+		resolved.path, err = miseTool(ctx, path, name)
+	}
+	return resolved, err
 }
 
 // A mise shim is a link to mise, which picks the tool from the link's name.
@@ -258,27 +422,6 @@ func showProfile(ctx context.Context, nono, profile string) ([]byte, string, err
 	check.Stderr = &diagnostic
 	shown, err := check.Output()
 	return shown, diagnostic.String(), err
-}
-
-// officialProfileOnly reports whether nono lists the official pack's profile
-// for the agent but not ours.
-func officialProfileOnly(ctx context.Context, nono, ours, agent string) bool {
-	var profiles []struct {
-		Name string `json:"name"`
-		Pack string `json:"pack"`
-	}
-	listed, err := exec.CommandContext(ctx, nono, "profile", "list", "--json").Output()
-	if err != nil || json.Unmarshal(listed, &profiles) != nil {
-		return false
-	}
-	official := false
-	for _, profile := range profiles {
-		if profile.Name == ours {
-			return false
-		}
-		official = official || profile.Name == officialPacks[agent] && profile.Pack == "nolabs-ai/"+officialPacks[agent]
-	}
-	return official
 }
 
 // Only the caller's socket is delegated. Repository Git configuration must not

@@ -64,6 +64,8 @@ func TestExitCodeContract(t *testing.T) {
 		{name: "removed remove-host command", args: []string{"config", "opencode", "remove-host", "example.org"}, status: exitUsage},
 		{name: "removed add-port command", args: []string{"config", "codex", "add-port", "3000"}, status: exitUsage},
 		{name: "removed remove-port command", args: []string{"config", "codex", "remove-port", "3000"}, status: exitUsage},
+		{name: "removed allow-local-port command", args: []string{"config", "codex", "allow-local-port", "3000"}, status: exitUsage},
+		{name: "removed remove-local-port command", args: []string{"config", "codex", "remove-local-port", "3000"}, status: exitUsage},
 		{name: "missing marker", args: []string{"audit", "missing-marker"}, status: exitNoInput},
 		{name: "missing directory", args: []string{"config", "opencode", "add-dir", "/nonexistent/nono-wrapper"}, status: exitNoInput},
 		{

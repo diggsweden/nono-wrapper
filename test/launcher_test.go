@@ -140,18 +140,6 @@ profile)
     fi
     exit 0
   fi
-  if [ "$2 $3" = "list --json" ]; then
-    [ -z "${LAUNCHER_TEST_PROFILE_ERROR:-}" ] || exit 1
-    printf '[{"name":"default","pack":null}'
-    for name in opencode codex; do
-      official=$name
-      [ "$name" = codex ] || official=opencode-v1
-      printf ',{"name":"%s","pack":"nolabs-ai/%s"}' "$official" "$official"
-      [ "$name-chatgpt" = "${LAUNCHER_TEST_MISSING_PROFILE:-}" ] || printf ',{"name":"%s-chatgpt","pack":null}' "$name"
-    done
-    printf ']\n'
-    exit 0
-  fi
   [ "$2" = show ] || exit 99
   name=$3
   if [ "$3" = --json ]; then [ "$#" -eq 4 ] || exit 99; name=$4; else [ "$#" -eq 3 ] || exit 99; fi
@@ -171,7 +159,7 @@ profile)
         else
           printf '{"network":{"block":%s}}\n' "${LAUNCHER_TEST_USER_BLOCK:-false}"
         fi ;;
-      *) printf '{"network":{"block":%s}}\n' "${LAUNCHER_TEST_BASE_BLOCK:-false}" ;;
+      *) printf '{"network":{"block":%s},"workdir":{"access":"readwrite"}}\n' "${LAUNCHER_TEST_BASE_BLOCK:-false}" ;;
     esac
   fi
   ;;
@@ -200,6 +188,17 @@ func writeNonoFixture(t *testing.T, f launcherFixture, body string) {
 	t.Helper()
 	writeLauncherFixture(t, filepath.Join(f.bin, "nono"), `#!/bin/sh
 case "$1" in
+profile)
+  if [ "$2 $3 $4" = 'show --format manifest' ]; then
+    [ -z "${LAUNCHER_PROFILE_LOG:-}" ] || printf '%s\n' "$*" >> "$LAUNCHER_PROFILE_LOG"
+    if [ -n "${LAUNCHER_TEST_MANIFEST_JSON:-}" ]; then
+      printf '%s\n' "$LAUNCHER_TEST_MANIFEST_JSON"
+    else
+      printf '{"version":"0.1.0","filesystem":{"grants":[]}}\n'
+    fi
+    exit 0
+  fi
+  ;;
 inspect)
   [ -z "${LAUNCHER_REPORT_LOG:-}" ] || printf '%s\n' "$*" >> "$LAUNCHER_REPORT_LOG"
   case "${LAUNCHER_REPORT_MODE:-}" in
@@ -479,7 +478,7 @@ func TestLauncherStartDirectory(t *testing.T) {
 	}
 }
 
-func TestLauncherResolvesProfileOnce(t *testing.T) {
+func TestLauncherInspectsStructuredPolicyAndEffectiveManifest(t *testing.T) {
 	f := newLauncherFixture(t, "opencode")
 	log := filepath.Join(filepath.Dir(f.bin), "profile.log")
 	_, stderr, status := runLauncher(t, f, "opencode", nil, []string{
@@ -489,8 +488,8 @@ func TestLauncherResolvesProfileOnce(t *testing.T) {
 		t.Fatalf("launch failed: status=%d (%s)", status, stderr)
 	}
 	data, err := os.ReadFile(log)
-	if err != nil || string(data) != "profile show --json opencode-chatgpt\n" {
-		t.Fatalf("profile resolution was repeated or unstructured: %q (%v)", data, err)
+	if err != nil || string(data) != "profile show --json opencode-chatgpt\nprofile show --format manifest opencode-chatgpt\n" {
+		t.Fatalf("missing or repeated structured policy/manifest inspection: %q (%v)", data, err)
 	}
 }
 
@@ -644,20 +643,12 @@ func TestLauncherProfileSetupHints(t *testing.T) {
 	}
 }
 
-func TestLauncherOfficialProfileFallback(t *testing.T) {
+func TestLauncherRequiresItsSelectedProfiles(t *testing.T) {
 	for _, spec := range launcherSpecs {
 		t.Run(spec.agent+"/default profile missing", func(t *testing.T) {
 			f := newLauncherFixture(t, spec.agent)
 			stdout, stderr, status := runLauncher(t, f, spec.agent, nil, []string{"LAUNCHER_TEST_MISSING_PROFILE=" + spec.profile})
-			if runtime.GOOS == "darwin" {
-				if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, "refusing the official-profile fallback on macOS") {
-					t.Fatalf("unprotected fallback on macOS: status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
-				}
-				return
-			}
-			want := "nono-wrapper: profile \"" + spec.profile + "\" is not installed; using nono's official \"" + spec.official + "\" profile without the nono-agent-profiles rules\n"
-			want += emptySessionReport(spec.agent, 0)
-			if status != 0 || stderr != want || !bytes.HasPrefix(stdout, []byte("run\x00--profile\x00"+spec.official+"\x00")) {
+			if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, "just install-local") {
 				t.Fatalf("status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
 			}
 		})
@@ -671,7 +662,6 @@ func TestLauncherOfficialProfileFallback(t *testing.T) {
 		t.Run(spec.agent+"/default profile broken", func(t *testing.T) {
 			f := newLauncherFixture(t, spec.agent)
 			writeLauncherFixture(t, filepath.Join(f.bin, "nono"), `#!/bin/sh
-[ "$2" != list ] || { printf '[{"name":"%s","pack":"nolabs-ai/%s"},{"name":"%s-chatgpt","pack":null}]' "$LAUNCHER_OFFICIAL" "$LAUNCHER_OFFICIAL" "$LAUNCHER_AGENT"; exit 0; }
 [ "$1" != run ] || { printf ran; exit 0; }
 echo "nono: Profile not found: $3" >&2
 exit 1
@@ -738,7 +728,7 @@ kill -TERM "$$"
 	defer cancel()
 	cmd := exec.CommandContext(ctx, wrapperBinary, "opencode")
 	cmd.Dir = f.project
-	cmd.Env = []string{"PATH=" + f.bin, f.rootSetting(), "LAUNCHER_TEST_ENV=preserved"}
+	cmd.Env = []string{"PATH=" + f.bin, "HOME=" + filepath.Dir(f.bin), f.rootSetting(), "LAUNCHER_TEST_ENV=preserved"}
 	cmd.Stdin = strings.NewReader("input with spaces\n")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

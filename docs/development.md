@@ -96,11 +96,11 @@ bash test/verify-reproducible.sh --compare /absolute/first/checkout /absolute/se
 
 ### Updating pins
 
-Commit `.mise.toml` and `mise.lock` together when updating host tools. Keep
-the nono, OpenCode and Codex versions aligned with the Linux container pins
-in `test/tools`, regenerate the lockfile with `mise lock`, and review
-official pack compatibility in `test/packs`. Host and container archive
-checksums can differ because they use different builds of the same release.
+Commit `.mise.toml` and `mise.lock` together when updating sandbox/build
+tools. DevBase owns host OpenCode and Codex versions. Container-test agent
+archives in `test/tools` are independently pinned for reproducibility;
+regenerate the host lockfile with `mise lock` and review official pack
+compatibility in `test/packs` when updating the sandbox runtime.
 Commit `go.mod` and `go.sum` together when updating the Go dependencies.
 Upgrade CLI and pack pins together when compatibility changes.
 
@@ -143,7 +143,8 @@ binary into temporary homes, use fake nono to check pinned pack setup,
 profile selection and failure handling, and use fake Podman to check bounded
 cleanup and file preservation.
 
-Configuration tests cover host/directory/file editing, access-mode updates,
+Configuration tests cover domain/TCP-port/path editing, exact stored-key
+removal (including keys outside the add grammar), access-mode updates,
 JSONC preservation, failed and interrupted writes, symlinks, locking and user
 file preservation across reinstalls. Host/path-override tests check that
 unrelated policy fields survive and generated files are cleaned up on success
@@ -154,6 +155,15 @@ selected base-image pins. Runner tests ensure missing or stale images never
 trigger preparation. Go, just, Bash, `/bin/sh` and standard file utilities
 are needed; agents, installed profiles and Podman are not needed for these
 unit tests.
+
+Executable-policy tests include inherited and external-profile writes,
+workspace and ambient grants, aliases, managed installation trees and an
+unusable manifest. Runtime-path tests reject reserved expressions or globs
+hidden behind symlinks. Native negative probes verify refusal before agent
+execution and preservation of a harmless executable stand-in.
+Control-plane tests include Mise config, trust/state/cache locations, explicit
+config overrides, backing-file aliases and dangling links. Path discovery is
+tested with executable configuration to ensure it never evaluates that input.
 
 These local checks run on the host with temporary homes and explicit
 subprocess environments/tool paths. That is fixture isolation; the real-agent
@@ -173,6 +183,44 @@ just test-unit -run TestLauncherInvocation -v
 `test-containers` recipes run only the integration suite.
 
 ## Native integration smoke test
+
+The native suite also tests Linux TCP-port scope against a controlled server
+on this machine's non-loopback address: the offline profile refuses it before
+the grant, connects with the grant, and refuses it after removal. This checks
+actual socket enforcement rather than relying on `nono why`'s localhost label.
+It requires curl and a non-loopback IPv4 address; no external server is used.
+
+All native agent state uses non-default XDG roots and `CODEX_HOME` outside the
+fixture HOME, workspace and `/tmp`. Real agent startup checks the configured
+paths, while write probes verify that read-only user overrides take precedence
+and that removing an override restores the runtime default. This prevents
+inherited home or temporary-directory grants from masking missing permissions.
+
+To validate the DevBase integration after selecting its AI pack, keep the
+generated delegates and limit the test's tools to OpenCode, Codex and nono:
+
+```sh
+devbase=/absolute/devbase-core
+yq -p=toml -o=toml \
+  '.tools |= with_entries(select(
+    .key == "aqua:anomalyco/opencode" or
+    .key == "aqua:openai/codex" or .key == "nono"))' \
+  "$HOME/.config/mise/config.toml" > /tmp/devbase-ai-test.toml
+NONO_TEST_MISE_CONFIG=/tmp/devbase-ai-test.toml \
+NONO_TEST_MISE_DATA_DIR="$HOME/.local/share/mise" \
+NONO_TEST_FISH_FUNCTIONS="$devbase/dot/.config/fish/functions" \
+NONO_TEST_BASH_FUNCTIONS="$devbase/devbase_files/bashrc-agent-sandbox" \
+just test-native
+rm /tmp/devbase-ai-test.toml
+```
+
+The suite copies that config into its disposable home, reuses installed tool
+artifacts through a symlink, and creates isolated Mise shims, wrappers
+and trust state. Both ordinary shell commands and `mise exec` must reach the
+real agents through exactly one nono-wrapper sandbox. The supplied Fish
+functions are tested together with the generated Mise wrappers. The test
+also sources the Bash entry points with an unactivated raw-tool PATH. It
+does not activate or modify your global Mise configuration.
 
 After installing the pinned tools, run `mise exec -- just test-native` on
 Linux, or on macOS (best effort). It installs the wrapper and signed packs

@@ -83,7 +83,7 @@ func verify(ctx context.Context, agents []string, output io.Writer) error {
 		profile := agent + "-offline"
 		// A profile that cannot be shown is left for the checks below to report.
 		if shown, _, err := showProfile(ctx, nono, profile); err == nil && socketMediationUnavailable(ctx, nono, profile, shown) {
-			composed, cleanup, err := composeUserOverrides(ctx, nono, profile, "", "", shown, nil, true)
+			composed, cleanup, err := composeSessionPolicy(ctx, nono, profile, "", "", shown, nil, true, nil)
 			if err != nil {
 				return err
 			}

@@ -437,9 +437,9 @@ PROFILE
   cp -R "$XDG_CONFIG_HOME/nono/packages" "$work/packs-only/nono/"
   status=0
   out=$(XDG_CONFIG_HOME="$work/packs-only" nono-wrapper "$agent" 2>&1) || status=$?
-  expect WORKS "without our profiles the launcher announces the official profile" said "using nono's official \"$official\" profile"
-  expect WORKS "the official profile starts the agent" said STANDIN-RAN
-  expect FAILS "the official profile still confines the agent" said READ-ESCAPED
+  expect WORKS "missing wrapper profiles stop instead of changing the policy" test "$status" -ne 0
+  expect WORKS "missing wrapper profiles identify installation" said 'just install-local'
+  expect FAILS "an official pack alone cannot start the agent" said STANDIN-RAN
 
   mkdir -p "$work/none/.config" "$work/no-packs/nono/profiles"
   expect FAILS "missing profiles make verification fail" env XDG_CONFIG_HOME="$work/none/.config" nono-wrapper verify "$agent"

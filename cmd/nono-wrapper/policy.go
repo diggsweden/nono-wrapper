@@ -81,16 +81,17 @@ func profileHostRules(data []byte) (map[string]hostRule, error) {
 // Reordering --extends alone cannot replace nono's additive host/path rules.
 // Never rebuild policy from profile show's JSON: it omits environment and TLS
 // settings. These private copies preserve the complete original JSONC instead.
-// The same copies drop socket mediation where nono cannot enforce it; user is
-// empty when that is the only change.
-func composeUserOverrides(ctx context.Context, nono, base, user, program string, baseJSON, userJSON []byte, dropSocketMediation bool) (string, func(), error) {
+// The same session adds configured runtime paths and drops unavailable socket
+// mediation. Exact user overrides take precedence over runtime defaults.
+func composeSessionPolicy(ctx context.Context, nono, base, user, program string, baseJSON, userJSON []byte, dropSocketMediation bool, runtimePaths []pathRule) (string, func(), error) {
 	noop := func() {}
-	if !bundledProfile(base) {
+	managed := bundledProfile(base)
+	if !managed && user == "" {
 		return "", noop, nil
 	}
 	overrides := map[string]hostRule{}
 	var paths []pathRule
-	if user != "" {
+	if user != "" && managed {
 		baseRules, err := profileHostRules(baseJSON)
 		if err != nil {
 			return "", noop, err
@@ -109,14 +110,36 @@ func composeUserOverrides(ctx context.Context, nono, base, user, program string,
 			return "", noop, err
 		}
 	}
-	if len(overrides) == 0 && len(paths) == 0 && !dropSocketMediation {
+	var runtimeAllow []string
+	for _, runtime := range runtimePaths {
+		if !managed {
+			break
+		}
+		path, err := literalRuntimePath(runtime.path)
+		if err != nil {
+			return "", noop, err
+		}
+		if err := protectRuleWrite(path); err != nil {
+			return "", noop, err
+		}
+		overridden := false
+		for _, rule := range paths {
+			overridden = overridden || samePolicyPath(path, rule.path)
+		}
+		if !overridden {
+			runtimeAllow = append(runtimeAllow, path)
+		}
+	}
+	if user == "" && len(overrides) == 0 && len(paths) == 0 && !dropSocketMediation && len(runtimeAllow) == 0 {
 		return "", noop, nil
 	}
-	userPath, err := configPath(strings.TrimSuffix(user, "-user"))
+	// Both agents share this protected profile directory, including sessions
+	// without a user profile. Do not derive a filename from an empty user name.
+	profilePath, err := configPath("opencode")
 	if err != nil {
 		return "", noop, err
 	}
-	profiles := filepath.Dir(userPath)
+	profiles := filepath.Dir(profilePath)
 	directory, err := os.MkdirTemp(profiles, ".nono-wrapper-policy-")
 	if err != nil {
 		return "", noop, quotePathError(err)
@@ -205,16 +228,24 @@ func composeUserOverrides(ctx context.Context, nono, base, user, program string,
 		}
 		return alias, nil
 	}
-	alias, err := copyProfile(base, "", 0)
-	if err != nil {
-		return "", noop, err
+	parent := base
+	if managed && (len(overrides) > 0 || len(paths) > 0 || dropSocketMediation || len(runtimeAllow) > 0) {
+		parent, err = copyProfile(base, "", 0)
+		if err != nil {
+			return "", noop, err
+		}
 	}
-	parents := []string{alias}
+	parents := []string{parent}
 	if user != "" {
 		parents = append(parents, user)
 	}
-	data, _ := json.Marshal(map[string]any{"extends": parents})
-	path := filepath.Join(directory, "session.json")
+	session := map[string]any{"extends": parents}
+	if len(runtimeAllow) > 0 {
+		session["filesystem"] = map[string]any{"allow": runtimeAllow}
+	}
+	data, _ := json.Marshal(session)
+	// An unpredictable carrier name cannot shadow a normally named parent.
+	path := filepath.Join(directory, filepath.Base(directory)+".json")
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return "", noop, quotePathError(err)
 	}

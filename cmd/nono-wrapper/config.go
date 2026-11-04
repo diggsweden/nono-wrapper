@@ -444,14 +444,33 @@ func samePolicyPath(first, second string) bool {
 // Resolve existing ancestors too, so symlinked config roots and not-yet-created
 // profiles get the same overlap check as existing files.
 func canonicalConfigPath(path string) (string, error) {
+	return canonicalConfigPathDepth(path, 0)
+}
+
+func canonicalConfigPathDepth(path string, links int) (string, error) {
 	resolved, err := filepath.EvalSymlinks(path)
 	if err == nil {
 		return resolved, nil
 	}
+	// A missing target does not make a symlink's future write location safe.
+	// Resolve dangling leaf links too, before walking missing ancestors.
+	if info, statErr := os.Lstat(path); statErr == nil && info.Mode()&os.ModeSymlink != 0 {
+		if links >= 40 {
+			return "", fmt.Errorf("too many symbolic links while resolving %q", path)
+		}
+		target, readErr := os.Readlink(path)
+		if readErr != nil {
+			return "", quotePathError(readErr)
+		}
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(filepath.Dir(path), target)
+		}
+		return canonicalConfigPathDepth(target, links+1)
+	}
 	if !os.IsNotExist(err) || filepath.Dir(path) == path {
 		return "", quotePathError(err)
 	}
-	parent, err := canonicalConfigPath(filepath.Dir(path))
+	parent, err := canonicalConfigPathDepth(filepath.Dir(path), links)
 	if err != nil {
 		return "", err
 	}

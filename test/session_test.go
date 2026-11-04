@@ -106,7 +106,7 @@ func TestLauncherReportTimeout(t *testing.T) {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, wrapperBinary, "opencode")
 	cmd.Dir = f.project
-	cmd.Env = []string{"PATH=" + f.bin, f.rootSetting(), "LAUNCHER_REPORT_MODE=timeout", "LAUNCHER_TEST_EXIT=7"}
+	cmd.Env = []string{"PATH=" + f.bin, "HOME=" + filepath.Dir(f.bin), f.rootSetting(), "LAUNCHER_REPORT_MODE=timeout", "LAUNCHER_TEST_EXIT=7"}
 	cmd.WaitDelay = time.Second
 	output, err := cmd.CombinedOutput()
 	var exit *exec.ExitError
@@ -134,7 +134,7 @@ while :; do /bin/sleep 0.01; done
 				defer cancel()
 				cmd := exec.CommandContext(ctx, wrapperBinary, agent)
 				cmd.Dir = f.project
-				cmd.Env = []string{"PATH=" + f.bin, f.rootSetting(), "LAUNCHER_READY=" + ready}
+				cmd.Env = []string{"PATH=" + f.bin, "HOME=" + filepath.Dir(f.bin), f.rootSetting(), "LAUNCHER_READY=" + ready}
 				cmd.WaitDelay = time.Second
 				var stderr bytes.Buffer
 				cmd.Stderr = &stderr
@@ -186,7 +186,7 @@ printf 'all descriptors are terminals\n'
 	}
 	cmd := exec.CommandContext(ctx, script, args...)
 	cmd.Dir = f.project
-	cmd.Env = []string{"PATH=" + f.bin, f.rootSetting(), "SHELL=/bin/sh", "TERM=xterm"}
+	cmd.Env = []string{"PATH=" + f.bin, "HOME=" + filepath.Dir(f.bin), f.rootSetting(), "SHELL=/bin/sh", "TERM=xterm"}
 	output, err := cmd.CombinedOutput()
 	if err != nil || !bytes.Contains(output, []byte("all descriptors are terminals")) ||
 		!bytes.Contains(output, []byte("opencode session ended (exit 0)")) {
@@ -216,7 +216,7 @@ func TestLauncherAsksBeforeIncludingConfigRepositories(t *testing.T) {
 			command := "'" + strings.ReplaceAll(wrapperBinary, "'", "'\\''") + "' opencode"
 			cmd := exec.CommandContext(ctx, script, "-q", "-e", "-c", command, os.DevNull)
 			cmd.Dir = f.project
-			cmd.Env = []string{"PATH=" + f.bin, f.rootSetting(), "SHELL=/bin/sh", "TERM=xterm"}
+			cmd.Env = []string{"PATH=" + f.bin, "HOME=" + filepath.Dir(f.bin), f.rootSetting(), "SHELL=/bin/sh", "TERM=xterm"}
 			cmd.Stdin = strings.NewReader(test.answer + "\n")
 			output, err := cmd.CombinedOutput()
 			if !bytes.Contains(output, []byte("Include them? [y/N]")) || !bytes.Contains(output, []byte("sdg-config")) {

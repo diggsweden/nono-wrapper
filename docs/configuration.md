@@ -394,9 +394,51 @@ handles its own injected proxy variables and credentials.
 ### Relocated agent state
 
 The pinned upstream filesystem rules use standard home-directory locations.
-If you relocate agent state with XDG variables or `CODEX_HOME`, add the
-corresponding path grant in your own profile. Forwarding a location variable
-does not itself grant filesystem access. Likewise, an agent's `--cd` or
+For the bundled ChatGPT and offline profiles, the wrapper resolves the
+configured OpenCode XDG paths and Codex's `CODEX_HOME` once: those same paths
+are prepared before launch and added to the protected session profile when
+they differ from upstream defaults. Grants are exact directories, not their
+XDG parent roots. Their canonical paths must not expose active policy files.
+State variables must contain literal absolute paths; values that nono would
+reinterpret as profile-variable expressions or glob patterns are rejected.
+Validation applies to the canonical target after resolving symlinks and to
+the exact path serialized into the session profile.
+
+An exact user path override replaces the corresponding runtime default.
+Broader user restrictions, inherited deny rules and the effective-permission
+checks still apply: runtime conveniences never silently defeat a read-only
+user rule. The signed upstream packs and persistent user profiles are not
+rewritten. Upstream grants to default state/cache locations remain inherited;
+redirecting state does not revoke access to those locations.
+
+State locations must not expose managed executables or Mise's control plane:
+
+| Protected Mise location | Source |
+| --- | --- |
+| Global configuration and fragments/tasks | `~/.config/mise`, `$XDG_CONFIG_HOME/mise`, `MISE_CONFIG_DIR` |
+| Trusted-config records and state | `~/.local/state/mise`, `$XDG_STATE_HOME/mise`, `MISE_STATE_DIR` |
+| Cached environments, registries and artifacts | `~/.cache/mise`, `$XDG_CACHE_HOME/mise`, `MISE_CACHE_DIR` |
+| Installed tools, plugins and command dispatchers | Data-directory defaults, `MISE_DATA_DIR` and documented install/plugin/shim/download overrides |
+| Explicit global/system configuration files | `MISE_GLOBAL_CONFIG_FILE`, `MISE_CONFIG_FILE`, `MISE_SYSTEM_CONFIG_FILE` |
+| HOME-level configuration | `.mise.toml`, `mise.toml`, their local/existing environment variants, `.config/mise*.toml`, and the `.mise`/`mise` configuration trees |
+
+Directory and file aliases are protected at their invocation location and
+resolved backing path, including intermediate symlinks and dangling links to
+future configuration.
+Configuration alias discovery inspects filesystem metadata, never evaluates
+Mise configuration or templates, and terminates directory cycles. Keep
+configuration in dedicated directories; a configuration tree containing HOME
+is rejected. Overrides must be absolute paths.
+
+Every agent launch checks the final effective writable grants, regardless of
+whether they came from state setup, signed packs, a user/external profile,
+the workspace or `NONO_ALLOW`. A read-only file grant cannot cancel a writable
+parent-directory grant. Move the state/workspace or narrow the offending
+grant when these locations overlap.
+
+External profiles selected through `NONO_PROFILE` retain their own permission
+policy: grant relocated paths there explicitly. Forwarding a location variable
+alone is not a general filesystem grant. Likewise, an agent's `--cd` or
 `--add-dir` argument cannot expand nono's grants.
 
 ## Signing commits through an SSH agent

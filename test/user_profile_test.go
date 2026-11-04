@@ -6,7 +6,6 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -14,7 +13,7 @@ import (
 
 func TestLauncherUserProfile(t *testing.T) {
 	for _, spec := range launcherSpecs {
-		for _, mode := range []string{"home", "xdg", "custom base", "selected user profile", "official fallback", "symlink", "proxy", "base blocks network", "user blocks network"} {
+		for _, mode := range []string{"home", "xdg", "custom base", "selected user profile", "missing bundled profile", "symlink", "proxy", "base blocks network", "user blocks network"} {
 			t.Run(spec.agent+"/"+mode, func(t *testing.T) {
 				f := newLauncherFixture(t, spec.agent)
 				home := filepath.Dir(f.bin)
@@ -31,7 +30,7 @@ func TestLauncherUserProfile(t *testing.T) {
 				case "selected user profile":
 					profile = spec.agent + "-user"
 					env = append(env, "NONO_PROFILE="+profile)
-				case "official fallback":
+				case "missing bundled profile":
 					profile = spec.official
 					env = append(env, "LAUNCHER_TEST_MISSING_PROFILE="+spec.profile)
 				case "proxy":
@@ -46,6 +45,9 @@ func TestLauncherUserProfile(t *testing.T) {
 				if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 					t.Fatal(err)
 				}
+				if mode == "xdg" {
+					writeLauncherFixture(t, filepath.Join(filepath.Dir(path), spec.profile+".jsonc"), `{"network":{"block":false}}`)
+				}
 				contents := "{\"network\":{\"allow_domain\":[\"api.github.com\"]},\"filesystem\":{\"read\":[\"$HOME/reference\"],\"allow\":[\"$HOME/work\"]}}\n"
 				if mode == "symlink" {
 					target := filepath.Join(home, "user.jsonc")
@@ -59,9 +61,9 @@ func TestLauncherUserProfile(t *testing.T) {
 				log := filepath.Join(home, "profile.log")
 				env = append(env, "LAUNCHER_PROFILE_LOG="+log)
 				stdout, stderr, status := runLauncher(t, f, spec.agent, []string{"--model", "test"}, env)
-				if mode == "official fallback" && runtime.GOOS == "darwin" {
-					if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, "refusing the official-profile fallback on macOS") {
-						t.Fatalf("unprotected fallback with a user profile: status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
+				if mode == "missing bundled profile" {
+					if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, "just install-local") {
+						t.Fatalf("missing baseline was bypassed with a user profile: status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
 					}
 					return
 				}
@@ -69,8 +71,18 @@ func TestLauncherUserProfile(t *testing.T) {
 					t.Fatalf("status=%d, stderr=%q", status, stderr)
 				}
 				got := capturedLauncherArgs(t, stdout, spec.agent)
+				composed := profile != user
+				if composed {
+					profile = got[2]
+					if !strings.HasPrefix(profile, filepath.Join(config, "nono/profiles", ".nono-wrapper-policy-")) || !strings.HasPrefix(filepath.Base(profile), ".nono-wrapper-policy-") {
+						t.Fatalf("runtime policy is outside the protected profile store: %s", profile)
+					}
+					if _, err := os.Stat(filepath.Dir(profile)); !os.IsNotExist(err) {
+						t.Fatalf("runtime policy survived session exit: %v", err)
+					}
+				}
 				want := []string{"run", "--profile", profile}
-				if profile != user {
+				if profile != user && !composed {
 					want = append(want, "--extends", user)
 				}
 				want = append(want, "--allow-cwd", "--read-file", f.target)
@@ -150,7 +162,13 @@ func TestLauncherUserProfileDiscovery(t *testing.T) {
 			case "other agent":
 				path = filepath.Join(filepath.Dir(path), "codex-user.jsonc")
 			case "XDG replaces HOME":
-				env = []string{"XDG_CONFIG_HOME=" + filepath.Join(home, "other config")}
+				config := filepath.Join(home, "other config")
+				env = []string{"XDG_CONFIG_HOME=" + config}
+				profiles := filepath.Join(config, "nono/profiles")
+				if err := os.MkdirAll(profiles, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				writeLauncherFixture(t, filepath.Join(profiles, "opencode-chatgpt.jsonc"), `{"network":{"block":false}}`)
 			}
 			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 				t.Fatal(err)
