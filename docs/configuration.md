@@ -54,7 +54,8 @@ and refuse other HTTPS methods or paths:
 | --- | --- |
 | `chatgpt.com` (OpenCode) | `POST /backend-api/codex/responses` |
 | `chatgpt.com` (Codex) | whole host |
-| `auth.openai.com` | `POST /oauth/token`, `POST /api/accounts/deviceauth/usercode`, `POST /api/accounts/deviceauth/token`; Codex also `POST /oauth/revoke` |
+| `auth.openai.com` (OpenCode 2) | `POST /api/accounts/oauth/token`, `GET /.well-known/jwks.json` |
+| `auth.openai.com` (Codex) | `POST /oauth/token`, `POST /api/accounts/deviceauth/usercode`, `POST /api/accounts/deviceauth/token`, `POST /oauth/revoke` |
 
 ```jsonc
 {
@@ -68,6 +69,11 @@ WebSocket, and nono refuses WebSocket upgrades on hosts with endpoint
 rules. The paths come from the pinned agent executables; review them when
 upgrading either CLI. An agent request that nono refuses receives a 403 with
 the body `{"error":"Forbidden"}`.
+
+OpenCode 2.2.5's token-sharing flow uses `api.openai.com` for model traffic.
+The existing narrow `chatgpt.com` route remains in the profile. Only OpenCode
+2 is supported; its policy does not include legacy Codex login endpoints.
+See [OpenCode versions and server setup](opencode-2-evaluation.md).
 
 OpenCode may refresh its model catalogue using the bundled GET rule below.
 A slow reply can delay startup; the executable also contains a catalogue:
@@ -115,7 +121,6 @@ existing directories and files:
 nono-wrapper config opencode allow-domain api.github.com
 nono-wrapper config opencode allow-domain '*.example.com'
 nono-wrapper config opencode allow-domain --method GET 'https://gitlab.example.com/api/v4/projects/123/**'
-nono-wrapper config opencode allow-tcp-port 8081
 nono-wrapper config opencode add-dir /path/to/reference
 nono-wrapper config opencode add-dir --read-write /path/to/shared-project
 nono-wrapper config opencode add-file /path/to/settings.toml
@@ -127,6 +132,12 @@ Each command says what it allowed, for example
 `Allowed api.github.com: all paths and ports.` Changes apply to new sessions;
 restart the agent to use them. Run configuration edits from your normal
 terminal outside nono.
+
+OpenCode 2 standalone on Linux still uses these domain/endpoint allowances
+through nono's proxy. Its private loopback changes local TCP access, not the
+domain filter. `allow-tcp-port` is for deliberate host-network modes instead;
+it conflicts with standalone's namespace isolation. See the mode distinction
+below before adding a host-port grant.
 
 `add-dir` asks before granting a directory that holds configuration
 repositories, the same way a launch does
@@ -166,6 +177,15 @@ The examples below follow `nono-wrapper config opencode`; replace `opencode`
 with `codex` for Codex. Domain allowances describe remote destinations;
 TCP-port allowances describe a host-independent connect/listen exception.
 They are separate grants.
+
+For **OpenCode 2 standalone on Linux**, exact domains, wildcard domains,
+HTTPS method/path rules and user overrides work through the same proxy as
+before. Host TCP-port grants are incompatible with its private network:
+`allow-tcp-port` may be saved for explicit `serve`/`--server` mode, but that
+grant must be removed before returning to standalone. Private-loopback
+listeners need no host-port grants and are unreachable from the host.
+AppArmor's `userns` authorization permits namespace creation; it does not
+add domain or internet access. Offline mode still blocks remote networking.
 
 | Command or input | Meaning |
 | --- | --- |
@@ -490,6 +510,129 @@ backends. See nono's [runtime host approval documentation][host-approval].
 This is opt-in; the shipped profiles do not enable prompts.
 
 [host-approval]: https://github.com/nolabs-ai/nono/blob/v0.81.0/docs/cli/features/networking.mdx#runtime-host-approval
+
+### Private loopback (Linux)
+
+nono 0.81.0 can give a sandbox its own network namespace and TCP loopback.
+This is useful for tests and development servers that communicate inside
+one sandbox. It does not publish their ports to the host.
+OpenCode 2's normal wrapper launch uses this feature automatically with
+`--standalone`; see [OpenCode setup](opencode-2-evaluation.md) for required
+host support, conflicting grants and first-time browser login. The example
+below is an optional experiment for Codex.
+
+Start with an offline experiment. Save this as
+`~/.config/nono/profiles/codex-loopback.jsonc` (under `XDG_CONFIG_HOME` if set):
+
+```json
+{
+  "extends": "codex-offline",
+  "meta": { "name": "codex-loopback" },
+  "linux": { "isolate": { "network": true, "loopback": true } }
+}
+```
+
+From an ordinary terminal in a disposable project, validate the profile and
+open one sandboxed shell. Python 3 and curl must be installed:
+
+```sh
+nono profile validate codex-loopback
+nono run --profile codex-loopback --allow-cwd -- /bin/sh
+# Inside that same shell:
+python3 -m http.server 8080 --bind 127.0.0.1 &
+server=$!
+curl --noproxy '*' --retry 5 --retry-connrefused http://127.0.0.1:8080/
+kill "$server"
+exit
+```
+
+Both processes must run in the same sandbox; another `nono run` creates a
+different namespace. The host browser cannot reach that server, and the
+sandbox cannot reach services on the host's localhost. UDP and netlink
+remain blocked. This offline profile cannot run an authenticated model
+session, but you can smoke-test wrapper startup with
+`env NONO_PROFILE=codex-loopback nono-wrapper codex features list`.
+
+For an online experiment, first sign in with the normal bundled profile.
+The example below uses Codex. OpenCode 2 uses private loopback by default
+on Linux and has a separate explicit-server workflow for browser login.
+Copy the installed `codex-chatgpt.jsonc` to a separately named profile,
+change `meta.name`, remove its `network.listen_port` callback grants, and
+add the `linux.isolate` block above. Copying retains its current host rules
+without inheriting its callback ports. Do not merely extend
+`codex-chatgpt`: port lists accumulate, so `listen_port: []` cannot clear
+them.
+Select the copy with `NONO_PROFILE`; external-profile behavior, including
+explicit grants for relocated state and no automatic Git SSH transport,
+still applies. Browser callback login needs the normal non-isolated profile.
+
+Isolation rejects effective `open_port`, `connect_port`, `listen_port` and
+`no_proxy` grants. Your automatically applied user profile must not add
+them; use a disposable HOME/configuration if you want to keep existing
+settings intact. Codex does not get a namespace flag automatically; its
+isolation comes from this optional profile. OpenCode 2 gets the flag at
+launch time, except for `serve` and explicit `--server` connections.
+
+The host must allow unprivileged user namespaces. Ubuntu AppArmor policies
+and container seccomp policies can prevent this; nono reports the cause and
+stops instead of silently dropping isolation. See the upstream
+[namespace guide][namespaces] for host setup, limitations and configuration,
+and the project's [validation limits](development.md#results-and-limits).
+This experiment is Linux-only; macOS
+ignores `linux.isolate` and does not provide the private-loopback boundary.
+
+[namespaces]: https://github.com/nolabs-ai/nono/blob/v0.81.0/docs/cli/features/namespace-isolation.mdx
+
+### Local web services through the proxy
+
+Private loopback blocks **direct** connections to the host's localhost.
+The nono proxy runs outside that namespace and can reach an explicitly
+allowed hostname resolving to host loopback. The
+[README walkthrough](../README.md#local-web-services) uses an `/etc/hosts`
+entry such as `127.0.0.1 web.nono.test`, an exact
+`config opencode allow-domain web.nono.test` grant, and the URL
+`http://web.nono.test:3000`. Keep the actual service bound to `127.0.0.1`.
+
+This requires no TCP-port grant and works with the normal v2 standalone
+session. The HTTP client must use the session's proxy; it must not bypass it
+for the alias. Names ending in `.nono.test` avoid the default `localhost`
+proxy-bypass names. The proxy resolves the name through the host's resolver,
+so `/etc/hosts` is configured on the machine running nono, not inside a
+new network namespace. In a container that means the container's hosts file.
+
+The allowance is **host-wide, on every path and port**. A name such as
+`web.nono.test` is not a port-scoped capability: changing `:3000` to another
+port can reach another host service if one is listening there. Separate
+aliases help describe intent but do not enforce isolation between services
+on the same loopback address. HTTPS method/path rules retain their existing
+limits; plain HTTP is not path-filtered. Private-address access does not
+override nono's always-denied metadata and link-local destinations.
+
+On Linux, services can bind separate actual loopback addresses such as
+`127.0.0.2` and `127.0.0.3`, each with its own approved hostname. This can
+separate services bound exclusively to those addresses. A hosts-file alias
+does not change where a server listens, and wildcard listeners can still be
+reached through an approved address. The policy remains hostname-wide, not
+port-scoped. nono 0.81.0 explicitly warns that it ignores port suffixes in
+`allow_domain`, in both CLI and profile forms; do not rely on an entry such
+as `127.0.0.1:3000` as a narrow grant.
+
+If `HTTPS_PROXY`/`HTTP_PROXY` selects an enterprise upstream proxy, keep the
+local alias on the direct side of **nono's** proxy. Merge this into the user
+profile, preserving existing settings:
+
+```json
+{
+  "network": { "upstream_bypass": ["web.nono.test"] }
+}
+```
+
+This bypasses only the enterprise proxy; nono's domain filter still applies.
+Do not use `network.no_proxy`: it bypasses nono itself and is incompatible
+with private-loopback isolation. Offline profiles do not support this host
+allowance. Remove it with `config opencode remove-domain web.nono.test`
+before an offline launch. Other broader or inherited rules can still grant
+access, as with every domain allowance.
 
 ### Relocated agent state
 

@@ -14,19 +14,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/urfave/cli/v3"
 )
 
-// officialPacks names each agent's official nono pack, which installs a
-// profile of the same name. OpenCode 1 has its own pack since nono's
-// nolabs-ai/opencode moved to OpenCode 2.
-var officialPacks = map[string]string{"opencode": "opencode-v1", "codex": "codex"}
-
 var agentInstallURLs = map[string]string{
-	"opencode": "https://opencode.ai/docs/",
+	"opencode": "https://opencode.ai/v2/docs/",
 	"codex":    "https://developers.openai.com/codex/cli/",
 }
 
@@ -95,7 +91,7 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 		if chosen && !bundledProfile(profile) {
 			return fmt.Errorf("cannot load selected profile %q.\nCheck NONO_PROFILE and inspect that name or path with 'nono profile show'. If it comes from a pack, check that the pack is installed", profile)
 		}
-		return fmt.Errorf("cannot load profile %q.\nRun 'just install-local' from the nono-wrapper checkout to install our profiles and the pinned nolabs-ai/%s pack.\nSee docs/install.md in the nono-wrapper checkout", profile, officialPacks[agent])
+		return fmt.Errorf("cannot load profile %q.\nRun 'just install-local' from the nono-wrapper checkout to install our profiles and the pinned nolabs-ai/%s pack.\nSee docs/install.md in the nono-wrapper checkout", profile, agent)
 	}
 	block, err := profileBlocksNetwork(shown, profile)
 	if err != nil {
@@ -204,19 +200,84 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 	}
 	name := fmt.Sprintf("%s-%x", agent, nonce)
 	nonoArgs := append([]string{"run"}, profileArgs...)
+	standalone := agent == "opencode" && openCodeStandalone(args)
+	if standalone && runtime.GOOS == "linux" {
+		// OpenCode owns its dynamic-port server and its lifetime. Give both
+		// processes private loopback, never access to arbitrary host ports.
+		nonoArgs = append(nonoArgs, "--isolate", "net,loopback")
+	}
 	nonoArgs = append(nonoArgs, "--allow-cwd", "--read-file", program)
 	nonoArgs = append(nonoArgs, sshAgentArgs()...)
 	nonoArgs = append(nonoArgs, proxyArgs...)
-	nonoArgs = append(nonoArgs, "--name", name, "--", program)
+	nonoArgs = append(nonoArgs, "--name", name, "--")
+	if agent == "opencode" {
+		// Probe and exec the same resolved executable inside this session.
+		// Never execute the agent on the host just to discover its version.
+		nonoArgs = append(nonoArgs, "/bin/sh", "-c", openCodeVersionGuard, "nono-wrapper-opencode", program)
+	} else {
+		nonoArgs = append(nonoArgs, program)
+	}
 	if agent == "codex" {
 		// https://nono.sh/docs/cli/clients/codex: one OS sandbox, approvals retained.
 		nonoArgs = append(nonoArgs, "--no-daemon", "--sandbox=danger-full-access", "--ask-for-approval=on-request")
+	} else if standalone {
+		// Keep OpenCode 2's server inside the sandbox, not in a shared host service.
+		nonoArgs = append(nonoArgs, "--standalone")
 	}
 	nonoArgs = append(nonoArgs, args...)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	return runSession(ctx, nono, nonoArgs, agent, name, stderr)
+}
+
+// Arguments are positional shell parameters, never interpolated into code.
+// OpenCode has printed both bare versions and "opencode vVERSION". Require
+// major 2, with numeric minor/patch prefixes, but impose no minor-version floor.
+const openCodeVersionGuard = `
+refuse_version() {
+    printf '%s\n' 'nono-wrapper: OpenCode 2.x.x is required. Install or select OpenCode 2; refusing to start this version.' >&2
+    exit 125
+}
+version=$("$1" --version) || refuse_version
+case "$version" in
+    'opencode v'*) version=${version#"opencode v"} ;;
+    'opencode '*) version=${version#"opencode "} ;;
+    v*) version=${version#v} ;;
+esac
+case "$version" in
+    ''|*[!0-9A-Za-z.+-]*) refuse_version ;;
+esac
+case "$version" in
+    2.[0-9]*.[0-9]*) ;;
+    *) refuse_version ;;
+esac
+exec "$@"
+`
+
+// An explicit server is the user's delegation choice. The serve command owns
+// that server directly and does not accept the client's --standalone flag.
+func openCodeStandalone(args []string) bool {
+	command := ""
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			break
+		}
+		if arg == "--server" || strings.HasPrefix(arg, "--server=") {
+			return false
+		}
+		// These root options consume a value, which is not a subcommand or
+		// a server selection. Other root flags are boolean or use =value.
+		if command == "" && (arg == "--prompt" || arg == "--session" || arg == "-s") {
+			i++
+			continue
+		}
+		if command == "" && !strings.HasPrefix(arg, "-") {
+			command = arg
+		}
+	}
+	return command != "serve"
 }
 
 // nono resolves filesystem grants before pack first-run hooks execute. Make
@@ -238,10 +299,9 @@ func prepareAgentState(agent string, protected []pathRule) ([]pathRule, error) {
 		}
 		paths = append(paths, stateDirectory{path, fallback})
 	} else {
-		for _, name := range []string{".opencode", ".npm"} {
-			path := filepath.Join(home, name)
-			paths = append(paths, stateDirectory{path, path})
-		}
+		// OpenCode 2's installation under ~/.opencode is read-only upstream.
+		path := filepath.Join(home, ".npm")
+		paths = append(paths, stateDirectory{path, path})
 		for _, location := range []struct{ variable, fallback string }{
 			{"XDG_CONFIG_HOME", ".config"}, {"XDG_DATA_HOME", ".local/share"},
 			{"XDG_CACHE_HOME", ".cache"}, {"XDG_STATE_HOME", ".local/state"},

@@ -58,9 +58,12 @@ in_image() {
   # shellcheck disable=SC2086 # Empty when the network is on.
   podman run --rm --cidfile "$scratch/container" --pull=never $network --cap-drop=ALL \
     --security-opt no-new-privileges --security-opt label=disable \
+    --add-host local-service.nono.test:127.0.0.2 \
+    --add-host blocked.local-service.nono.test:127.0.0.3 \
     --volume "$root:/src:ro" \
     --volume "$scratch/expected.inputs:/run/nono-wrapper/expected.inputs:ro" \
     --env "AGENT_TEST_NETWORK=${AGENT_TEST_NETWORK:-}" \
+    --env AGENT_TEST_LOCAL_HTTP=1 \
     "localhost/nono-wrapper:$name" sh /src/test/container-suite.sh "$@" &
   status=0
   wait "$!" || status=$?

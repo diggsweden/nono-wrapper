@@ -110,6 +110,9 @@ Examples:
 		command.Flags = []cli.Flag{&cli.StringFlag{Name: "method", Value: "*", Usage: "HTTP method of a URL rule, such as GET; * allows any"}}
 	case "port":
 		command.Description = "Lets the agent and its programs connect to and listen on one TCP port, from 1 to 65535. This is a host-independent grant: it can permit direct connections to non-loopback addresses on that port, outside domain filtering, even with an offline profile. It is not restricted to localhost and does not force a server's bind address. No ranges or UDP. Run outside nono; changes apply to new sessions."
+		if agent == "opencode" {
+			command.Description += " OpenCode 2 standalone on Linux uses private loopback and rejects host TCP-port grants. Use this only for deliberate serve/--server host networking, and remove it before returning to standalone. Domain and HTTPS endpoint allowances remain supported in standalone; see docs/opencode-2-evaluation.md."
+		}
 	}
 	if add && (resource == "dir" || resource == "file") {
 		command.Flags = []cli.Flag{

@@ -232,7 +232,11 @@ func TestNativeIntegration(t *testing.T) {
 	}) {
 		t.FailNow()
 	}
-	run(project, []string{"NONO_PROFILE=opencode-offline"}, wrapper, "opencode", "session", "list")
+	t.Chdir(project)
+	if err := probeOpenCode(wrapper, filepath.Join(configHome, "nono/profiles/opencode-user.jsonc"), env); err != nil {
+		t.Fatalf("OpenCode 2 local server/client and callback: %v", err)
+	}
+	t.Log("passed: sandboxed OpenCode 2 server/client, password checks and cancelled browser callback")
 	run(project, []string{"NONO_PROFILE=codex-offline"}, wrapper, "codex", "features", "list")
 
 	// Reuse the container suite's real command-execution probe with this fresh
@@ -240,7 +244,6 @@ func TestNativeIntegration(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, "private"), []byte("fixture\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Chdir(project)
 	if err := probeCodex(wrapper, append(env, "NONO_PROFILE=codex-offline")); err != nil {
 		t.Fatal(err)
 	}
@@ -277,6 +280,9 @@ func testNativeRuntimeOverrides(t *testing.T, root, project, wrapper, opencodeDa
 		{"codex", codexHome, `"$CODEX_HOME/runtime-probe"`},
 	} {
 		body := "#!/bin/sh\nif printf probe > " + spec.target + "; then printf 'STATE_WRITABLE\\n'; else printf 'STATE_READ_ONLY\\n'; fi\n"
+		if spec.agent == "opencode" {
+			body = "#!/bin/sh\nif [ \"$1\" = --version ]; then printf 'opencode v2.0.0\\n'; exit 0; fi\n" + strings.TrimPrefix(body, "#!/bin/sh\n")
+		}
 		if err := os.WriteFile(filepath.Join(probeBin, spec.agent), []byte(body), 0o700); err != nil {
 			t.Fatal(err)
 		}

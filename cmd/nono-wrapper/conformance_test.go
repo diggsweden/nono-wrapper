@@ -213,6 +213,9 @@ func TestHelpTruth(t *testing.T) {
 			checked++
 			cmd := root
 			for _, word := range strings.Fields(match[1]) {
+				if cmd.SkipFlagParsing {
+					break // flags and arguments belong to the forwarded agent
+				}
 				// urfave adds the built-in help command during Run. Validate the
 				// following topic against the same command tree before that setup.
 				if cmd == root && word == "help" {
@@ -224,7 +227,7 @@ func TestHelpTruth(t *testing.T) {
 					}
 					continue
 				}
-				if cmd.SkipFlagParsing || len(cmd.Commands) == 0 {
+				if len(cmd.Commands) == 0 {
 					break // the rest are arguments
 				}
 				sub := cmd.Command(word)

@@ -54,6 +54,15 @@ mise use -g nono@0.81.0
 just install-local
 ```
 
+This installs OpenCode 2 profiles. Install the OpenCode 2 CLI through
+DevBase/Mise first; the installer does not install or guess agent versions.
+See [OpenCode versions and server setup](opencode-2-evaluation.md).
+On Linux, the default v2 launch requires permitted user/network namespaces.
+`doctor opencode` exercises that startup and reports host restrictions.
+Installation does not change AppArmor or system namespace settings. WSL2's
+namespace workflow still needs native validation; macOS needs explicit-server
+setup because nono's private loopback is Linux-only.
+
 This builds the wrapper, installs the signed official packs, bundled
 profiles and the manual, and checks the profiles' inheritance. Default
 installation paths:
@@ -104,23 +113,24 @@ The commands above are user checks. Maintainers should also run the
 DevBase owns host OpenCode and Codex stable-version selection and updates.
 The CLI versions below are the independently pinned container-test baseline
 in `test/tools`, not host installation requirements. Retest sandbox
-integration when updating agents; this wrapper currently uses the OpenCode 1
-pack. Independently updated host agents are not automatically covered by
+integration when updating agents; this checkout supports only OpenCode 2.
+Independently updated host agents are not automatically covered by
 that container-test baseline.
 
 | Component | Version |
 | --- | --- |
 | nono | 0.81.0 |
-| OpenCode CLI (container tests) | 1.19.3 |
-| Official OpenCode 1 pack (`nolabs-ai/opencode-v1`) | 0.1.0 |
+| OpenCode 2 CLI (test baseline) | 2.2.5 |
+| Official OpenCode 2 pack (`nolabs-ai/opencode`) | 0.4.2 |
 | Codex CLI (container tests) | 0.163.0 |
 | Official Codex pack | 0.2.3 |
 
-**nono's `nolabs-ai/opencode` pack targets OpenCode 2 since 0.3.0**, and
-OpenCode 1 has its own `nolabs-ai/opencode-v1` pack. Both link the same
-OpenCode plugin, so `just install-local` removes an installed
-`nolabs-ai/opencode` before installing and pinning the OpenCode 1 pack. Keep
-the CLI and pack versions paired.
+The official `nolabs-ai/opencode` 0.4.2 pack requires OpenCode 2.1.0 or later;
+2.0.x is not supported upstream. Keep the CLI and pack versions paired.
+OpenCode 1 is no longer supported. Installation removes its retired pack if
+present because its plugin wiring conflicts with v2, and installs the v2
+profiles. User allowance files are preserved; review custom profiles and
+old callback/port grants before starting a private-loopback session.
 
 The OpenCode pack's first-run hook creates its required state directories.
 Standalone native agent executables are tested on Linux; package-manager

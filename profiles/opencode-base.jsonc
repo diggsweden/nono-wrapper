@@ -5,10 +5,10 @@
 // Inherit the official pack, including its filesystem grants, plugin and
 // first-run hook. Select the ChatGPT or offline profile for network policy.
 {
-  "extends": ["nolabs-ai/opencode-v1", "agent-policy"],
+  "extends": ["nolabs-ai/opencode", "agent-policy"],
   "meta": {
     "name": "opencode-base",
-    "version": "0.2.0",
-    "description": "Official OpenCode pack with shared policy overrides"
+    "version": "0.3.0",
+    "description": "Official OpenCode 2 pack with shared policy overrides"
   }
 }

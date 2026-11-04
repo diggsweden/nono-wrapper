@@ -9,7 +9,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set positional-arguments
 
-scripts := "test/suite.sh test/http-check.sh test/image-inputs.sh test/prepare.sh test/containers.sh test/container-suite.sh test/install-deps.sh test/install-packs.sh test/require-container.sh test/require-linux.sh test/verify-reproducible.sh"
+scripts := "test/suite.sh test/http-check.sh test/image-inputs.sh test/prepare.sh test/containers.sh test/container-suite.sh test/install-deps.sh test/install-packs.sh test/require-container.sh test/require-linux.sh test/verify-reproducible.sh test/apparmor-setup.sh"
 routine := "ubuntu-26.04 opensuse-leap-16"
 image_tag_format := "{{.Repository}}:{{.Tag}}"
 
@@ -92,12 +92,11 @@ install-local: build generate-manpage
     # nono canonicalizes XDG_CONFIG_HOME and otherwise falls back to HOME.
     # Create it before pulling packs so a fresh custom location is respected.
     mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}"
-    # nolabs-ai/opencode now targets OpenCode 2 and links the same plugin as
-    # nolabs-ai/opencode-v1, so remove it before installing the OpenCode 1 pack.
+    # Retire the old pack before installing v2: their plugin wiring overlaps.
     installed=$'\n'$(nono list --installed)
-    if [[ $installed == *$'\n'nolabs-ai/opencode[[:space:]]* ]]; then
-        nono remove nolabs-ai/opencode
-        printf 'Removed nolabs-ai/opencode. Profiles of your own that extend it must now extend nolabs-ai/opencode-v1.\n'
+    if [[ $installed == *$'\n'nolabs-ai/opencode-v1[[:space:]]* ]]; then
+        nono remove nolabs-ai/opencode-v1
+        printf 'Removed the retired OpenCode 1 pack; review custom profiles that extend it.\n'
     fi
     while read -r name version; do
         case "$name" in '' | \#*) continue ;; esac
@@ -116,6 +115,7 @@ install-local: build generate-manpage
     done
     printf 'Commands: %s\nProfiles: %s\nManual: %s\n' "$bin_dir" "$profile_dir" "$man_dir/nono-wrapper.1"
     printf 'Default profiles verified: opencode-chatgpt, codex-chatgpt\n'
+    printf 'OpenCode 2 is required on PATH. See docs/opencode-2-evaluation.md for namespace and login setup.\n'
     case ":$PATH:" in
         *":$bin_dir:"*) ;;
         *) printf 'Add %s to your PATH to run nono-wrapper.\n' "$bin_dir" ;;
@@ -177,6 +177,12 @@ test-prepare *distributions:
     "{{ just_executable() }}" --justfile "{{ justfile() }}" _job "test-prepare" "engine=Podman; target=Linux/x86_64; distributions=$*; outputs=.cache/tools + test images; network=allowed"
     sh test/prepare.sh "$@"
 
+# Test administrator setup inside a disposable rootless container only.
+[doc('Test README AppArmor setup scripts in Ubuntu; no host policy load')]
+[group('test')]
+test-apparmor-setup: _require-linux (_job "test-apparmor-setup" "execution=rootless Ubuntu container; real profile install/compiler; kernel load/doctor=fixtures; network=none")
+    podman run --rm --pull=never --network=none --user=0 --cap-drop=ALL --security-opt no-new-privileges --security-opt label=disable --env PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin --volume {{ quote(justfile_directory() + ":/src:ro") }} localhost/nono-wrapper:ubuntu-26.04 bash /src/test/apparmor-setup.sh
+
 # Offline, in rootless Podman. A failing distribution does not stop the
 # others. Linux x86_64 only.
 #
@@ -223,7 +229,7 @@ test-clean:
         printf 'Refusing cleanup of symlinked cache directories.\n' >&2
         exit 1
     fi
-    for name in nono.tar.gz codex.tar.gz opencode.tar.gz nono codex opencode agent-probe nono-wrapper nono-wrapper.sources nono.sha256 codex.sha256 opencode.sha256; do
+    for name in nono.tar.gz codex.tar.gz opencode.tar.gz opencode-v1.tar.gz nono codex opencode agent-probe nono-wrapper nono-wrapper.sources nono.sha256 codex.sha256 opencode.sha256; do
         rm -f -- "$cache/tools/$name"
     done
     rm -f -- "$cache/bin/nono-wrapper"

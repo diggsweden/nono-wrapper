@@ -81,7 +81,7 @@ func TestLauncherUserProfile(t *testing.T) {
 						t.Fatalf("runtime policy survived session exit: %v", err)
 					}
 				}
-				want := []string{"run", "--profile", profile}
+				want := expectedRunProfile(profile, spec.agent == "opencode")
 				if profile != user && !composed {
 					want = append(want, "--extends", user)
 				}

@@ -3,12 +3,14 @@
 // SPDX-License-Identifier: CC0-1.0
 
 // OpenAI / ChatGPT account login and token refresh. The pinned OpenCode
-// browser flow listens on TCP port 1455. Its model catalogue has a GET rule.
+// 2.2.5 uses ChatGPT token sharing and a dynamic browser callback port.
+// The launcher supplies private loopback on Linux. Host browser callbacks
+// need the explicit login setup in docs/opencode-2-evaluation.md.
 // Endpoint rules make nono intercept TLS and refuse other methods and paths
 // over HTTPS. Plain HTTP to a listed host is not covered by them.
 {
   "extends": ["opencode-base", "developer-network"],
-  "meta": { "name": "opencode-chatgpt", "version": "0.3.0", "description": "OpenCode ChatGPT login with developer network defaults" },
+  "meta": { "name": "opencode-chatgpt", "version": "0.4.0", "description": "OpenCode 2 ChatGPT login with developer network defaults" },
   "network": {
     "allow_domain": [
       {
@@ -20,15 +22,13 @@
         "endpoints": [{ "method": "POST", "path": "/backend-api/codex/responses" }]
       },
       {
-        // Browser and device-code login, then token refresh.
+        // OpenCode 2.2.5 token sharing and ID-token verification.
         "domain": "auth.openai.com",
         "endpoints": [
-          { "method": "POST", "path": "/oauth/token" },
-          { "method": "POST", "path": "/api/accounts/deviceauth/usercode" },
-          { "method": "POST", "path": "/api/accounts/deviceauth/token" }
+          { "method": "POST", "path": "/api/accounts/oauth/token" },
+          { "method": "GET", "path": "/.well-known/jwks.json" }
         ]
       }
-    ],
-    "listen_port": [1455]
+    ]
   }
 }

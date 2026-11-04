@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"syscall"
@@ -47,6 +48,10 @@ if [ "$1 $2 $3" = 'profile show --json' ]; then
     printf '{"network":{"block":true}}\n'
   fi
   exit 0
+fi
+if [ "$5 $6" = '--isolate net,loopback' ]; then
+  [ "${VERIFY_MODE:-}" != namespace-denied ] || { printf 'user namespace denied\n' >&2; exit 1; }
+  set -- "$1" "$2" "$3" "$4" "$7" "$8" "$9" "${10}" "${11}"
 fi
 [ "$#" -eq 9 ] && [ "$1" = run ] && [ "$2" = --silent ] && [ "$3" = --profile ] &&
   [ "$5" = --allow-cwd ] && [ "$6" = -- ] && [ "$7" = /bin/sh ] && [ "$8" = -c ] || exit 99
@@ -216,6 +221,28 @@ func TestDoctorRequiresOnlySelectedAgents(t *testing.T) {
 			if test.status == 1 && (!strings.Contains(text, "  FAIL  "+test.missing+" is not on PATH") ||
 				strings.Contains(text, "Installed offline-profile checks passed.")) {
 				t.Fatalf("missing selected agent was not reported as a failed check: %s", text)
+			}
+		})
+	}
+}
+
+func TestDoctorRequiresNamespacesOnlyForOpenCode(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("private loopback is Linux-only")
+	}
+	for _, agent := range []string{"opencode", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			f, log := newDoctorFixture(t)
+			env := []string{"VERIFY_LOG=" + log, "VERIFY_MODE=namespace-denied"}
+			stdout, stderr, status := runLauncher(t, f, "doctor", []string{agent}, env)
+			if agent == "codex" {
+				if status != 0 || stderr != "" {
+					t.Fatalf("Codex unexpectedly required namespaces: %d %s %s", status, stdout, stderr)
+				}
+			} else if status != 1 || !strings.Contains(string(stdout), "user namespace denied") ||
+				!strings.Contains(string(stdout), "namespace requirements") ||
+				!strings.Contains(string(stdout), "README.md#ubuntu-apparmor-setup") || strings.Contains(probeOutput(stdout), "  ok    ") {
+				t.Fatalf("unsupported namespace produced successful checks: %d %s %s", status, stdout, stderr)
 			}
 		})
 	}

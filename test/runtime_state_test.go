@@ -17,7 +17,7 @@ func TestColdLaunchPreparesPrivateAgentState(t *testing.T) {
 			home := filepath.Dir(f.bin)
 			paths := []string{".codex"}
 			if agent == "opencode" {
-				paths = []string{".opencode", ".npm", ".config/opencode", ".cache/opencode", ".local/share/opencode", ".local/share/opentui", ".local/state/opencode"}
+				paths = []string{".npm", ".config/opencode", ".cache/opencode", ".local/share/opencode", ".local/share/opentui", ".local/state/opencode"}
 			}
 			for attempt := 0; attempt < 2; attempt++ {
 				_, stderr, status := runLauncher(t, f, agent, []string{"--version"}, nil)
@@ -52,6 +52,25 @@ func TestAgentStateCannotExposePolicy(t *testing.T) {
 				t.Fatalf("refused state setup created policy directories: %v", err)
 			}
 		})
+	}
+}
+
+func TestOpenCodeInstallationIsNotPreparedAsWritableState(t *testing.T) {
+	f := newLauncherFixture(t, "opencode")
+	installed := filepath.Join(filepath.Dir(f.bin), ".opencode/bin/opencode")
+	if err := os.MkdirAll(filepath.Dir(installed), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeLauncherFixture(t, installed, "#!/bin/sh\nexit 99\n")
+	if err := os.Remove(filepath.Join(f.bin, "opencode")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(installed, filepath.Join(f.bin, "opencode")); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, status := runLauncher(t, f, "opencode", []string{"--version"}, nil)
+	if status != 0 {
+		t.Fatalf("read-only installation was treated as writable state: status=%d stderr=%q", status, stderr)
 	}
 }
 

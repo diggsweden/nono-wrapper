@@ -58,6 +58,9 @@ run)
     *) [ -z "${WSL2_FIXTURE:-}" ] || exit 96 ;;
   esac
   if [ "$2" = --silent ]; then
+    if [ "$5 $6" = '--isolate net,loopback' ]; then
+      set -- "$1" "$2" "$3" "$4" "$7" "$8" "$9" "${10}" "${11}"
+    fi
     case "$9" in
       *touch*) exec /bin/sh -c "$9" ;;
       *) exit 1 ;;

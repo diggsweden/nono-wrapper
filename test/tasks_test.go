@@ -310,10 +310,10 @@ func TestInstallLocal(t *testing.T) {
 	}
 }
 
-func TestInstallLocalRemovesTheOpenCode2Pack(t *testing.T) {
+func TestInstallLocalRemovesTheConflictingOpenCodePack(t *testing.T) {
 	for _, test := range []struct{ installed, removal string }{
-		{"nolabs-ai/opencode\t0.2.0\t2026-10-09 15:14\nnolabs-ai/codex\t0.2.3\t2026-10-09 15:14\n", "remove nolabs-ai/opencode\n"},
-		{"nolabs-ai/opencode-v1\t0.1.0\t2026-10-17 19:09\n", ""},
+		{"nolabs-ai/opencode-v1\t0.1.0\t2026-10-17 19:09\nnolabs-ai/codex\t0.2.3\t2026-10-09 15:14\n", "remove nolabs-ai/opencode-v1\n"},
+		{"nolabs-ai/opencode\t0.4.2\t2026-10-29 19:09\n", ""},
 	} {
 		f := newTaskFixture(t)
 		output, status := runTask(t, f, "install-local", "TASK_NONO_INSTALLED="+test.installed)
@@ -397,7 +397,7 @@ func TestCleanRemovesOnlyOwnedArtifacts(t *testing.T) {
 			if err := os.MkdirAll(tools, 0o700); err != nil {
 				t.Fatal(err)
 			}
-			generated := []string{"nono.tar.gz", "codex.tar.gz", "opencode.tar.gz", "nono", "codex", "opencode", "agent-probe", "nono-wrapper", "nono-wrapper.sources", "nono.sha256", "codex.sha256", "opencode.sha256"}
+			generated := []string{"nono.tar.gz", "codex.tar.gz", "opencode.tar.gz", "opencode-v1.tar.gz", "nono", "codex", "opencode", "agent-probe", "nono-wrapper", "nono-wrapper.sources", "nono.sha256", "codex.sha256", "opencode.sha256"}
 			for _, name := range generated {
 				writeLauncherFixture(t, filepath.Join(tools, name), "generated\n")
 			}

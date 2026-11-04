@@ -27,10 +27,18 @@ var launcherSpecs = []struct {
 	agent, profile, official, installURL string
 	agentArgs                            []string
 }{
-	{"opencode", "opencode-chatgpt", "opencode-v1", "https://opencode.ai/docs/", nil},
+	{"opencode", "opencode-chatgpt", "opencode", "https://opencode.ai/v2/docs/", []string{"--standalone"}},
 	{"codex", "codex-chatgpt", "codex", "https://developers.openai.com/codex/cli/", []string{
 		"--no-daemon", "--sandbox=danger-full-access", "--ask-for-approval=on-request",
 	}},
+}
+
+func expectedRunProfile(profile string, privateLoopback bool) []string {
+	args := []string{"run", "--profile", profile}
+	if privateLoopback && runtime.GOOS == "linux" {
+		args = append(args, "--isolate", "net,loopback")
+	}
+	return args
 }
 
 var wrapperBinary string
@@ -251,7 +259,18 @@ func capturedLauncherArgs(t *testing.T, stdout []byte, agent string) []string {
 	if !strings.HasPrefix(name, agent+"-") || err != nil || len(nonce) != 16 {
 		t.Fatalf("invalid unique session name: %q", name)
 	}
-	return slices.Delete(args, index, index+2)
+	args = slices.Delete(args, index, index+2)
+	if agent == "opencode" {
+		separator := slices.Index(args, "--")
+		if len(args) <= separator+5 || args[separator+1] != "/bin/sh" || args[separator+2] != "-c" ||
+			args[separator+3] == "" || args[separator+4] != "nono-wrapper-opencode" {
+			t.Fatalf("missing in-sandbox OpenCode version guard: %q", args)
+		}
+		// Other launcher tests compare the effective agent arguments. The
+		// version guard's execution/refusal behavior has dedicated tests.
+		args = slices.Delete(args, separator+1, separator+5)
+	}
+	return args
 }
 
 func runLauncher(t *testing.T, f launcherFixture, launcher string, args, env []string) ([]byte, string, int) {
@@ -324,7 +343,7 @@ func TestLauncherInvocation(t *testing.T) {
 						t.Fatalf("status=%d, want=%d, stderr=%q", status, test.status, stderr)
 					}
 					got := capturedLauncherArgs(t, stdout, spec.agent)
-					want := []string{"run", "--profile", profile, "--allow-cwd", "--read-file", f.target, "--", f.target}
+					want := append(expectedRunProfile(profile, spec.agent == "opencode"), "--allow-cwd", "--read-file", f.target, "--", f.target)
 					want = append(want, spec.agentArgs...)
 					want = append(want, test.args...)
 					if !slices.Equal(got, want) {
@@ -400,8 +419,8 @@ esac
 				t.Fatalf("unexpected diagnostic: %q", stderr)
 			}
 			got := capturedLauncherArgs(t, stdout, "opencode")
-			want := []string{"run", "--profile", "opencode-chatgpt", "--allow-cwd", "--read-file", f.target}
-			want = append(append(want, test.want...), "--", f.target)
+			want := append(expectedRunProfile("opencode-chatgpt", true), "--allow-cwd", "--read-file", f.target)
+			want = append(append(want, test.want...), "--", f.target, "--standalone")
 			if !slices.Equal(got, want) {
 				t.Fatalf("nono arguments:\n got: %q\nwant: %q", got, want)
 			}
@@ -630,8 +649,8 @@ printf '%s\n' "$LAUNCHER_TEST_SIGNING_KEY"
 				t.Fatalf("status=%d, stderr=%q", status, stderr)
 			}
 			got := capturedLauncherArgs(t, stdout, "opencode")
-			want := []string{"run", "--profile", "opencode-chatgpt", "--allow-cwd", "--read-file", f.target}
-			want = append(append(want, test.want...), "--", f.target)
+			want := append(expectedRunProfile("opencode-chatgpt", true), "--allow-cwd", "--read-file", f.target)
+			want = append(append(want, test.want...), "--", f.target, "--standalone")
 			if !slices.Equal(got, want) {
 				t.Fatalf("nono arguments:\n got: %q\nwant: %q", got, want)
 			}
@@ -683,7 +702,7 @@ printf '%s\n' "$MISE_FIXTURE_TOOL"
 	if status != 0 {
 		t.Fatalf("status=%d, stderr=%q", status, stderr)
 	}
-	want := []string{"run", "--profile", "opencode-chatgpt", "--allow-cwd", "--read-file", f.target, "--", f.target}
+	want := append(expectedRunProfile("opencode-chatgpt", true), "--allow-cwd", "--read-file", f.target, "--", f.target, "--standalone")
 	if got := capturedLauncherArgs(t, stdout, "opencode"); !slices.Equal(got, want) {
 		t.Fatalf("nono arguments:\n got: %q\nwant: %q", got, want)
 	}
@@ -709,6 +728,41 @@ func TestLauncherProfileSetupHints(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestOpenCodeServerSelection(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		args       []string
+		standalone bool
+	}{
+		{"default private server", nil, true},
+		{"foreground server", []string{"serve", "--hostname", "127.0.0.1", "--port", "4096"}, false},
+		{"global flag before foreground server", []string{"--print-logs", "serve", "--port", "4096"}, false},
+		{"root option value is not a command", []string{"--prompt", "serve"}, true},
+		{"root option value is not a server flag", []string{"--prompt", "--server=example"}, true},
+		{"session option before foreground server", []string{"--session", "example", "serve"}, false},
+		{"short session option value", []string{"-s", "serve"}, true},
+		{"explicit server", []string{"--server", "http://127.0.0.1:4096", "session", "list"}, false},
+		{"server equals form", []string{"session", "list", "--server=http://127.0.0.1:4096"}, false},
+		{"message after separator", []string{"run", "--", "--server=http://127.0.0.1:4096"}, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			f := newLauncherFixture(t, "opencode")
+			stdout, stderr, status := runLauncher(t, f, "opencode", test.args, nil)
+			if status != 0 {
+				t.Fatalf("launch failed: status=%d stderr=%q", status, stderr)
+			}
+			want := append(expectedRunProfile("opencode-chatgpt", test.standalone), "--allow-cwd", "--read-file", f.target, "--", f.target)
+			if test.standalone {
+				want = append(want, "--standalone")
+			}
+			want = append(want, test.args...)
+			if got := capturedLauncherArgs(t, stdout, "opencode"); !slices.Equal(got, want) {
+				t.Fatalf("server selection changed forwarded arguments: got=%q want=%q", got, want)
+			}
+		})
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -107,8 +108,16 @@ func doctor(ctx context.Context, agents []string, output io.Writer) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		privateLoopback := agent == "opencode" && runtime.GOOS == "linux"
 		for _, check := range checks {
-			cmd := exec.CommandContext(ctx, nono, "run", "--silent", "--profile", profile, "--allow-cwd", "--", "/bin/sh", "-c", check.script)
+			args := []string{"run", "--silent", "--profile", profile}
+			if privateLoopback {
+				// Use nono's actual namespace startup, also on WSL2. A kernel
+				// version or sysctl alone cannot establish host support.
+				args = append(args, "--isolate", "net,loopback")
+			}
+			args = append(args, "--allow-cwd", "--", "/bin/sh", "-c", check.script)
+			cmd := exec.CommandContext(ctx, nono, args...)
 			cmd.Dir = project
 			cmd.Env = append(os.Environ(), "CODEX_HOME="+codexHome, "TMPDIR="+temp)
 			cmd.WaitDelay = time.Second
@@ -128,6 +137,10 @@ func doctor(ctx context.Context, agents []string, output io.Writer) error {
 				}
 				// Refusals are meaningful only after the positive controls succeed.
 				if check.works {
+					if privateLoopback {
+						fmt.Fprintln(output, "  OpenCode 2 requires private loopback. For Ubuntu AppArmor setup, see README.md#ubuntu-apparmor-setup.")
+						fmt.Fprintln(output, "  For other namespace requirements and explicit-server setup, see docs/opencode-2-evaluation.md.")
+					}
 					break
 				}
 			}
@@ -142,7 +155,12 @@ func doctor(ctx context.Context, agents []string, output io.Writer) error {
 	if root, _, err := projectRoot(); err == nil {
 		logins := make([]string, 0, len(agents))
 		for _, agent := range agents {
-			logins = append(logins, "'nono-wrapper "+agent+" "+agentLogin(agent)+"'")
+			login := agentLogin(agent)
+			if agent == "opencode" {
+				fmt.Fprintln(output, "OpenCode 2: start with 'nono-wrapper opencode'. Setup guide: docs/opencode-2-evaluation.md.")
+				login = "--server SERVER_URL auth login openai --method chatgpt-token-sharing"
+			}
+			logins = append(logins, "'nono-wrapper "+agent+" "+login+"'")
 		}
 		fmt.Fprintf(output, "Next: sign in once with %s,\n      then start the agent in your workspace (project root: %s).\n", strings.Join(logins, " or "), root)
 	}

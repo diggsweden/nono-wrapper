@@ -32,7 +32,7 @@ grep -v -e '^#' -e '^$' "$root/test/tools" | while read -r name tag _sum; do
   case $name in
   nono) expected="nono ${tag#v}" ;;
   codex) expected="codex-cli ${tag#rust-v}" ;;
-  opencode) expected=${tag#v} ;;
+  opencode) expected="opencode $tag" ;;
   *) echo "container: unknown tool $name" >&2; exit 1 ;;
   esac
   actual=$("/usr/local/bin/$name" --version)

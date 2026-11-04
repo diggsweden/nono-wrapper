@@ -119,10 +119,9 @@ done
 nono-wrapper doctor || failed=1
 
 # Exercise the installed agents with their real upstream plugin wiring.
-expect WORKS "nono-wrapper starts real OpenCode" nono-wrapper opencode session list
+expect WORKS "OpenCode 2 private loopback, host isolation, local HTTP domain grants, explicit server/password and browser callback" agent-probe opencode
 expect WORKS "nono-wrapper starts real Codex" nono-wrapper codex features list
 expect WORKS "real Codex commands remain confined by nono with its native sandbox off" agent-probe codex
-expect WORKS "OpenCode's default profile starts its ChatGPT browser callback" agent-probe login opencode
 expect WORKS "Codex's default profile starts its ChatGPT browser callback" agent-probe login codex
 expect WORKS "Codex's fallback browser callback port is permitted" \
   nono run --silent --profile codex-chatgpt --allow-cwd -- agent-probe tcp-bind 1457
@@ -144,6 +143,13 @@ expect WORKS "the official Codex plugin is installed" test -f "$CODEX_HOME/plugi
 # exercise nono's boundary independently of either agent's own safeguards.
 cat >"$work/bin/opencode" <<'STANDIN'
 #!/bin/sh
+case "$0" in
+*/opencode)
+  if [ "$1" = --version ]; then
+    if [ -e old-opencode-version ]; then printf '1.19.3\n'; else printf 'opencode v2.0.0\n'; fi
+    exit 0
+  fi ;;
+esac
 echo STANDIN-RAN
 echo "secret=${SUITE_SECRET:-absent} forwarded=${SUITE_FORWARDED:-absent}"
 echo "tmp=${TMPDIR:-/tmp}"
@@ -179,19 +185,22 @@ if printf '{"meta":{"name":"review-proposal","version":"1.0.0"},"network":{"allo
 fi
 if nono profile promote --yes review-proposal >/dev/null 2>&1; then echo AGENT-PROMOTE; fi
 if [ -e inspect-user-policy ]; then
-  for policy in "$XDG_CONFIG_HOME"/nono/profiles/.nono-wrapper-policy-*/session.json; do
+  if nono why --self --json --host https://chatgpt.com/ | grep -F -q '"status": "allowed"'; then
+    echo USER-HOST-OVERRIDE
+  fi
+  if nono why --self --json --host https://auth.openai.com/unlisted | grep -F -q '"status": "denied"'; then
+    echo AUTH-RULE-KEPT
+  fi
+  for policy in "$XDG_CONFIG_HOME"/nono/profiles/.nono-wrapper-policy-*/*.json; do
     [ -f "$policy" ] || continue
-    resolved=$(nono profile show --json "$policy") || exit 1
-    if printf '%s\n' "$resolved" | grep -F -q '"chatgpt.com"' &&
-      ! printf '%s\n' "$resolved" | grep -F -q '"domain": "chatgpt.com"'; then
-      echo USER-HOST-OVERRIDE
-    fi
-    if printf '%s\n' "$resolved" | grep -F -q '"domain": "auth.openai.com"'; then echo AUTH-RULE-KEPT; fi
+    echo GENERATED-RULE-CHECKED
     if (printf '{}\n' >"$policy") 2>/dev/null; then echo GENERATED-RULE-WRITE; fi
   done
 fi
 if [ -e ask-allowed-site ]; then
-  curl -s -m 5 -o /dev/null -X POST https://auth.openai.com/oauth/token || true
+  token_url=https://auth.openai.com/oauth/token
+  case "$0" in */opencode) token_url=https://auth.openai.com/api/accounts/oauth/token ;; esac
+  curl -s -m 5 -o /dev/null -X POST "$token_url" || true
 fi
 mkdir -p .git/hooks web
 echo planted >.git/hooks/pre-commit
@@ -201,6 +210,14 @@ exit 0
 STANDIN
 cp "$work/bin/opencode" "$work/bin/codex"
 chmod +x "$work/bin/opencode" "$work/bin/codex"
+
+touch old-opencode-version
+status=0
+out=$(nono-wrapper opencode 2>&1) || status=$?
+expect WORKS "OpenCode 1 is refused before the requested session" test "$status" -eq 125
+expect WORKS "the version refusal requires OpenCode 2" said 'OpenCode 2.x.x is required'
+expect FAILS "the unsupported OpenCode command never runs" said STANDIN-RAN
+rm old-opencode-version
 
 # Host services the launcher may hand to the sandbox: an SSH agent socket and
 # an outbound proxy. Each records that something connected to it.
@@ -219,7 +236,6 @@ for agent in opencode codex; do
   echo "$agent: representative upstream grants, local policy and launcher"
   offline=$agent-offline
   official=$agent
-  [ "$agent" = codex ] || official=opencode-v1
   expect FAILS "the SSH credential fixture cannot be read" in_nono "$offline" 'cat "$HOME/.ssh/key"'
   expect WORKS "the official runtime grants are inherited" in_nono "$offline" 'cat "$HOME/.cargo/marker"'
   expect FAILS "the inherited Rust runtime grant is read-only" in_nono "$offline" 'touch "$HOME/.cargo/written"'
@@ -262,7 +278,11 @@ for agent in opencode codex; do
   expect FAILS "the default ChatGPT profile refuses unrelated destinations" said NET-ESCAPED
   expect FAILS "the launcher leaves project-file auditing to manual review" said 'Changed files that this computer may run by itself.'
   reported_tmp=$(printf '%s\n' "$out" | sed -n 's/^tmp=//p')
-  expect WORKS "the launcher preserves TMPDIR" test "$reported_tmp" = "$TMPDIR"
+  if [ "$agent" = opencode ]; then
+    expect WORKS "OpenCode 2 uses the upstream private temporary directory" test "$reported_tmp" = "$home/.cache/opencode/tmp"
+  else
+    expect WORKS "the launcher preserves TMPDIR" test "$reported_tmp" = "$TMPDIR"
+  fi
   expect WORKS "the launcher leaves the caller's temporary directory intact" test -d "$TMPDIR"
   expect WORKS "the launcher retains upstream runtime access" said TOOLCHAIN-READ
   expect WORKS "the launcher retains upstream Git configuration access" said GIT-READ
@@ -274,11 +294,11 @@ for agent in opencode codex; do
   expect WORKS "a named profile composes additional environment policy" said 'forwarded=yes'
   expect WORKS "a composed profile still filters unrelated variables" said 'secret=absent'
 
-  expect WORKS "the config CLI allows a user domain" nono-wrapper config "$agent" allow-domain api.github.com
+  expect WORKS "the config CLI allows a user domain" nono-wrapper config "$agent" allow-domain extra.example.com
   expect WORKS "the config CLI adds a read-only directory" nono-wrapper config "$agent" add-dir "$home/extra"
   expect WORKS "the config CLI adds a writable directory" nono-wrapper config "$agent" add-dir --read-write "$home/user-writable"
   expect WORKS "the config CLI adds a read-only file" nono-wrapper config "$agent" add-file "$home/user-file"
-  out=$(nono why --json --profile "$agent-chatgpt" --extends "$agent-user" --host api.github.com 2>&1) || true
+  out=$(nono why --json --profile "$agent-chatgpt" --extends "$agent-user" --host extra.example.com 2>&1) || true
   expect WORKS "user host additions compose with the base policy" said '"status": "allowed"'
   out=$(nono why --json --profile "$agent-chatgpt" --extends "$agent-user" --host chatgpt.com 2>&1) || true
   expect WORKS "user host additions retain the base ChatGPT grant" said '"status": "allowed"'
@@ -302,6 +322,7 @@ for agent in opencode codex; do
   expect WORKS "the user host rule replaces the bundled endpoint rule" said USER-HOST-OVERRIDE
   expect WORKS "other bundled endpoint rules are preserved" said AUTH-RULE-KEPT
   expect WORKS "host overrides preserve environment filtering" said 'secret=absent'
+  expect WORKS "the generated policy write probes actually ran" said GENERATED-RULE-CHECKED
   expect FAILS "the generated session policy is read-only to the agent" said GENERATED-RULE-WRITE
   expect FAILS "host overrides do not allow edits to original profiles" said ACTIVE-RULE-WRITE
   for policy in "$XDG_CONFIG_HOME"/nono/profiles/.nono-wrapper-policy-*; do
@@ -309,14 +330,14 @@ for agent in opencode codex; do
   done
   rm inspect-user-policy
   expect WORKS "removing a host override restores the bundled rule" nono-wrapper config "$agent" remove-domain chatgpt.com
-  out=$(nono why --json --profile "$agent-offline" --extends "$agent-user" --host api.github.com 2>&1) || true
+  out=$(nono why --json --profile "$agent-offline" --extends "$agent-user" --host extra.example.com 2>&1) || true
   expect WORKS "user host additions cannot unblock an offline profile" said '"status": "denied"'
   status=0
   out=$(NONO_PROFILE="$agent-offline" nono-wrapper "$agent" 2>&1) || status=$?
   expect WORKS "nono rejects an offline profile combined with host additions" test "$status" -ne 0
   expect WORKS "the offline conflict identifies contradictory network settings" said '--block-net and --allow-domain are contradictory'
   expect FAILS "conflicting offline settings never launch the agent" said STANDIN-RAN
-  expect WORKS "the config CLI removes a user domain" nono-wrapper config "$agent" remove-domain api.github.com
+  expect WORKS "the config CLI removes a user domain" nono-wrapper config "$agent" remove-domain extra.example.com
   expect WORKS "the config CLI updates a file's access" nono-wrapper config "$agent" add-file --read-write "$home/user-file"
   status=0
   out=$(NONO_PROFILE="$agent-offline" HTTPS_PROXY=https://unsupported.example nono-wrapper "$agent" 2>&1) || status=$?
@@ -326,7 +347,7 @@ for agent in opencode codex; do
   expect WORKS "the user profile adds writable files" said USER-FILE-WRITE
   expect WORKS "the config CLI removes a user directory" nono-wrapper config "$agent" remove-dir "$home/extra"
   expect WORKS "the config CLI removes a user file" nono-wrapper config "$agent" remove-file "$home/user-file"
-  out=$(nono why --json --profile "$agent-chatgpt" --extends "$agent-user" --host api.github.com 2>&1) || true
+  out=$(nono why --json --profile "$agent-chatgpt" --extends "$agent-user" --host extra.example.com 2>&1) || true
   expect WORKS "the removed user host is denied again" said '"status": "denied"'
   printf '{invalid}\n' >"$XDG_CONFIG_HOME/nono/profiles/$agent-user.jsonc"
   status=0
@@ -490,8 +511,12 @@ if [ "${AGENT_TEST_NETWORK:-}" = 1 ]; then
   check_site() {
     selected=$1
     shift
-    nono run --silent --profile "$selected" --allow-cwd --read-file "$root/test/http-check.sh" -- \
+    set -- --silent --profile "$selected" --allow-cwd --read-file "$root/test/http-check.sh" -- \
       /bin/sh -c '. "$1"; shift; check_request "$@"' sh "$root/test/http-check.sh" "$@"
+    if [ "$selected" = opencode-chatgpt ]; then
+      set -- --isolate net,loopback "$@"
+    fi
+    nono run "$@"
   }
   while read -r profile want method url; do
     case $want in
@@ -500,9 +525,6 @@ if [ "${AGENT_TEST_NETWORK:-}" = 1 ]; then
     esac
   done <<'REQUESTS'
 opencode-chatgpt WORKS POST https://chatgpt.com/backend-api/codex/responses
-opencode-chatgpt WORKS POST https://auth.openai.com/oauth/token
-opencode-chatgpt WORKS POST https://auth.openai.com/api/accounts/deviceauth/usercode
-opencode-chatgpt WORKS POST https://auth.openai.com/api/accounts/deviceauth/token
 opencode-chatgpt FAILS GET https://chatgpt.com/
 opencode-chatgpt FAILS GET https://chatgpt.com/backend-api/codex/responses
 opencode-chatgpt FAILS POST https://chatgpt.com/backend-api/files
@@ -517,6 +539,11 @@ codex-chatgpt WORKS POST https://auth.openai.com/api/accounts/deviceauth/token
 codex-chatgpt FAILS GET https://auth.openai.com/oauth/authorize
 codex-chatgpt FAILS POST https://auth.openai.com/api/accounts/other
 REQUESTS
+  expect WORKS "OpenCode 2 token endpoint reaches the site" check_site opencode-chatgpt WORKS POST https://auth.openai.com/api/accounts/oauth/token
+  expect WORKS "OpenCode 2 signing keys reach the site" check_site opencode-chatgpt WORKS GET https://auth.openai.com/.well-known/jwks.json
+  for endpoint in oauth/token api/accounts/deviceauth/usercode api/accounts/deviceauth/token; do
+    expect WORKS "OpenCode 2: legacy POST $endpoint stays refused" check_site opencode-chatgpt FAILS POST "https://auth.openai.com/$endpoint"
+  done
   for profile in opencode-chatgpt codex-chatgpt; do
     expect WORKS "$profile: an unlisted host is refused" check_site "$profile" FAILS GET https://example.org/
     expect FAILS "$profile: bypassing the proxy is refused" in_nono "$profile" "curl --noproxy '*' -sS -m 10 -o /dev/null https://chatgpt.com/"

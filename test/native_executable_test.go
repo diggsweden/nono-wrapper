@@ -23,7 +23,7 @@ func testNativeExecutableProtection(t *testing.T, root, project, wrapper string,
 		}
 	}
 	program := filepath.Join(install, "opencode")
-	const original = "#!/bin/sh\nprintf 'GUARD_AGENT_STARTED\\n'\n"
+	const original = "#!/bin/sh\nif [ \"$1\" = --version ]; then printf 'opencode v2.0.0\\n'; exit 0; fi\nprintf 'GUARD_AGENT_STARTED\\n'\n"
 	if err := os.WriteFile(program, []byte(original), 0o700); err != nil {
 		t.Fatal(err)
 	}

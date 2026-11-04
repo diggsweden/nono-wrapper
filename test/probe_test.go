@@ -8,10 +8,89 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/url"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestProbeTimeoutStopsChildrenHoldingOutput(t *testing.T) {
+	ps, err := exec.LookPath("ps")
+	if err != nil {
+		t.Skip("process cleanup check requires ps")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	cmd := probeCommand(ctx, "/bin/sh", "-c", "sleep 60 & printf '%s\\n' $!; wait")
+	output, err := cmd.CombinedOutput()
+	if err == nil || ctx.Err() == nil || time.Since(started) > 3*time.Second {
+		t.Fatalf("timeout did not bound subprocess cleanup: %v (%s)", err, output)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(output)))
+	if err != nil {
+		t.Fatalf("child never started: %q (%v)", output, err)
+	}
+	for deadline := time.Now().Add(time.Second); time.Now().Before(deadline); {
+		state, err := exec.Command(ps, "-o", "stat=", "-p", strconv.Itoa(pid)).Output()
+		// A killed child may be a zombie until container PID 1 reaps it.
+		if err != nil || strings.HasPrefix(strings.TrimSpace(string(state)), "Z") {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("child %d survived the timeout", pid)
+}
+
+func TestHostIsolationRequiresAConnectionRefusal(t *testing.T) {
+	for _, code := range []int{-1, 0, 7, 28, 35, 127} {
+		t.Run(strconv.Itoa(code), func(t *testing.T) {
+			bin := t.TempDir()
+			if code >= 0 {
+				if err := os.WriteFile(filepath.Join(bin, "curl"), []byte("#!/bin/sh\nexit "+strconv.Itoa(code)+"\n"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cmd := exec.Command("/bin/sh", "-c", hostIsolationScript, "probe", "http://127.0.0.1:12345")
+			cmd.Env = []string{"PATH=" + bin}
+			output, err := cmd.CombinedOutput()
+			if (err == nil) != (code == 7) || strings.Contains(string(output), "host-isolated") != (code == 7) {
+				t.Fatalf("curl %d: %v (%s)", code, err, output)
+			}
+		})
+	}
+}
+
+func TestOpenCodeCancelURLOnlyUsesItsLoopbackCallback(t *testing.T) {
+	for _, test := range []struct {
+		redirect string
+		allow    bool
+	}{
+		{"http://127.0.0.1:45678/auth/callback", true},
+		{"http://example.com:45678/auth/callback", false},
+		{"https://127.0.0.1:45678/auth/callback", false},
+		{"http://127.0.0.1/auth/callback", false},
+		{"http://127.0.0.1:0/auth/callback", false},
+		{"http://127.0.0.1:65536/auth/callback", false},
+		{"http://user@127.0.0.1:45678/auth/callback", false},
+		{"http://127.0.0.1:45678/other", false},
+	} {
+		t.Run(test.redirect, func(t *testing.T) {
+			output := "Open: https://auth.openai.com/api/accounts/authorize?redirect_uri=" + url.QueryEscape(test.redirect) + "\x1b[0m\n"
+			got := openCodeCancelURL(output)
+			if (got != "") != test.allow {
+				t.Fatalf("unexpected callback from %q: %q", test.redirect, got)
+			}
+			if test.allow && got != "http://127.0.0.1:45678/auth/callback?error=access_denied&error_description=Login+cancelled" {
+				t.Fatalf("unexpected cancellation request: %q", got)
+			}
+		})
+	}
+}
 
 func TestPackValidationChecksInstalledVersionAndPin(t *testing.T) {
 	const manifest = "# official packs\n\nnolabs-ai/opencode 0.2.0\n"

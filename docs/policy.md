@@ -10,7 +10,7 @@ This repository extends nono's official OpenCode and Codex packs with
 ChatGPT login rules, shared developer network defaults and a policy layer:
 
 ```text
-nolabs-ai/opencode-v1 ── opencode-base ── chatgpt / offline
+nolabs-ai/opencode ──── opencode-base ── chatgpt / offline
                               ↑
                         agent-policy
                               ↓
@@ -25,12 +25,12 @@ developer-network ────────────────────�
 | --- | --- |
 | Network | ChatGPT login plus developer hosts from `developer-network.jsonc`; explicit offline profiles |
 | Git SSH | online sessions can use the domain-filtered CONNECT proxy, existing SSH agent and a read-only public host-key snapshot |
-| Browser login | TCP callback listeners on 1455, plus Codex's fallback 1457 |
+| Browser login | Codex callbacks on 1455/1457; OpenCode 2 browser login uses explicit-server mode with an ephemeral listen grant, separate from normal private-loopback sessions |
 | Agent environment | nono's `environment.allow_vars` keeps the core, editor and toolchain-location variables and excludes unrelated credentials |
 | Linux pathname Unix sockets | mediation enabled; sockets require explicit grants, and the wrapper grants the SSH agent's. Not on WSL2: see [WSL2](#wsl2) |
 | macOS app automation | Apple Events and access to their Mach broker are denied in the bundled profiles |
 | Project, agent state, toolchains and Git configuration | inherited from the official pack |
-| Temporary files and devices | inherited from nono and the official pack, plus nono's `linux_temp_read` group so temporary files can be read back on Linux; `TMPDIR` is preserved |
+| Temporary files and devices | inherited from nono and the official pack, plus `linux_temp_read`; OpenCode 2's pack sets a private `TMPDIR`/`BUN_TMPDIR` under its HOME cache |
 | Developer tools | nono's `mise_manager`, `go_runtime` and `java_runtime` groups (read-only), and the Git, delta and SSH allowed-signers configuration a Git setup commonly includes |
 
 ### The inherited filesystem access is broader
@@ -42,7 +42,7 @@ on Linux:
   plus read access to Node, Rust, Python and Nix runtime locations
   and user Git configuration.
 - **OpenCode** gets its own state, plus read/write `~/.claude`, `~/.codex` and
-  `~/.npm`. Its `~/.agents` grant is read-only.
+  `~/.npm`. Its `~/.agents` and `~/.opencode` installation grants are read-only.
 - **Codex** gets read/write `~/.codex` and `~/.agents`. Its inherited npm
   runtime grant is read-only.
 - Both get upstream nono package/profile read access and writable

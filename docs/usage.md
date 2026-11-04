@@ -254,12 +254,20 @@ profile.
 Login commands start the agent like any other session, so run them in an
 [allowed workspace](#where-an-agent-may-start).
 
-For OpenCode, select **OpenAI → ChatGPT Pro/Plus (browser)** in the
-connection dialog, or start that flow directly:
+For OpenCode 2's **Sign in with ChatGPT** browser/token-sharing flow, start the
+sandboxed foreground server and configure its client password as described
+in [local-server setup](opencode-2-evaluation.md). Use the explicit endpoint:
 
 ```sh
-nono-wrapper opencode auth login --provider openai --method "ChatGPT Pro/Plus (browser)"
+nono-wrapper opencode --server http://127.0.0.1:4096 \
+  auth login openai --method chatgpt-token-sharing
 ```
+
+After login, stop that server and remove its temporary TCP/listen grants as
+described in the guide. Normal Linux sessions then use just
+`nono-wrapper opencode`: OpenCode owns its server in private loopback.
+The host browser cannot reach callbacks inside that private network.
+The v2 instructions use modern token sharing, not the older Codex login methods.
 
 For Codex, choose **Sign in with ChatGPT** when prompted, or run:
 
@@ -276,16 +284,16 @@ configured provider.
 
 The ChatGPT profiles allow `chatgpt.com` and `auth.openai.com`, limited to
 the requests listed under [Network profiles](configuration.md#network-profiles).
-Browser callbacks require TCP port 1455; Codex also supports 1457 as a
-fallback. These are listen-only grants, not general outbound port access.
-The grants are not interface-scoped, and the pinned OpenCode browser callback
-can bind on all interfaces. Other profiles do not add these listeners.
+Codex browser callbacks use TCP port 1455, with 1457 as a fallback. These are
+listen-only grants, not general outbound port access. OpenCode 2.2.5 chooses
+a dynamic callback port; its online server needs the explicit
+`listen_port: [0]` setup described in the guide. No private namespace or
+AppArmor change is needed for these explicit-server browser-login flows.
 
-For a terminal without a local browser callback, the agents also offer
-device-code login, completed in a browser:
+For Codex on a terminal without a local browser callback, use device-code
+login, completed in a browser:
 
 ```sh
-nono-wrapper opencode auth login --provider openai --method "ChatGPT Pro/Plus (headless)"
 nono-wrapper codex login --device-auth
 ```
 

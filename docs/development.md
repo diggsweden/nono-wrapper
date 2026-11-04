@@ -149,6 +149,7 @@ machine-local mise overrides (`.mise.local.toml`, `mise.local.toml`,
 | `just test-unit` | unit and native CLI/installer contract checks | no |
 | `just test-native` | isolated native installation, offline profiles, real agent startup and Codex execution | pack installation only |
 | `just test-prepare` | build the routine images with the wrapper, pinned tools and official packs | yes |
+| `just test-apparmor-setup` | run the README's Fish/Bash setup scripts in a disposable Ubuntu container | no |
 | `just test-containers` | real profile/launcher integration, representative inherited grants, OpenCode startup and Codex tool execution | no |
 | `just test-containers-net` | the same plus positive/negative ChatGPT-host checks | yes |
 | `just test` | unit tests followed by the routine container suite | no |
@@ -277,6 +278,28 @@ updating Forge CI. Its current production flow accepts stable versions only.
 
 ## Native integration smoke test
 
+Use the tested OpenCode 2 CLI for the fixture installation:
+
+```sh
+mise exec opencode@2.2.5 -- just test-native
+```
+
+On Linux the v2 probe first runs online/offline `session list --format json`
+with no server URL or host-port grants: OpenCode starts its own standalone
+server in nono's private loopback. A controlled host-loopback service is
+reachable outside the sandbox and unreachable inside it. Namespace support
+is required; the test fails rather than skipping that boundary.
+
+The probe then starts a foreground server and clients under the wrapper on
+ordinary localhost. Its temporary user profile grants one chosen TCP port,
+the ephemeral callback listener and the local server-password variable.
+It checks online/offline access, rejects a bad password, cancels the browser
+callback and restores the user profile after stopping the server. Model
+catalogue fetching is disabled in that fixture. No model account or completed
+login is needed. The explicit-server/browser-callback part does not use
+namespaces; the preceding Linux standalone checks do. No test changes host
+AppArmor settings.
+
 The native suite also tests Linux TCP-port scope against a controlled server
 on this machine's non-loopback address: the offline profile refuses it before
 the grant, connects with the grant, and refuses it after removal. This checks
@@ -332,6 +355,38 @@ so OpenCode's project discovery stops there instead of loading ancestor
 configs.
 
 ## Container integration
+
+### AppArmor setup scripts
+
+Prepare the Ubuntu image, then test the actual scripts extracted from README:
+
+```sh
+just test-prepare ubuntu-26.04
+just test-apparmor-setup
+```
+
+The test runs as root **inside a disposable rootless container**, with no
+network, no Linux capabilities and no privilege escalation. It installs the
+generated file into that container's `/etc/apparmor.d` and uses the real
+AppArmor compiler. It covers paths with spaces, future Mise versions,
+invalid paths, validation/install/load failures, doctor failures and temporary
+file cleanup. `sudo` is a fixture that performs the real file installation
+but compiles the load step with `-Q -K`; it never loads policy into the shared
+host kernel. `mise` and `doctor` are fixtures; real agent/network behavior is
+covered by the separate integration suite. This does not establish that the
+host grants `userns` after an actual administrative profile load.
+
+### Agent profiles
+
+Images use the pinned OpenCode 2 CLI and matching pack. Build and run them with:
+
+```sh
+just test-prepare
+AGENT_TEST_NETWORK=1 just test-containers
+```
+
+The release tag and checksum are pinned in `test/tools`; Renovate keeps
+OpenCode updates within supported 2.x releases.
 
 The full Linux agent integration suite runs in disposable rootless Podman
 containers. Install Podman through your system package manager and configure
@@ -433,16 +488,59 @@ access. Network-enabled tests include successful requests, so a container
 with no network cannot pass merely because every request fails. Endpoint
 refusals require nono's explicit 403 response (or a refused proxy CONNECT).
 DNS, timeout, TLS and gateway errors fail the request check. Responses are
-limited to 1 MiB, and local tests exercise these outcomes using fake curl.
+limited to 1 MiB. A successful HTTP 200/206 response that reaches that cap
+proves reachability without downloading the rest of a large catalogue;
+it is not a response-body validation. Local tests exercise these outcomes
+using fake curl.
 
 ### Results and limits
 
-Earlier container validation with the versions in
-[Install](install.md#sandbox-and-test-versions) passed on Ubuntu 26.04 and
-openSUSE Leap 16, including real Codex tool execution and the original
-ChatGPT hostname checks. The shared developer defaults and Git SSH have
-focused tests described above; the full container/network matrix has not
-been rerun for these changes.
+The network-enabled routine suite passed with nono 0.81.0, OpenCode 2.2.5,
+the OpenCode 0.4.2 pack, Codex 0.163.0 and the Codex 0.2.3 pack on Ubuntu
+26.04 and openSUSE Leap 16. openSUSE uses nono's upstream certificate grant;
+the wrapper's duplicate grant has been removed. The remaining four
+release-matrix distributions have not been rerun.
+
+OpenCode 2 starts its own standalone server in private loopback, in
+online and offline modes, without host-port grants. Controlled host localhost
+access is refused, and live endpoint checks run through the namespace proxy
+bridge with the expected allow/deny decisions. The explicit sandboxed server
+workflow also passes: wrong passwords are rejected and modern token-sharing
+browser callbacks are started and cancelled.
+
+The container runner maps two reserved `.nono.test` names to `127.0.0.2`
+and `127.0.0.3`. Two controlled HTTP servers use the same port on those
+separate addresses. The approved name returns the expected body only after
+`allow-domain`, while the other service remains refused. A third listener on
+a different port of the approved IP also works, explicitly demonstrating
+that the allowance is not port-scoped. `remove-domain` restores refusal.
+This proves deliberate HTTP proxy access to a host-loopback service without
+granting direct TCP ports. It does not validate every browser tool, HTTP
+client or Ollama model workflow, or guarantee separation from wildcard binds.
+Live HTTPS reachability is checked separately, with bounded retries for
+transient responses and a strict failure if the final result is a gateway,
+DNS, TLS or timeout error.
+
+Native Linux acceptance passed after the administrator loaded the targeted
+AppArmor user-namespace rule. This includes OpenCode 2 standalone startup in
+private loopback, explicit server/password checks and a cancelled modern
+browser callback. Codex 0.164.0 command execution/confinement also passed in
+those isolated native fixtures. The native v2 suite requires namespace
+support and does not bypass a host restriction. Its ordinary
+[explicit-server workflow](opencode-2-evaluation.md) remains available for
+modern browser login and deliberate host networking.
+
+Native Linux Git SSH tests also passed with nono 0.81.0, including its new
+`why --self --unix-socket` diagnostics with the agent grant on and off.
+The optional approval and loopback examples pass profile validation.
+This host initially refused namespace creation; the targeted AppArmor rule
+resolved that startup restriction, and the native integration suite passed.
+Rootless Ubuntu/openSUSE
+containers do permit the namespaces and passed the updated standalone and
+proxy tests with the normal container security settings. Native macOS/WSL2
+integration has not been rerun for 0.81.0. The v2 documentation review found
+no standalone fixed-port or Unix-socket configuration in pinned 2.2.5;
+`service set disabled true` uses the same dynamic-port standalone path.
 
 Interactive TUIs and approval prompts, completed OAuth/token exchange and
 authenticated model sessions need separate validation on both platforms.

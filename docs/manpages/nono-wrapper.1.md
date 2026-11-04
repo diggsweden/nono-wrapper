@@ -38,6 +38,20 @@ The profile is **NONO_PROFILE**, or *AGENT*-chatgpt, plus the optional
 *AGENT*-user.jsonc in the nono profiles directory. After the agent exits, the
 wrapper prints a summary of the session's audit record on standard error.
 
+Only OpenCode 2 is supported. Before the requested command, the launcher
+checks **--version** inside the same sandbox. Any 2.x.x passes the major
+check; other or unrecognized versions, and failed probes, refuse startup
+with exit 125 and an instruction to use OpenCode 2.
+It normally receives **--standalone**;
+on Linux the wrapper adds nono **--isolate net,loopback** so OpenCode manages
+its own dynamic-port server in the same sandbox. The host must permit
+user/network namespaces; **doctor opencode** checks startup. Unsupported
+hosts fail closed, without opening host ports. Native WSL2 is unverified.
+Explicit **serve** and **--server** retain ordinary host networking instead.
+Modern ChatGPT token-sharing browser login needs the explicit-server setup.
+See docs/opencode-2-evaluation.md for host requirements and macOS limits.
+Host browser callbacks cannot enter private loopback.
+
 Online profiles inherit the common forge, reference and vulnerability-data
 hosts from developer-network.jsonc. Offline profiles do not. With an SSH
 agent and verified entries in ~/.ssh/known_hosts, online sessions can route

@@ -3,6 +3,14 @@
   "extends": [
     "local>itiquette/renovate-runner//configuration/renovate-base"
   ],
+  "packageRules": [
+    {
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["test/tools"],
+      "matchDepNames": ["anomalyco/opencode"],
+      "allowedVersions": ">=2.1.0 <3.0.0"
+    }
+  ],
   "customManagers": [
     {
       "customType": "regex",

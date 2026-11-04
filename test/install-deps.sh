@@ -14,7 +14,7 @@ set -eu
 case "$ID" in
 ubuntu | debian)
   apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl ca-certificates git libstdc++6
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl ca-certificates git libstdc++6 fish apparmor
   apt-get clean
   ;;
 fedora)
