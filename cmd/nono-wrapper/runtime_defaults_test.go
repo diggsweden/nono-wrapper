@@ -22,6 +22,55 @@ func TestBundledRuntimeDefaultsValidate(t *testing.T) {
 	}
 }
 
+func TestOptionalBypassesDoNotFollowRedirectedFiles(t *testing.T) {
+	// Some hosts put the system temp directory behind a symlink. Start from
+	// its canonical spelling so each case controls its own redirects.
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	secret := filepath.Join(home, "private-key")
+	if err := os.WriteFile(secret, []byte("dummy secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"regular", "symlink", "parent symlink", "missing", "directory"} {
+		t.Run(mode, func(t *testing.T) {
+			root := filepath.Join(home, mode)
+			if err := os.Mkdir(root, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			file := filepath.Join(root, ".npmrc")
+			switch mode {
+			case "regular":
+				if err := os.WriteFile(file, []byte("ordinary config"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink":
+				if err := os.Symlink(secret, file); err != nil {
+					t.Fatal(err)
+				}
+			case "parent symlink":
+				if err := os.Symlink(home, filepath.Join(root, "alias")); err != nil {
+					t.Fatal(err)
+				}
+				file = filepath.Join(root, "alias", "private-key")
+			case "directory":
+				if err := os.Mkdir(file, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			paths, err := configuredBypassPaths(runtimeDefaults{OptionalBypasses: []runtimePath{{Path: file}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (len(paths) == 1) != (mode == "regular") {
+				t.Fatalf("unexpected bypasses for %s: %q", mode, paths)
+			}
+		})
+	}
+}
+
 func TestRuntimeDescriptionsAreOptionalAndDoNotChangePaths(t *testing.T) {
 	bare := `{"version":1,"applications":[{"variable":"APP_HOME","default_root":"$HOME/app","filesystem":{"read":["bin"]}}]}`
 	documented := `{"version":1,"description":"policy rationale","applications":[{"variable":"APP_HOME","default_root":"$HOME/app","description":"installed tools only","filesystem":{"read":[{"path":"bin","description":"run installed tools without write access"}]}}]}`

@@ -77,7 +77,12 @@ func configuredBypassPaths(defaults runtimeDefaults) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		info, err := os.Stat(path)
+		// An automatic exception must not turn a config/plugin symlink into
+		// permission to read a denied credential. Check parent redirects too.
+		if path != filepath.Clean(expanded) {
+			continue
+		}
+		info, err := os.Lstat(path)
 		if os.IsNotExist(err) || os.IsPermission(err) {
 			continue
 		}

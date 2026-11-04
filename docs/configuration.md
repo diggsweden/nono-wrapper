@@ -677,6 +677,17 @@ can remain a plain string or be written as:
 }
 ```
 
+Descriptions document motivation only; they never change access. Native nono
+profiles retain their supported `meta.description` and JSONC comments for rule
+rationale: do not add unsupported description fields to native path objects.
+Configured optional exceptions for `.npmrc` and the Compose wrapper are applied
+only when those exact files exist, avoiding missing-file bypass warnings. They
+are paired with native read-file grants, not parent-directory grants.
+Automatic exceptions skip symlinked files and symlinked parent directories so
+redirected configuration cannot exempt a private credential from protection.
+For a trusted symlink installation, explicitly configure the required access
+and protection bypass in your native nono profile instead.
+
 The shared policy adds read-only Linux GCC helper and header directories:
 `/usr/libexec/gcc`, `/usr/include` and `/usr/local/include`. Installed toolchains
 remain non-writable. `/dev/ptmx` has an exact read/write file grant for PTY
