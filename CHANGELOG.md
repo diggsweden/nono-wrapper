@@ -74,3 +74,43 @@ profiles.
 
 ### Fixed
 
+- Allow exact Go checksum, Mise version, PyPI, Node.js and Semgrep rule hosts
+  online while retaining offline blocking and avoiding wildcard grants.
+- Prepare scoped user-manual and checksum-verified VM-media directories, allow
+  explicit VM download cleanup, and read public Linux dpkg origin metadata.
+- Permit multiprocessing Unix-socket bind/connect only in user-owned agent
+  temp roots; prepare those roots, default an unset `TMPDIR`, and preserve
+  explicit read-only overrides without authorizing all `/tmp` sockets.
+- Prepare OpenGrep's exact HOME/XDG log files without truncation, rejecting
+  symlink log files and multiple hard links while leaving account/settings
+  siblings outside the grant.
+- Prepare and grant only OpenGrep's writable cache, including custom
+  `XDG_CACHE_HOME` locations, without granting its parent directory.
+- Allow the exact `www.brailleinstitute.org` and `check.trivy.dev` online hosts;
+  offline profiles remain blocked.
+- Make scoped Mise, golangci-lint, Staticcheck and Trivy caches writable by
+  default, including XDG and explicit overrides. Accept Mise's code-loading
+  cache risk without allowing installation, configuration or trust changes.
+- Read Nanolinter's exact installed rumdl, ShellCheck and yamlfmt defaults.
+- Allow Linux `/dev/shm` for multiprocessing semaphores; document shared IPC risk.
+- Read existing Mise trust hashes without making trust state writable, including
+  XDG and `MISE_STATE_DIR` overrides.
+- Permit scoped Go download-metadata and build/fuzz cache writes, with custom
+  `GOPATH`, `GOMODCACHE` and `GOCACHE` mappings; keep tools/modules read-only.
+- Read exact container registry config and Linux subordinate-ID mapping files;
+  retain host rootless Podman service delegation without `/proc` write grants.
+- Preserve documented missing-path and permission exit statuses when checking
+  temporary directory grants.
+- Skip redirected optional protection bypasses so config/plugin symlinks cannot
+  exempt private keys; suggest `*-file` flags for mistaken directory grants.
+- Replace broad Cargo/uv runtime reads with narrow code/config/cache reads that
+  do not expose dedicated credential stores by default.
+- Honor custom Just runtime roots without granting the parent directory.
+- Refuse temporary path grants that widen an explicit read-only user allowance.
+- Allow OpenCode 2's versioned model catalog endpoint by default.
+- Suppress native failure footers and profile-save prompts that expose the
+  internal OpenCode launcher; keep auditing and the wrapper's session report.
+- Allow Just's `/run/user/$UID/just` script directory by default on Linux for
+  both agents, without granting its parent runtime directory.
+- Allow `opencode.ai` and the whole `chatgpt.com` host in the default OpenCode
+  profile, including ChatGPT WebSocket connections.

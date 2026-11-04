@@ -653,6 +653,21 @@ access, as with every domain allowance.
 
 ### Just script recipes on Linux
 
+Both agents' bundled profiles allow read/write access to
+`/run/user/$UID/just`, where Just creates temporary recipe scripts. The parent
+runtime directory is not granted: it can contain sensitive sockets. The wrapper
+creates Just's directory before launch when the user runtime directory exists.
+With a custom `XDG_RUNTIME_DIR`, the wrapper prepares and grants only its `just`
+subdirectory as well. Relative runtime roots and aliases into protected launch
+inputs are refused; the parent runtime root is never granted.
+Mise's installed tools remain read-only through the shared `mise_manager` group;
+install or update tools outside the sandbox.
+Existing Mise trust hashes are readable under
+`~/.local/state/mise/trusted-configs`, `$XDG_STATE_HOME/mise/trusted-configs` and
+the corresponding subdirectory of an explicit `MISE_STATE_DIR`. Trust records
+are never prepared or made writable: review and trust new or changed configs
+outside the sandbox. Unrelated Mise state is not exposed by this convenience.
+
 After updating the checkout, run `just install-local` outside the sandbox and
 start a new wrapper session. Existing sessions retain their original grants.
 
@@ -791,6 +806,28 @@ Linux reads `/etc/dpkg/origins` for public vendor metadata, including the usual
 snippets and the exact `/etc/dpkg/dpkg.cfg` file, all read even by version
 comparisons. Neither all of `/etc/dpkg` nor writes to system metadata are granted.
 
+Python multiprocessing managers also bind pathname Unix sockets. Linux defaults
+permit connect/bind only beneath `~/.cache/opencode/tmp` and
+`$XDG_CACHE_HOME/opencode/tmp`, not throughout `/tmp`. The wrapper prepares these
+declared roots before nono resolves capabilities. Existing roots must be owned
+by the user and not final-component symlinks. Group/other access bits on these
+owned roots are removed, without recursive permission changes; owner permissions
+and special mode bits are preserved. Newly created roots use mode `0700`;
+aliases into protected launch inputs are refused.
+
+An empty/unset `TMPDIR` defaults to the XDG private temp root. Explicit `TMPDIR`
+values are preserved but do not automatically receive socket capabilities: use
+an approved root for multiprocessing, or explicitly configure a narrow native
+socket rule for another location. Exact read-only user overrides remove the
+corresponding bind capability as well as its implied filesystem writes. These
+are shared same-user directories, not separate IPC namespaces; avoid placing
+unrelated sensitive services in them.
+If a broader inherited grant still makes a read-only override impossible to
+enforce, launch fails rather than silently ignoring the restriction.
+
+Normal launches prepare and select the private temp root automatically when
+`TMPDIR` is unset or empty; no environment setup is needed:
+
 ```sh
 nono-wrapper opencode
 # Or:
@@ -812,6 +849,12 @@ what was tested and what remains unsupported. Nested sandbox execution, package
 downloads and full Gradle builds are not established by startup/default grants.
 
 ### Name-service cache on Linux
+
+Both agents may connect to the exact nscd sockets `/run/nscd/socket` and
+`/var/run/nscd/socket` for libc name-service lookups. This deliberately exposes
+the host's name-service cache through its local protocol. It does not grant
+socket binding, nscd files, parent directories or other Unix sockets, and the
+wrapper does not install or start nscd.
 
 ### Rootless Podman on Linux
 

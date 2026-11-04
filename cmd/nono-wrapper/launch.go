@@ -199,6 +199,11 @@ func launchWithOptions(ctx context.Context, agent string, args []string, stderr 
 			return fmt.Errorf("inspect final session policy: %w\n%s", err, diagnostic)
 		}
 	}
+	if bundledProfile(profile) {
+		if err := preparePrivateSocketDirectories(finalShown, protected); err != nil {
+			return err
+		}
+	}
 	environment, err := developerSessionEnvironment(profile)
 	if err != nil {
 		return err
