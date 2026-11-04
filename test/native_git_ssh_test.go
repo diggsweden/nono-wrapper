@@ -75,7 +75,7 @@ func TestNativeGitSSH(t *testing.T) {
 		}
 	}
 	program := filepath.Join(bin, "codex")
-	writeLauncherFixture(t, program, "#!/bin/sh\nshift 3\nif [ \"$1\" = __query ]; then shift; exec nono why --self --host \"$1\" --json; fi\nexec "+git+" \"$@\"\n")
+	writeLauncherFixture(t, program, "#!/bin/sh\nshift 3\nif [ \"$1\" = __query ]; then shift; exec nono why --self --host \"$1\" --json; fi\nif [ \"$1\" = __socket ]; then exec nono why --self --unix-socket \"$SSH_AUTH_SOCK\" --json; fi\nexec "+git+" \"$@\"\n")
 	data, err := os.ReadFile(filepath.Join(testRepository(t), "profiles/developer-network.jsonc"))
 	if err != nil {
 		t.Fatal(err)
@@ -225,6 +225,15 @@ func TestNativeGitSSH(t *testing.T) {
 	}
 	checkPolicy("https://github.com", "allowed")
 	checkPolicy("https://unlisted.invalid", "denied")
+	for _, test := range []struct{ setting, reason string }{
+		{"NONO_WRAPPER_SSH_AGENT=1", "unix_socket_granted"},
+		{"NONO_WRAPPER_SSH_AGENT=0", "unix_socket_not_granted"},
+	} {
+		output, err := invoke([]string{test.setting}, "codex", "__socket")
+		if err != nil || !strings.Contains(output, `"reason": "`+test.reason+`"`) {
+			t.Fatalf("session socket diagnostics for %s: %v\n%s", test.setting, err, output)
+		}
+	}
 	if output, err := invoke(nil, "config", "codex", "allow-domain", "--method", "GET", "https://api.github.com/repos/project-a/**"); err != nil {
 		t.Fatalf("restrict shared default: %v\n%s", err, output)
 	}

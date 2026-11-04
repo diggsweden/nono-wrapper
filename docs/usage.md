@@ -301,7 +301,7 @@ env NONO_PROFILE=codex-offline nono-wrapper codex
 
 The `env` form works in both Fish and Bash. Offline profiles are useful for
 local commands and verification; they cannot contact ChatGPT for a model
-session. User directory and file allowances still apply. nono 0.80.0 rejects
+session. User directory and file allowances still apply. nono 0.81.0 rejects
 combining `network.block` with host allowances, so remove user-added hosts
 before using an offline profile, for example
 `nono-wrapper config opencode remove-domain api.github.com`.

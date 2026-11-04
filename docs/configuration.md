@@ -213,7 +213,7 @@ distinguishes whole domains, HTTPS endpoints and TCP ports, but lists
 only user allowances, not effective inherited policy.
 
 URL rules restrict HTTPS methods and paths, not ports. Plain HTTP to a listed
-host is not path-filtered; nono 0.80.0 has no HTTPS-only setting. They check
+host is not path-filtered; nono 0.81.0 has no HTTPS-only setting. They check
 neither query strings nor request bodies. **A shared MCP endpoint does not
 separate tool or project permissions:** those calls use the same path. Use
 server-side permissions or a token scoped to the intended project. Codex streams
@@ -382,7 +382,7 @@ The wrapper automatically applies the corresponding user profile. No
 ChatGPT, authentication and filesystem grants are kept, except for matching
 host/path rules explicitly overridden as described above.
 The user file also applies when you select a base profile with
-`NONO_PROFILE`. With nono 0.80.0, an offline base profile combined with user
+`NONO_PROFILE`. With nono 0.81.0, an offline base profile combined with user
 host allowances refuses to start; remove those host entries to use the
 remaining filesystem allowances offline. User additions cannot turn off the
 base profile's network block.
@@ -458,6 +458,38 @@ terminal, editor, locale, XDG, `TMPDIR`, `SSH_AUTH_SOCK` and
 toolchain-location (`GOPATH`, `GOROOT`, `JAVA_HOME`, `CARGO_HOME`,
 `RUSTUP_HOME`) variables are listed in `profiles/agent-policy.jsonc`; nono
 handles its own injected proxy variables and credentials.
+
+### Runtime host approval (optional)
+
+nono 0.81.0 can ask before connecting to a host outside the static allowlist.
+To try its built-in terminal backend, merge this into your agent's existing
+user profile, preserving other settings:
+
+```json
+{
+  "network": {
+    "approval_backends": {
+      "review": { "type": "terminal", "timeout_secs": 60 }
+    },
+    "approval_defaults": { "backend": "review" }
+  }
+}
+```
+
+Restart a normal online session. Existing allowed hosts do not prompt.
+Explicit denies and metadata/link-local protections cannot be approved;
+`network.block: true` cannot be combined with these backends. The terminal
+backend denies when no terminal is available or the prompt times out.
+"Always allow" and "Always deny" last only for this session and host/port;
+they do not edit your user profile. Persistent allowances still use
+`config AGENT allow-domain` outside the sandbox.
+
+When using an enterprise upstream proxy, forwarded CONNECT requests need
+static allowances: only direct/upstream-bypass CONNECTs consult these
+backends. See nono's [runtime host approval documentation][host-approval].
+This is opt-in; the shipped profiles do not enable prompts.
+
+[host-approval]: https://github.com/nolabs-ai/nono/blob/v0.81.0/docs/cli/features/networking.mdx#runtime-host-approval
 
 ### Relocated agent state
 

@@ -29,7 +29,6 @@ developer-network ────────────────────�
 | Agent environment | nono's `environment.allow_vars` keeps the core, editor and toolchain-location variables and excludes unrelated credentials |
 | Linux pathname Unix sockets | mediation enabled; sockets require explicit grants, and the wrapper grants the SSH agent's. Not on WSL2: see [WSL2](#wsl2) |
 | macOS app automation | Apple Events and access to their Mach broker are denied in the bundled profiles |
-| Certificates | read access to `/var/lib/ca-certificates` for openSUSE compatibility |
 | Project, agent state, toolchains and Git configuration | inherited from the official pack |
 | Temporary files and devices | inherited from nono and the official pack, plus nono's `linux_temp_read` group so temporary files can be read back on Linux; `TMPDIR` is preserved |
 | Developer tools | nono's `mise_manager`, `go_runtime` and `java_runtime` groups (read-only), and the Git, delta and SSH allowed-signers configuration a Git setup commonly includes |
@@ -51,8 +50,8 @@ on Linux:
 
 We do not keep a second copy of those grants. Local settings should express
 an intentional policy difference or a compatibility fix still missing
-upstream. The certificate grant can go once upstream covers openSUSE's
-certificate path.
+upstream. nono 0.81.0's `system_read_linux_core` group includes openSUSE's
+`/var/lib/ca-certificates`; the wrapper needs no extra certificate grant.
 
 `agent-policy` excludes upstream's `user_caches_linux` group: its recursive
 `~/.cache` write grant would expose Mise's code-loading cache. Agent-specific
@@ -83,7 +82,8 @@ holds for individually writable caches and, for OpenCode, `~/.npm`. Treat these
 caches like the project itself: review what a session changed, or clear them
 after an untrusted session.
 
-Gradle does not run under nono 0.80 with network filtering or `--block-net`:
+The last Gradle check, with nono 0.80, failed with network filtering or
+`--block-net`:
 it lists the machine's network interfaces at startup, and nono refuses the
 socket Java opens for that. It also needs write access to `~/.gradle`.
 
@@ -93,7 +93,7 @@ when a file its configuration includes cannot be read.
 
 ### How inheritance combines policy
 
-With nono 0.80.0, filesystem grants, `network.allow_domain` and
+With nono 0.81.0, filesystem grants, `network.allow_domain` and
 `environment.allow_vars` accumulate through inheritance. A shorter or empty
 local list does not remove upstream entries. `network.block: true` is sticky:
 an extending profile cannot turn networking back on with `false`.
@@ -158,7 +158,7 @@ explicit local setting; upstream socket grants are still inherited.
   certificate. They do not inspect query strings, headers or bodies, and do
   not tie a request to your account: an allowed endpoint accepts data sent
   with any credentials.
-- Plain HTTP to a listed host bypasses its endpoint rules; nono 0.80.0 has no
+- Plain HTTP to a listed host bypasses its endpoint rules; nono 0.81.0 has no
   HTTPS-only setting. String-only rules, such as Codex's `chatgpt.com`,
   tunnel encrypted traffic without inspecting it. A listed hostname resolving
   to a private/local address is not rejected.
@@ -185,12 +185,13 @@ note at launch and in `doctor`; installed profiles are not modified.
 
 ### What has been validated
 
-The full integration suite targets Linux. On macOS 27 ARM64, which is best
-effort, native unit/CLI tests, installation, offline-profile verification,
-real agent startup and Codex command execution/confinement have passed. This
+The full integration suite targets Linux. Earlier macOS 27 ARM64 validation
+passed native unit/CLI tests, installation, offline-profile verification,
+real agent startup and Codex command execution/confinement. This
 does not validate interactive TUIs, completed login or authenticated agent
 sessions. The wrapper also has Darwin timestamp and filesystem-identity
-checks. The Apple Events broker denial was checked separately on macOS with
+checks. Native macOS integration has not been rerun for nono 0.81.0.
+The Apple Events broker denial was checked separately on macOS with
 native PID-addressed calls; it does not establish broader macOS compatibility.
 After updating, reinstall the bundled profiles with `just install-local` and
 restart running agent sessions. Existing sessions keep their original policy.

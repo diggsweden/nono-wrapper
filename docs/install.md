@@ -45,7 +45,7 @@ mise, or prefix the commands below with `mise exec --`.
 Make nono available in other project directories:
 
 ```sh
-mise use -g nono@0.80.0
+mise use -g nono@0.81.0
 ```
 
 ## 2. Install the wrapper and profiles
@@ -110,7 +110,7 @@ that container-test baseline.
 
 | Component | Version |
 | --- | --- |
-| nono | 0.80.0 |
+| nono | 0.81.0 |
 | OpenCode CLI (container tests) | 1.19.3 |
 | Official OpenCode 1 pack (`nolabs-ai/opencode-v1`) | 0.1.0 |
 | Codex CLI (container tests) | 0.163.0 |
@@ -135,10 +135,11 @@ another target stops with "nono-wrapper supports only Linux and macOS".
 
 ### macOS (best effort)
 
-Mise selects the host tools for the current platform. Native checks, an
+Mise selects the host tools for the current platform. Earlier native checks, an
 isolated installation and offline-profile smoke checks have passed
-on macOS 27 ARM64; macOS x64 is untested. Interactive and authenticated macOS
-agent sessions still need validation. See
+on macOS 27 ARM64; these have not been rerun for nono 0.81.0. macOS x64 is
+untested. Interactive and authenticated macOS agent sessions still need
+validation. See
 [What has been validated](policy.md#what-has-been-validated).
 
 Install mise with MacPorts if it is not already installed:

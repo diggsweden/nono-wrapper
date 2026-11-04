@@ -21,6 +21,10 @@ func TestHTTPRequestEvidence(t *testing.T) {
 		pass                bool
 	}{
 		{"site success", "WORKS", 200, 200, 0, "ok", true},
+		{"large successful catalogue stays bounded", "WORKS", 200, 200, 63, "", true},
+		{"large partial response stays bounded", "WORKS", 206, 200, 63, "", true},
+		{"size limit is not a policy refusal", "FAILS", 200, 200, 63, "", false},
+		{"large error is not site success", "WORKS", 502, 200, 63, "", false},
 		{"site requires authentication", "WORKS", 401, 200, 0, "authentication required", true},
 		{"site forbidden differs from proxy denial", "WORKS", 403, 200, 0, `{"detail":"not authorized"}`, true},
 		{"endpoint denied", "FAILS", 403, 200, 0, `{"error":"Forbidden"}`, true},

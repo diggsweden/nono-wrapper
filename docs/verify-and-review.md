@@ -51,6 +51,7 @@ a sandbox denial.
 | Login fails or a service is unreachable | Check the session report for a matching network refusal. If there is none, check the agent's login/provider and the service response. A 403 alone does not identify who refused the request. See [login](usage.md#first-time-chatgpt-login) and [network allowances](configuration.md#network-allowance-matrix). |
 | A file cannot be read or written | Establish the exact path and operation. Check whether it is in the workspace or covered by a user or inherited grant. Start with read-only access when reading is all that is needed; see [user configuration](configuration.md#user-configuration). |
 | A linked `AGENTS.md` cannot be read | The target may be outside the granted directory. Use `config AGENT add-file PATH` to save a read-only grant for the resolved file, then restart. See [linked instruction files](configuration.md#linked-instruction-files). |
+| An SSH agent or other Unix socket is refused | Inside the session, use `nono why --self --unix-socket /absolute/path/to/socket`. It checks socket connection access; `--path` checks filesystem access instead. A named base profile does not include the wrapper's SSH-agent grant. |
 | An allowance change has no effect | Confirm the agent named in `config`, inspect its user additions with `config AGENT show`, and restart the session. Broader grants or deny rules may still determine access. |
 | The session report is unavailable | Use the printed `nono audit list` command to locate the recorded session. A reporting failure does not change the agent's exit status. |
 
@@ -64,6 +65,18 @@ a sandbox denial.
   `codex-user` to inspect user policy separately.
 - `nono audit show SESSION_ID` shows **recorded activity** from a session,
   not every permission or filesystem access.
+
+nono 0.81.0 also provides socket-specific diagnostics inside a session:
+
+```sh
+nono why --self --unix-socket "$SSH_AUTH_SOCK"
+nono why --self --unix-socket /absolute/path/to/service.sock --socket-op bind
+```
+
+`unmediated` means nono is not filtering that socket operation in this
+configuration, as with the WSL2 compatibility mode. It is not a confirmation
+that the host will allow the operation. `unknown` can mean the session was
+started by an older nono; restart before querying again.
 
 Use `opencode` instead of `codex` for OpenCode. A named-profile check does
 not reconstruct the full session policy: user composition, generated runtime

@@ -7,7 +7,7 @@
 {
   "meta": {
     "name": "agent-policy",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "description": "Official-pack overrides: filtered agent environment, Linux socket mediation, macOS Apple Events isolation, toolchain and temporary-file access"
   },
   // The pinned official packs do not filter the agent's environment.
@@ -53,8 +53,6 @@
     // passwords, which the agent can then read; settings-security.xml stays out.
     "read_file": ["$HOME/.m2/settings.xml"],
     "read": [
-      // openSUSE's HTTPS certificate bundle; remove once upstream grants this.
-      "/var/lib/ca-certificates",
       // Files a user's Git configuration commonly includes; the pack grants
       // only the configuration file itself.
       "$XDG_CONFIG_HOME/git", "$XDG_CONFIG_HOME/delta", "$XDG_CONFIG_HOME/ssh/allowed_signers"

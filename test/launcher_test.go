@@ -189,7 +189,7 @@ func writeNonoFixture(t *testing.T, f launcherFixture, body string) {
 	writeLauncherFixture(t, filepath.Join(f.bin, "nono"), `#!/bin/sh
 case "$1" in
 --version)
-  printf 'nono 0.80.0\n'
+  printf 'nono 0.81.0\n'
   exit 0 ;;
 profile)
   if [ "$2 $3 $4" = 'show --format manifest' ]; then

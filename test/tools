@@ -11,7 +11,7 @@
 # baseline build, with runtime libraries installed by test/install-deps.sh.
 
 # renovate: datasource=github-release-attachments depName=nolabs-ai/nono
-nono v0.80.0 cae6755f1188b561ea02f62995feb8ad87d457f6d5255956ec54f41bbefca31e
+nono v0.81.0 d395bc5fd320e3c6be5fc30aafc61c9fee11fed0a087a2175204ce845eadcdd5
 # renovate: datasource=github-release-attachments depName=openai/codex
 codex rust-v0.163.0 beb339e8ecd9ba057a6bb2dc81ad8ca474812edfbf0fc5056ca818797648dde4
 # renovate: datasource=github-release-attachments depName=anomalyco/opencode

@@ -11,7 +11,7 @@ check_request() (
   want=$1 method=$2 url=$3
   case $want in WORKS | FAILS) ;; *) printf 'unknown HTTP expectation\n' >&2; exit 2 ;; esac
   result=0
-  curl -sS -m 20 --max-filesize 1048576 --proto '=https' -X "$method" -o reply \
+  curl -sS -m 20 --retry 2 --retry-max-time 30 --max-filesize 1048576 --proto '=https' -X "$method" -o reply \
     -w '%{http_code} %{http_connect}\n' -- "$url" >code || result=$?
   read -r status connect <code || {
     printf 'curl returned no response metadata\n' >&2
@@ -20,6 +20,10 @@ check_request() (
   if [ "$result" -ne 0 ] && [ "$connect" = 403 ]; then
     # The proxy's 403 proves refusal; curl versions report it as 7 or 56.
     actual=FAILS
+  elif [ "$result" -eq 63 ] && [ "$connect" = 200 ] && { [ "$status" = 200 ] || [ "$status" = 206 ]; }; then
+    # A successful response hit our size cap: reachability is proven without
+    # downloading an unbounded catalogue. This is not a response-body test.
+    actual=WORKS
   elif [ "$result" -ne 0 ]; then
     printf 'HTTP transport failed (curl %s, HTTP %s, CONNECT %s)\n' "$result" "$status" "$connect" >&2
     exit 1

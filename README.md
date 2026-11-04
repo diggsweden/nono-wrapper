@@ -33,7 +33,7 @@ steps. From the checkout, the short version is:
 
 ```sh
 mise install nono go just aqua:koalaman/shellcheck
-mise use -g nono@0.80.0
+mise use -g nono@0.81.0
 just install-local
 nono-wrapper doctor codex
 ```

@@ -37,7 +37,7 @@ if [ "$1" = --version ]; then
     printf 'mise: config is not trusted\nReview the config before trusting it.\n' >&2
     exit 1
   fi
-  printf 'nono 0.80.0\n'
+  printf 'nono 0.81.0\n'
   exit 0
 fi
 if [ "$1 $2 $3" = 'profile show --json' ]; then
