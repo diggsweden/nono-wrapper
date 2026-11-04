@@ -102,14 +102,7 @@ func run(args []string) error {
 		}
 	case "socket-inside":
 		if len(args) == 2 {
-			err := connectSocket(args[1])
-			if errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EPERM) {
-				return nil
-			}
-			if err == nil {
-				return errors.New("connected to a host socket without a socket grant")
-			}
-			return fmt.Errorf("expected a socket permission denial, got: %w", err)
+			return socketDenialResult(connectSocket(args[1]))
 		}
 	case "packs":
 		if len(args) == 3 {
@@ -771,6 +764,18 @@ func stopProcess(cmd *exec.Cmd, input io.Closer) {
 	}
 	syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	<-done
+}
+
+// socketDenialResult accepts only an actual permission denial, never a missing
+// socket, refused connection or timeout. Integration supplies the live socket.
+func socketDenialResult(err error) error {
+	if errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EPERM) {
+		return nil
+	}
+	if err == nil {
+		return errors.New("connected to a host socket without a socket grant")
+	}
+	return fmt.Errorf("expected a socket permission denial, got: %w", err)
 }
 
 func connectSocket(path string) error {

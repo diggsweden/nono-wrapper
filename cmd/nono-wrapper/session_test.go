@@ -51,3 +51,27 @@ func TestSessionAuditSuggestsOnlyPublicHostNames(t *testing.T) {
 		t.Fatalf("unexpected suggestions: %q", text)
 	}
 }
+
+func TestSessionAuditDoesNotBroadenEndpointDenials(t *testing.T) {
+	var output bytes.Buffer
+	printSessionAudit(&output, "opencode", sessionAudit{SessionID: "0123456789abcdef", NetworkEvents: []networkEvent{{
+		Decision: "deny", Target: "models.opencode.ai", Port: 443,
+		Reason: "endpoint rules denied GET /experimental/v2.0/api.json?type=chat,decision,image: no rule matched on models.opencode.ai:443",
+	}}})
+	if strings.Contains(output.String(), "To allow") || !strings.Contains(output.String(), "endpoint rules denied GET") {
+		t.Fatalf("endpoint denial must remain visible without a whole-host grant suggestion: %s", output.String())
+	}
+}
+
+func TestSessionAuditDoesNotSuggestGrantForTransportFailure(t *testing.T) {
+	var output bytes.Buffer
+	printSessionAudit(&output, "opencode", sessionAudit{SessionID: "0123456789abcdef", NetworkEvents: []networkEvent{{
+		Decision: "deny", Target: "models.opencode.ai", Port: 443,
+		Reason: "I/O error: Connection reset by peer (os error 104)",
+	}}})
+	text := output.String()
+	if strings.Contains(text, "To allow") || !strings.Contains(text, `"deny" "models.opencode.ai:443"`) ||
+		!strings.Contains(text, "Connection reset by peer") || !strings.Contains(text, "not evidence of a missing host grant") {
+		t.Fatalf("transport failure must remain visible without a grant suggestion: %s", text)
+	}
+}

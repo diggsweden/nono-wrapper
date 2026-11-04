@@ -263,8 +263,16 @@ HTTPS endpoint rules.
 Identical network events are grouped with a count. These are **audit-event
 counts**, not request counts: one HTTPS request can produce separate
 connection, endpoint-policy and response events. Sessions without network
-events say so. nono's own diagnostic footer and profile-save hints still
-appear when triggered.
+events say so. Recorded `deny` events with an `I/O error` reason, such as a peer
+connection reset, are transport failures rather than evidence of missing host
+permission; the report does not suggest widening access for them. The original
+decisions and reasons remain visible.
+
+Native diagnostic footers and profile-save prompts are suppressed
+by default: their suggestions expose the internal launcher and generated session
+policy rather than a reusable wrapper command. Auditing and this report remain
+enabled. To restore native diagnostics explicitly, use
+`nono-wrapper run --no-diagnostics=false opencode` (or `codex`).
 
 The wrapper assigns each run a unique name and resolves that exact session
 through `nono inspect`; concurrent sessions cannot cause it to report the

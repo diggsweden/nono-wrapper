@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -155,20 +156,32 @@ func TestRPCWaitHonorsCancellation(t *testing.T) {
 }
 
 func TestSocketProbe(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "host.sock")
-	if err := run([]string{"socket-inside", path}); err == nil {
-		t.Fatal("a missing socket is not a permission denial")
-	}
-	server, err := net.Listen("unix", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer server.Close()
-	if err := connectSocket(path); err != nil {
-		t.Fatalf("positive control: %v", err)
-	}
-	err = run([]string{"socket-inside", path})
-	if err == nil || !strings.Contains(err.Error(), "connected to a host socket without a socket grant") {
-		t.Fatalf("an unrestricted connection must fail the probe, got %v", err)
+	for _, test := range []struct {
+		name   string
+		err    error
+		denied bool
+	}{
+		{"connected", nil, false},
+		{"missing", syscall.ENOENT, false},
+		{"refused", syscall.ECONNREFUSED, false},
+		{"timeout", context.DeadlineExceeded, false},
+		{"access", syscall.EACCES, true},
+		{"permission", syscall.EPERM, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			for _, wrapped := range []bool{false, true} {
+				err := test.err
+				if wrapped && err != nil {
+					err = &net.OpError{Op: "dial", Net: "unix", Err: &os.SyscallError{Syscall: "connect", Err: err}}
+				}
+				result := socketDenialResult(err)
+				if (result == nil) != test.denied {
+					t.Fatalf("denied=%t, error=%v", test.denied, result)
+				}
+				if err != nil && !test.denied && !errors.Is(result, err) {
+					t.Fatalf("probe lost original failure: %v", result)
+				}
+			}
+		})
 	}
 }

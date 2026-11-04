@@ -176,6 +176,9 @@ func printSessionAudit(output io.Writer, agent string, audit sessionAudit) {
 		if event.Reason != "" {
 			fmt.Fprintf(output, " reason=%q", event.Reason)
 		}
+		if transportFailureEvent(event) {
+			fmt.Fprint(output, ` note="transport failure; not evidence of a missing host grant"`)
+		}
 		if counts[event] > 1 {
 			fmt.Fprintf(output, " (%d events)", counts[event])
 		}
@@ -187,7 +190,7 @@ func printSessionAudit(output io.Writer, agent string, audit sessionAudit) {
 	suggested := map[string]bool{}
 	for _, event := range events {
 		host := strings.ToLower(event.Target)
-		if event.Decision != "deny" || event.Path != "" || suggested[host] || !suggestableHost(host) {
+		if event.Decision != "deny" || transportFailureEvent(event) || event.Path != "" || strings.HasPrefix(event.Reason, "endpoint rules denied ") || suggested[host] || !suggestableHost(host) {
 			continue
 		}
 		suggested[host] = true
@@ -196,6 +199,10 @@ func printSessionAudit(output io.Writer, agent string, audit sessionAudit) {
 	fmt.Fprintf(output, "  Full audit: nono audit show %s\n", audit.SessionID)
 	fmt.Fprintln(output, "  Check a named profile: nono why --profile PROFILE --host HOST (or --path PATH --op read)")
 	fmt.Fprintln(output, "    PROFILE is a base or user profile name/path, not the full session policy.")
+}
+
+func transportFailureEvent(event networkEvent) bool {
+	return event.Decision == "deny" && strings.HasPrefix(event.Reason, "I/O error: ")
 }
 
 func suggestableHost(host string) bool {
