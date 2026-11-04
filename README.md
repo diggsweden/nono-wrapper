@@ -19,21 +19,27 @@ currently supported.
 
 ## Quick Start
 
-You need [mise](https://mise.jdx.dev/getting-started.html) activated in your
-shell and `~/.local/bin` on `PATH`. From a checkout of this repository:
+Install OpenCode and/or Codex through DevBase or your preferred installer.
+The agent must be on `PATH`; this checkout installs the wrapper, not the
+agents. You also need [mise](https://mise.jdx.dev/getting-started.html)
+activated in your shell and `~/.local/bin` on `PATH`.
+
+Follow [Install](docs/install.md) for the prerequisites and installation
+steps. From the checkout, the short version is:
 
 ```sh
-mise install --locked nono opencode codex go just aqua:koalaman/shellcheck
-mise use -g nono@0.80.0 opencode@1.19.3 codex@rust-v0.163.0
+mise install --locked nono go just aqua:koalaman/shellcheck
+mise use -g nono@0.80.0
 just install-local
-nono-wrapper verify
+nono-wrapper doctor codex
 ```
 
-Prerequisites, custom installation paths, pinned versions and platform notes
-are in [Install](docs/install.md).
+Use `doctor opencode` if that is your agent, or `doctor` to check both.
+It checks prerequisites and offline confinement, not login or a full agent
+launch. [Install](docs/install.md) covers custom paths and platform notes.
 
-Setup sets global mise versions for nono and both agents, installs profiles
-and official packs, and may update the pack's marked block in
+Setup selects nono globally, installs profiles and official packs, and may
+update the pack's marked block in
 `~/.codex/config.toml`. Reinstalling preserves your user allowance files.
 
 Then open a terminal in the project the agent should work on, sign in once,
@@ -62,7 +68,8 @@ session report.
   [Usage](docs/usage.md): starting agents, ChatGPT login and offline mode ·
   [Configuration](docs/configuration.md): extra hosts, directories and files,
   settings, proxies and SSH commit signing ·
-  [Verify and review](docs/verify-and-review.md)
+  [Check and review](docs/verify-and-review.md) ·
+  [Troubleshooting](docs/verify-and-review.md#troubleshooting)
 - **Reference** • [Commands](docs/usage.md#commands) ·
   [Exit status](docs/usage.md#exit-status) ·
   [Network profiles](docs/configuration.md#network-profiles) ·

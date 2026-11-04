@@ -19,7 +19,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func auditFixture(t *testing.T, root, name string) string {
+func changesFixture(t *testing.T, root, name string) string {
 	t.Helper()
 	path := filepath.Join(root, name)
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
@@ -31,17 +31,17 @@ func auditFixture(t *testing.T, root, name string) string {
 	return path
 }
 
-func TestAuditQuotesFilenames(t *testing.T) {
+func TestChangesQuotesFilenames(t *testing.T) {
 	root := t.TempDir()
-	marker := auditFixture(t, t.TempDir(), "started")
+	marker := changesFixture(t, t.TempDir(), "started")
 	old := time.Now().Add(-time.Hour)
 	if err := os.Chtimes(marker, old, old); err != nil {
 		t.Fatal(err)
 	}
 	name := ".vscode/\x1b[2J\x1b[Hforged\n  extra-line"
-	auditFixture(t, root, name)
+	changesFixture(t, root, name)
 	var output bytes.Buffer
-	err := audit(context.Background(), marker, root, &output)
+	err := changes(context.Background(), marker, root, &output)
 	var exit cli.ExitCoder
 	if !errors.As(err, &exit) || exit.ExitCode() != 1 {
 		t.Fatalf("expected changed-file status: %v", err)
@@ -52,10 +52,10 @@ func TestAuditQuotesFilenames(t *testing.T) {
 	}
 }
 
-func TestAuditQuotesPathErrors(t *testing.T) {
+func TestChangesQuotesPathErrors(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "missing\x1b[2J\nmarker")
 	var output bytes.Buffer
-	err := audit(context.Background(), marker, t.TempDir(), &output)
+	err := changes(context.Background(), marker, t.TempDir(), &output)
 	var pathError *fs.PathError
 	if !errors.Is(err, fs.ErrNotExist) || !errors.As(err, &pathError) || pathError.Path != marker {
 		t.Fatalf("filesystem error identity lost: %v", err)
@@ -65,13 +65,13 @@ func TestAuditQuotesPathErrors(t *testing.T) {
 	}
 }
 
-func TestAuditGitPointer(t *testing.T) {
+func TestChangesGitPointer(t *testing.T) {
 	for _, mode := range []string{"file", "symlink", "hooks symlink"} {
 		t.Run(mode, func(t *testing.T) {
 			root, outside := t.TempDir(), t.TempDir()
-			auditFixture(t, root, "package.json")
-			auditFixture(t, outside, "config")
-			auditFixture(t, outside, "hooks/pre-commit")
+			changesFixture(t, root, "package.json")
+			changesFixture(t, outside, "config")
+			changesFixture(t, outside, "hooks/pre-commit")
 			name := ".git"
 			if mode == "hooks symlink" {
 				if err := os.Mkdir(filepath.Join(root, ".git"), 0o700); err != nil {
@@ -98,7 +98,7 @@ func TestAuditGitPointer(t *testing.T) {
 	}
 }
 
-func TestAuditSelectsChangedFiles(t *testing.T) {
+func TestChangesSelectsChangedFiles(t *testing.T) {
 	root := t.TempDir()
 	want := []string{
 		".git/config", ".git/hooks/pre-commit", ".git/hooks/vendor/helper",
@@ -112,7 +112,7 @@ func TestAuditSelectsChangedFiles(t *testing.T) {
 		"mise.lock", "nested/mise.local.lock", "web/package.json",
 	}
 	for _, name := range want {
-		auditFixture(t, root, name)
+		changesFixture(t, root, name)
 	}
 	for _, name := range []string{
 		"notes.txt", "src/main.go", ".git/objects/package.json",
@@ -120,7 +120,7 @@ func TestAuditSelectsChangedFiles(t *testing.T) {
 		"dist/package.json", "build/package.json", ".cache/package.json",
 		".venv/package.json", "venv/package.json", "nested/node_modules/package.json",
 	} {
-		auditFixture(t, root, name)
+		changesFixture(t, root, name)
 	}
 	// Restoring mtime must not hide a changed script/configuration file.
 	old := time.Now().Add(-2 * time.Hour)
@@ -129,7 +129,7 @@ func TestAuditSelectsChangedFiles(t *testing.T) {
 	}
 	// A selected symlink is reported, but its target is never traversed.
 	outside := t.TempDir()
-	auditFixture(t, outside, "package.json")
+	changesFixture(t, outside, "package.json")
 	if err := os.Symlink(outside, filepath.Join(root, ".vscode/linked")); err != nil {
 		t.Fatal(err)
 	}
@@ -149,10 +149,10 @@ func TestAuditSelectsChangedFiles(t *testing.T) {
 	}
 }
 
-func TestAuditStatusAndMarker(t *testing.T) {
+func TestChangesStatusAndMarker(t *testing.T) {
 	root := t.TempDir()
-	marker := auditFixture(t, t.TempDir(), "started")
-	auditFixture(t, root, "package.json")
+	marker := changesFixture(t, t.TempDir(), "started")
+	changesFixture(t, root, "package.json")
 	for _, test := range []struct {
 		name    string
 		cutoff  time.Time
@@ -166,7 +166,7 @@ func TestAuditStatusAndMarker(t *testing.T) {
 				t.Fatal(err)
 			}
 			var output bytes.Buffer
-			err := audit(context.Background(), marker, root, &output)
+			err := changes(context.Background(), marker, root, &output)
 			if test.changed {
 				var exit cli.ExitCoder
 				if !errors.As(err, &exit) || exit.ExitCode() != 1 || !strings.Contains(output.String(), "  \"package.json\"\n") {
@@ -185,7 +185,7 @@ func TestAuditStatusAndMarker(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var output bytes.Buffer
-			if err := audit(context.Background(), test.marker, test.root, &output); err == nil || output.Len() != 0 {
+			if err := changes(context.Background(), test.marker, test.root, &output); err == nil || output.Len() != 0 {
 				t.Fatalf("invalid input accepted: %v (%s)", err, &output)
 			}
 		})

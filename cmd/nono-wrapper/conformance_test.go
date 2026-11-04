@@ -49,7 +49,7 @@ func TestExitCodeContract(t *testing.T) {
 		status int
 	}{
 		{name: "help", args: []string{"--help"}, status: 0},
-		{name: "help command", args: []string{"help", "verify"}, status: 0},
+		{name: "help command", args: []string{"help", "doctor"}, status: 0},
 		{name: "version", args: []string{"--version"}, status: 0},
 		{name: "manual", args: []string{"man"}, status: 0},
 		{name: "show an empty configuration", args: []string{"config", "opencode", "show"}, status: 0},
@@ -58,7 +58,7 @@ func TestExitCodeContract(t *testing.T) {
 		{name: "unknown command", args: []string{"frobnicate"}, status: exitUsage},
 		{name: "unknown flag", args: []string{"--frobnicate"}, status: exitUsage},
 		{name: "unknown help topic", args: []string{"help", "frobnicate"}, status: exitUsage},
-		{name: "wrong argument count", args: []string{"audit"}, status: exitUsage},
+		{name: "wrong argument count", args: []string{"changes"}, status: exitUsage},
 		{name: "malformed host", args: []string{"config", "opencode", "allow-domain", "http://example.org/path"}, status: exitDataErr},
 		{name: "removed add-host command", args: []string{"config", "opencode", "add-host", "example.org"}, status: exitUsage},
 		{name: "removed remove-host command", args: []string{"config", "opencode", "remove-host", "example.org"}, status: exitUsage},
@@ -66,7 +66,7 @@ func TestExitCodeContract(t *testing.T) {
 		{name: "removed remove-port command", args: []string{"config", "codex", "remove-port", "3000"}, status: exitUsage},
 		{name: "removed allow-local-port command", args: []string{"config", "codex", "allow-local-port", "3000"}, status: exitUsage},
 		{name: "removed remove-local-port command", args: []string{"config", "codex", "remove-local-port", "3000"}, status: exitUsage},
-		{name: "missing marker", args: []string{"audit", "missing-marker"}, status: exitNoInput},
+		{name: "missing marker", args: []string{"changes", "missing-marker"}, status: exitNoInput},
 		{name: "missing directory", args: []string{"config", "opencode", "add-dir", "/nonexistent/nono-wrapper"}, status: exitNoInput},
 		{
 			name: "refused inside a nono session",

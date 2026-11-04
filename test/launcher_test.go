@@ -188,6 +188,9 @@ func writeNonoFixture(t *testing.T, f launcherFixture, body string) {
 	t.Helper()
 	writeLauncherFixture(t, filepath.Join(f.bin, "nono"), `#!/bin/sh
 case "$1" in
+--version)
+  printf 'nono 0.80.0\n'
+  exit 0 ;;
 profile)
   if [ "$2 $3 $4" = 'show --format manifest' ]; then
     [ -z "${LAUNCHER_PROFILE_LOG:-}" ] || printf '%s\n' "$*" >> "$LAUNCHER_PROFILE_LOG"
@@ -229,7 +232,8 @@ func emptySessionReport(agent string, status int) string {
 		"  Audit: 0123456789abcdef (2 recorded events)\n" +
 		"  Network: 0 recorded events\n" +
 		"  Full audit: nono audit show 0123456789abcdef\n" +
-		"  Check access: nono why --profile PROFILE --host HOST (or --path PATH --op read)\n"
+		"  Check a named profile: nono why --profile PROFILE --host HOST (or --path PATH --op read)\n" +
+		"    PROFILE is a base or user profile name/path, not the full session policy.\n"
 }
 
 func capturedLauncherArgs(t *testing.T, stdout []byte, agent string) []string {
@@ -400,6 +404,19 @@ esac
 			want = append(append(want, test.want...), "--", f.target)
 			if !slices.Equal(got, want) {
 				t.Fatalf("nono arguments:\n got: %q\nwant: %q", got, want)
+			}
+		})
+	}
+}
+
+func TestAgentCompletionDoesNotLaunchASession(t *testing.T) {
+	for _, agent := range []string{"opencode", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			f := newLauncherFixture(t, agent)
+			stdout, stderr, status := runLauncher(t, f, agent, []string{"--generate-shell-completion"},
+				[]string{"NONO_WRAPPER_ROOT=" + filepath.Join(f.project, "missing")})
+			if status != 0 || stderr != "" || bytes.ContainsRune(stdout, 0) {
+				t.Fatalf("completion tried to launch the agent: status=%d stdout=%q stderr=%q", status, stdout, stderr)
 			}
 		})
 	}
@@ -655,7 +672,8 @@ func TestLauncherRequiresItsSelectedProfiles(t *testing.T) {
 		t.Run(spec.agent+"/chosen profile missing", func(t *testing.T) {
 			f := newLauncherFixture(t, spec.agent)
 			stdout, stderr, status := runLauncher(t, f, spec.agent, nil, []string{"NONO_PROFILE=custom", "LAUNCHER_TEST_MISSING_PROFILE=custom"})
-			if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, `cannot load profile "custom"`) {
+			if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, `cannot load selected profile "custom"`) ||
+				!strings.Contains(stderr, "Check NONO_PROFILE") || strings.Contains(stderr, "Run 'just install-local'") {
 				t.Fatalf("status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
 			}
 		})
@@ -689,20 +707,20 @@ func TestCLIHelpAndUsage(t *testing.T) {
 		{"configuration help", []string{"config", "--help"}, 0, "Manage persistent user allowances"},
 		{"agent configuration help", []string{"config", "opencode", "--help"}, 0, "allow-domain"},
 		{"directory configuration help", []string{"config", "codex", "add-dir", "--help"}, 0, "read-only"},
-		{"verify help", []string{"verify", "--help"}, 0, "offline profiles"},
-		{"audit help", []string{"audit", "--help"}, 0, "MARKER"},
+		{"doctor help", []string{"doctor", "--help"}, 0, "offline profiles"},
+		{"changes help", []string{"changes", "--help"}, 0, "MARKER"},
 		{"unknown command", []string{"unknown-agent"}, 64, "unknown command"},
-		{"mistyped command", []string{"verfy"}, 64, `did you mean "verify"?`},
+		{"mistyped command", []string{"doctr"}, 64, `did you mean "doctor"?`},
 		{"unknown flag", []string{"--unknown"}, 64, "flag provided but not defined"},
 		{"mistyped flag", []string{"--hlep"}, 64, `did you mean "--help"?`},
-		{"unknown flag names its help", []string{"verify", "--unknown"}, 64, "see nono-wrapper verify --help"},
+		{"unknown flag names its help", []string{"doctor", "--unknown"}, 64, "see nono-wrapper doctor --help"},
 		{"unknown configuration command", []string{"config", "opencode", "unknown"}, 64, "see nono-wrapper config opencode --help"},
 		{"unknown help topic", []string{"help", "unknown"}, 64, "unknown"},
 		{"exit statuses in help", []string{"--help"}, 0, "Exit status:"},
-		{"missing audit marker file", []string{"audit", "missing-marker"}, 66, "audit marker"},
-		{"unknown verification agent", []string{"verify", "unknown"}, 64, "unknown agent"},
-		{"missing marker", []string{"audit"}, 64, "MARKER"},
-		{"extra audit arguments", []string{"audit", "marker", ".", "extra"}, 64, "MARKER"},
+		{"missing marker file", []string{"changes", "missing-marker"}, 66, "marker"},
+		{"unknown doctor agent", []string{"doctor", "unknown"}, 64, "unknown agent"},
+		{"missing marker", []string{"changes"}, 64, "MARKER"},
+		{"extra changes arguments", []string{"changes", "marker", ".", "extra"}, 64, "MARKER"},
 		{"manual outside a checkout", []string{"man"}, 0, "## SYNOPSIS"},
 	} {
 		t.Run(test.name, func(t *testing.T) {

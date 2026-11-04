@@ -115,6 +115,7 @@ install-local: build generate-manpage
         *":$bin_dir:"*) ;;
         *) printf 'Add %s to your PATH to run nono-wrapper.\n' "$bin_dir" ;;
     esac
+    printf 'Next: nono-wrapper doctor\n'
 
 # Everyday local checks; no containers or network required.
 [doc('Run native lint and tests')]

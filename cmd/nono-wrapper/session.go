@@ -191,7 +191,8 @@ func printSessionAudit(output io.Writer, agent string, audit sessionAudit) {
 		fmt.Fprintf(output, "  To allow %s in future %s sessions, run outside the sandbox:\n    nono-wrapper config %s allow-domain %s\n  Then restart the agent.\n", host, agent, agent, host)
 	}
 	fmt.Fprintf(output, "  Full audit: nono audit show %s\n", audit.SessionID)
-	fmt.Fprintln(output, "  Check access: nono why --profile PROFILE --host HOST (or --path PATH --op read)")
+	fmt.Fprintln(output, "  Check a named profile: nono why --profile PROFILE --host HOST (or --path PATH --op read)")
+	fmt.Fprintln(output, "    PROFILE is a base or user profile name/path, not the full session policy.")
 }
 
 func suggestableHost(host string) bool {

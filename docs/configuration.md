@@ -334,7 +334,7 @@ does not reproduce the wrapper's host/path overrides.
 
 Edits take effect on the next session, with no rebuild or reinstall. Invalid
 user profiles stop startup and report the error. Remove the user file to stop
-applying its additions. `nono-wrapper verify` checks the bundled offline
+applying its additions. `nono-wrapper doctor` checks the bundled offline
 profiles, independently of these user additions.
 
 ## Settings
@@ -472,5 +472,5 @@ env NONO_WRAPPER_SSH_AGENT=0 nono-wrapper codex
 ```
 
 This does not enable pushing over SSH, which needs a direct connection the
-sandbox refuses. Running `nono` directly, as `nono-wrapper verify` does, adds
+sandbox refuses. Running `nono` directly, as `nono-wrapper doctor` does, adds
 no such grant.

@@ -9,15 +9,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 )
 
-func newVerifyFixture(t *testing.T) (launcherFixture, string) {
+func newDoctorFixture(t *testing.T) (launcherFixture, string) {
 	t.Helper()
 	f := newLauncherFixture(t, "opencode")
+	writeLauncherFixture(t, filepath.Join(f.bin, "codex"), "#!/bin/sh\nexit 99\n")
 	writeLauncherFixture(t, filepath.Join(f.bin, "curl"), "#!/bin/sh\nexit 99\n")
 	for _, name := range []string{"ls", "touch"} {
 		path, err := exec.LookPath(name)
@@ -30,6 +32,22 @@ func newVerifyFixture(t *testing.T) (launcherFixture, string) {
 	}
 	log := filepath.Join(filepath.Dir(f.bin), "verify.log")
 	writeLauncherFixture(t, filepath.Join(f.bin, "nono"), `#!/bin/sh
+if [ "$1" = --version ]; then
+  if [ "${VERIFY_MODE:-}" = version-fails ]; then
+    printf 'mise: config is not trusted\nReview the config before trusting it.\n' >&2
+    exit 1
+  fi
+  printf 'nono 0.80.0\n'
+  exit 0
+fi
+if [ "$1 $2 $3" = 'profile show --json' ]; then
+  if [ "${VERIFY_MODE:-}" = network-enabled ]; then
+    printf '{"network":{"block":false,"allow_domain":["chatgpt.com"]}}\n'
+  else
+    printf '{"network":{"block":true}}\n'
+  fi
+  exit 0
+fi
 [ "$#" -eq 9 ] && [ "$1" = run ] && [ "$2" = --silent ] && [ "$3" = --profile ] &&
   [ "$5" = --allow-cwd ] && [ "$6" = -- ] && [ "$7" = /bin/sh ] && [ "$8" = -c ] || exit 99
 printf '%s\000' "$4" "$PWD" "$TMPDIR" "$CODEX_HOME" >> "$VERIFY_LOG"
@@ -51,14 +69,14 @@ esac
 	return f, log
 }
 
-func TestVerifyUsesXDGConfigHome(t *testing.T) {
-	f, log := newVerifyFixture(t)
+func TestDoctorUsesXDGConfigHome(t *testing.T) {
+	f, log := newDoctorFixture(t)
 	config := filepath.Join(filepath.Dir(f.bin), "actual config")
 	if err := os.Mkdir(config, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	writeLauncherFixture(t, filepath.Join(config, "settings"), "fixture\n")
-	stdout, stderr, status := runLauncher(t, f, "verify", []string{"codex"}, []string{
+	stdout, stderr, status := runLauncher(t, f, "doctor", []string{"codex"}, []string{
 		"VERIFY_LOG=" + log, "VERIFY_MODE=config-readable", "XDG_CONFIG_HOME=" + config,
 	})
 	if status != 1 || stderr != "" || !strings.Contains(string(stdout), "  FAIL  your configuration directory cannot be listed") {
@@ -66,13 +84,27 @@ func TestVerifyUsesXDGConfigHome(t *testing.T) {
 	}
 }
 
-func TestVerifyRelativeTempDir(t *testing.T) {
-	f, log := newVerifyFixture(t)
+func TestDoctorRejectsNetworkEnabledOfflineProfile(t *testing.T) {
+	f, log := newDoctorFixture(t)
+	stdout, stderr, status := runLauncher(t, f, "doctor", []string{"codex"}, []string{
+		"VERIFY_LOG=" + log, "VERIFY_MODE=network-enabled",
+	})
+	if status != 1 || stderr != "" || !strings.Contains(string(stdout), "network.block must be true") ||
+		strings.Contains(string(stdout), "Installed offline-profile checks passed.") {
+		t.Fatalf("network-enabled offline profile was accepted: status=%d stdout=%q stderr=%q", status, stdout, stderr)
+	}
+	if _, err := os.Stat(log); !os.IsNotExist(err) {
+		t.Fatalf("probes ran under a network-enabled profile: %v", err)
+	}
+}
+
+func TestDoctorRelativeTempDir(t *testing.T) {
+	f, log := newDoctorFixture(t)
 	temp := filepath.Join(f.project, "tmp")
 	if err := os.Mkdir(temp, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	stdout, stderr, status := runLauncher(t, f, "verify", []string{"codex"}, []string{
+	stdout, stderr, status := runLauncher(t, f, "doctor", []string{"codex"}, []string{
 		"VERIFY_LOG=" + log, "TMPDIR=tmp",
 	})
 	if status != 0 || stderr != "" || strings.Count(probeOutput(stdout), "  ok    ") != 5 {
@@ -84,7 +116,7 @@ func TestVerifyRelativeTempDir(t *testing.T) {
 	}
 }
 
-func TestVerifyOutcomesAndCleanup(t *testing.T) {
+func TestDoctorOutcomesAndCleanup(t *testing.T) {
 	for _, test := range []struct {
 		name, mode string
 		agents     []string
@@ -96,14 +128,15 @@ func TestVerifyOutcomesAndCleanup(t *testing.T) {
 		{"failed positive control stops that profile", "deny", nil, 1, 1},
 		{"all allowed cannot pass", "allow", nil, 1, 5},
 		{"missing sandbox utilities cannot pass", "unavailable", nil, 1, 5},
+		{"unusable nono cannot pass", "version-fails", []string{"codex"}, 1, 5},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			f, log := newVerifyFixture(t)
+			f, log := newDoctorFixture(t)
 			home := filepath.Dir(f.bin)
 			codexHome := filepath.Join(home, "custom codex home")
 			keep := filepath.Join(home, "keep")
 			writeLauncherFixture(t, keep, "keep\n")
-			stdout, stderr, status := runLauncher(t, f, "verify", test.agents, []string{
+			stdout, stderr, status := runLauncher(t, f, "doctor", test.agents, []string{
 				"VERIFY_LOG=" + log, "VERIFY_MODE=" + test.mode, "CODEX_HOME=" + codexHome,
 				"NONO_PROFILE=ignored-for-verification",
 			})
@@ -115,14 +148,23 @@ func TestVerifyOutcomesAndCleanup(t *testing.T) {
 			}
 			passed := strings.Contains(string(stdout), "Installed offline-profile checks passed.")
 			if passed != (test.status == 0) {
-				t.Fatalf("verification success summary contradicts outcome: %s", stdout)
+				t.Fatalf("doctor success summary contradicts outcome: %s", stdout)
 			}
-			if passed && !strings.Contains(string(stdout), "ChatGPT login and your additional access rules were not tested.") {
-				t.Fatalf("verification must describe its limited scope: %s", stdout)
+			if test.mode == "version-fails" && !strings.Contains(string(stdout), "        mise: config is not trusted\n        Review the config before trusting it.\n") {
+				t.Fatalf("doctor discarded nono's failure diagnostic: %s", stdout)
+			}
+			if passed && !strings.Contains(string(stdout), "ChatGPT login, your additional access rules and the full agent launch were not tested.") {
+				t.Fatalf("doctor must describe its limited scope: %s", stdout)
 			}
 			agents := test.agents
 			if len(agents) == 0 {
 				agents = []string{"opencode", "codex"}
+			}
+			for _, agent := range []string{"opencode", "codex"} {
+				named := strings.Contains(string(stdout), "'nono-wrapper "+agent+" ")
+				if passed && named != slices.Contains(agents, agent) {
+					t.Fatalf("the next step must name the checked agents only: %s", stdout)
+				}
 			}
 			contents, err := os.ReadFile(log)
 			if err != nil {
@@ -150,14 +192,83 @@ func TestVerifyOutcomesAndCleanup(t *testing.T) {
 	}
 }
 
-func TestVerifyPrerequisites(t *testing.T) {
+func TestDoctorRequiresOnlySelectedAgents(t *testing.T) {
+	for _, test := range []struct {
+		name, missing string
+		agents        []string
+		status        int
+	}{
+		{"missing requested agent", "codex", []string{"codex"}, 1},
+		{"default requires both agents", "codex", nil, 1},
+		{"OpenCode-only installation", "codex", []string{"opencode"}, 0},
+		{"Codex-only installation", "opencode", []string{"codex"}, 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			f, log := newDoctorFixture(t)
+			if err := os.Remove(filepath.Join(f.bin, test.missing)); err != nil {
+				t.Fatal(err)
+			}
+			stdout, stderr, status := runLauncher(t, f, "doctor", test.agents, []string{"VERIFY_LOG=" + log})
+			text := string(stdout)
+			if status != test.status || stderr != "" {
+				t.Fatalf("status=%d stdout=%q stderr=%q", status, stdout, stderr)
+			}
+			if test.status == 1 && (!strings.Contains(text, "  FAIL  "+test.missing+" is not on PATH") ||
+				strings.Contains(text, "Installed offline-profile checks passed.")) {
+				t.Fatalf("missing selected agent was not reported as a failed check: %s", text)
+			}
+		})
+	}
+}
+
+func TestDoctorResolvesMiseAgentsWithoutExecutingThem(t *testing.T) {
+	for _, state := range []string{"active", "inactive"} {
+		t.Run(state, func(t *testing.T) {
+			f, log := newDoctorFixture(t)
+			marker := filepath.Join(filepath.Dir(f.bin), "agent-executed")
+			target := filepath.Join(filepath.Dir(f.target), "codex")
+			writeLauncherFixture(t, target, "#!/bin/sh\nprintf executed > \"$DOCTOR_AGENT_MARKER\"\nexit 99\n")
+			mise := filepath.Join(f.bin, "mise")
+			writeLauncherFixture(t, mise, `#!/bin/sh
+[ "$1 $2" = 'which codex' ] || exit 99
+if [ "$DOCTOR_AGENT_STATE" = inactive ]; then
+  printf 'codex is not currently active\n' >&2
+  exit 1
+fi
+printf '%s\n' "$DOCTOR_AGENT_TARGET"
+`)
+			if err := os.Remove(filepath.Join(f.bin, "codex")); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(mise, filepath.Join(f.bin, "codex")); err != nil {
+				t.Fatal(err)
+			}
+			stdout, stderr, status := runLauncher(t, f, "doctor", []string{"codex"}, []string{
+				"VERIFY_LOG=" + log, "DOCTOR_AGENT_TARGET=" + target, "DOCTOR_AGENT_MARKER=" + marker,
+				"DOCTOR_AGENT_STATE=" + state,
+			})
+			wantStatus, wantText := 0, "codex found at "+target
+			if state == "inactive" {
+				wantStatus, wantText = 1, "codex is not currently active"
+			}
+			if status != wantStatus || stderr != "" || !strings.Contains(string(stdout), wantText) {
+				t.Fatalf("agent resolution: status=%d stdout=%q stderr=%q", status, stdout, stderr)
+			}
+			if _, err := os.Stat(marker); !os.IsNotExist(err) {
+				t.Fatalf("doctor executed the agent outside nono: %v", err)
+			}
+		})
+	}
+}
+
+func TestDoctorPrerequisites(t *testing.T) {
 	for _, name := range []string{"nono", "curl", "ls", "touch"} {
 		t.Run(name, func(t *testing.T) {
-			f, log := newVerifyFixture(t)
+			f, log := newDoctorFixture(t)
 			if err := os.Remove(filepath.Join(f.bin, name)); err != nil {
 				t.Fatal(err)
 			}
-			stdout, stderr, status := runLauncher(t, f, "verify", nil, []string{"VERIFY_LOG=" + log})
+			stdout, stderr, status := runLauncher(t, f, "doctor", nil, []string{"VERIFY_LOG=" + log})
 			if status != 127 || len(stdout) != 0 || !strings.Contains(stderr, name) {
 				t.Fatalf("status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
 			}
@@ -168,7 +279,7 @@ func TestVerifyPrerequisites(t *testing.T) {
 	}
 }
 
-func TestVerifyInterruptedCleanup(t *testing.T) {
+func TestDoctorInterruptedCleanup(t *testing.T) {
 	for _, signal := range []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP} {
 		t.Run(signal.String(), func(t *testing.T) {
 			testVerifyInterruptedCleanup(t, signal)
@@ -178,7 +289,7 @@ func TestVerifyInterruptedCleanup(t *testing.T) {
 
 func testVerifyInterruptedCleanup(t *testing.T, signal os.Signal) {
 	t.Helper()
-	f, log := newVerifyFixture(t)
+	f, log := newDoctorFixture(t)
 	sleep, err := exec.LookPath("sleep")
 	if err != nil {
 		t.Fatal(err)
@@ -188,7 +299,7 @@ func testVerifyInterruptedCleanup(t *testing.T, signal os.Signal) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, wrapperBinary, "verify", "codex")
+	cmd := exec.CommandContext(ctx, wrapperBinary, "doctor", "codex")
 	cmd.Env = []string{"PATH=" + f.bin, "HOME=" + filepath.Dir(f.bin), "TMPDIR=" + filepath.Dir(f.bin), "VERIFY_LOG=" + log, "VERIFY_MODE=wait"}
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
@@ -228,12 +339,12 @@ func probeOutput(stdout []byte) string {
 	return ""
 }
 
-func TestVerifyReportsSetupProblems(t *testing.T) {
-	f, log := newVerifyFixture(t)
+func TestDoctorReportsSetupProblems(t *testing.T) {
+	f, log := newDoctorFixture(t)
 	// Agents run only under nono: verify locates them without executing them.
 	ran := filepath.Join(filepath.Dir(f.bin), "agent-ran")
 	writeLauncherFixture(t, f.target, "#!/bin/sh\ntouch '"+ran+"'\n")
-	stdout, stderr, status := runLauncher(t, f, "verify", []string{"opencode"}, []string{
+	stdout, stderr, status := runLauncher(t, f, "doctor", []string{"opencode"}, []string{
 		"VERIFY_LOG=" + log, "NONO_WRAPPER_ROOT=" + filepath.Join(f.project, "missing"),
 		"HTTPS_PROXY=http://user:secret@proxy.example:3128",
 	})

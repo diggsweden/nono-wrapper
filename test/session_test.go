@@ -45,6 +45,7 @@ func TestLauncherReportsNetworkEvents(t *testing.T) {
 					`"deny" "svt.se:443" reason="host not in allowlist" (2 events)`,
 					`method="GET" path="/private" reason="endpoint denied"`,
 					"nono audit show 0123456789abcdef", "nono why --profile PROFILE --host HOST",
+					"PROFILE is a base or user profile name/path, not the full session policy.",
 					"To allow svt.se in future " + spec.agent + " sessions, run outside the sandbox:\n    nono-wrapper config " + spec.agent + " allow-domain svt.se\n  Then restart the agent.\n",
 				} {
 					if !strings.Contains(stderr, want) {

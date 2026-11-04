@@ -76,11 +76,29 @@ absolute paths and keep the binary directory on `PATH`.
 ## 3. Check the installation
 
 ```sh
-nono-wrapper verify
+nono-wrapper doctor codex
 ```
 
-Expect `ok` for each check, then [launch an agent and sign in](usage.md).
+Use `doctor opencode` for OpenCode, or `doctor` to check both agents. A missing
+selected agent fails the check. Success covers prerequisites and baseline
+offline confinement; login, additional access rules and the full agent
+launch are not tested. Then [launch an agent and sign in](usage.md).
+For a failure, start with [Troubleshooting](verify-and-review.md#troubleshooting).
 Rerun `just install-local` after changing the Go code or bundled profiles.
+
+## Update ownership
+
+| Component | Selected by | Check after an update |
+| --- | --- | --- |
+| Host OpenCode/Codex | DevBase or your installer | Run `doctor AGENT`, then launch that agent and check login and project operations. |
+| nono | This checkout's `.mise.toml` and `mise.lock` | Run `doctor` for the agents you use and validate real agent integration. |
+| Official packs | This checkout's `test/packs` | Reinstall with `just install-local`, then validate agent integration. |
+| Bundled profiles | This repository | Reinstall, restart sessions and check the affected access rules. |
+| User allowances | You or your platform configuration | Restart the affected agent and verify the intended access. |
+
+The commands above are user checks. Maintainers should also run the
+[development checks](development.md#everyday-commands) and the relevant
+[integration tests](development.md#recipes) when changing compatibility.
 
 ## Sandbox and test versions
 
@@ -88,7 +106,8 @@ DevBase owns host OpenCode and Codex stable-version selection and updates.
 The CLI versions below are the independently pinned container-test baseline
 in `test/tools`, not host installation requirements. Retest sandbox
 integration when updating agents; this wrapper currently uses the OpenCode 1
-pack.
+pack. Independently updated host agents are not automatically covered by
+that container-test baseline.
 
 | Component | Version |
 | --- | --- |

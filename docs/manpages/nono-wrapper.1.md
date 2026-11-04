@@ -8,16 +8,18 @@ nono-wrapper - run OpenCode and Codex with nono's sandbox profiles
 
 **nono-wrapper** **opencode**|**codex** [*agent-argument*...]  
 **nono-wrapper** **config** **opencode**|**codex** *subcommand* [*argument*]  
-**nono-wrapper** **verify** [**opencode**|**codex**...]  
-**nono-wrapper** **audit** *MARKER* [*DIRECTORY*]  
+**nono-wrapper** **doctor** [**opencode**|**codex**...]  
+**nono-wrapper** **changes** *MARKER* [*DIRECTORY*]  
 **nono-wrapper** **man**  
 **nono-wrapper** **--help**|**--version**
 
 ## DESCRIPTION
 
 **nono-wrapper** starts an AI coding agent inside nono's sandbox. The current
-directory is the writable workspace; the rest of the home directory, other
-projects and unlisted network hosts stay out of reach.
+directory is the writable workspace. Other access comes from the selected
+profile, inherited packs, user allowances and launch-time grants. Bundled
+profiles also grant agent state and selected caches outside the workspace;
+the workspace is not the agent's only writable location.
 
 The agent starts only in a directory below the project root, ~/development
 unless **NONO_WRAPPER_ROOT** says otherwise; never in the root itself or
@@ -46,7 +48,8 @@ supported releases are WSL 2.7.7 and Ubuntu 26.04; neither is checked.
 **opencode** [*agent-argument*...], **codex** [*agent-argument*...]
 :   Start the agent under nono. Every argument, including **--help**, goes to
     the agent. If the agent on **PATH** is a mise shim, the wrapper asks
-    **mise which** for the real executable.
+    **mise which** for the real executable. To list project files the session
+    changed, create a marker file before you start; see **changes** below.
 
 **config** **opencode**|**codex** **show**
 :   List user-added domains, HTTPS method/path rules, TCP ports and
@@ -93,23 +96,30 @@ host/port command names have no compatibility aliases; profile files are
 unchanged. Native nono's **--allow-domain** flag belongs to **nono run**;
 use **config** *AGENT* **allow-domain** for persistent wrapper allowances.
 
-**verify** [**opencode**|**codex**...]
-:   Report tool versions, the project root and the proxy setting, then run
+**doctor** [**opencode**|**codex**...]
+:   Report the nono version, agent paths, project root and proxy setting, then run
     short probes under each agent's offline profile. The project and the
     temporary directory must be writable; the home directory, the
     configuration directory and the network must be refused.
-    Success covers the installed offline profiles, not ChatGPT login or
-    user-added access rules.
+    With no arguments, check both agents; name one for a single-agent
+    installation. A missing selected agent or an inactive Mise shim fails
+    the check. Agent paths are resolved without executing the agents.
+    Success covers the installed offline profiles, not ChatGPT login,
+    user-added access rules or the full agent launch.
 
-**audit** *MARKER* [*DIRECTORY*]
+**changes** *MARKER* [*DIRECTORY*]
 :   List hooks, CI workflows, editor tasks, package scripts and agent or tool
     settings in *DIRECTORY* (default: the current directory) that changed after
     *MARKER* was last modified. Create *MARKER* before a session, for example
-    with mktemp. This is a selected-file change review, not nono's session audit;
+    with mktemp. For nono's own record of the session, see nono audit;
     it does not detect deletions or provide a complete change log.
 
 **man**
 :   Print this manual, for systems without man(1).
+
+**completion** **bash**|**zsh**|**fish**
+:   Print a completion script for that shell, to source from its startup
+    file; see **nono-wrapper help completion**.
 
 ## OPTIONS
 
@@ -144,7 +154,8 @@ use **config** *AGENT* **allow-domain** for persistent wrapper allowances.
 :   Success.
 
 **1**
-:   **verify**: a check failed; **audit**: changed files are listed.
+:   **doctor**: a check failed, including a missing selected agent;
+    **changes**: changed files are listed.
 
 **64**
 :   Usage error: an unknown command or flag, or wrong arguments.
@@ -165,16 +176,47 @@ use **config** *AGENT* **allow-domain** for persistent wrapper allowances.
 :   The user configuration is unusable.
 
 **125**
-:   **opencode**, **codex**: the wrapper could not start the session.
+:   **opencode**, **codex**: the wrapper could not start the session, a refused
+    start directory included.
 
 **127**
-:   nono, the agent or a required tool is not on **PATH**.
+:   **opencode**/**codex**: nono or the agent is not on **PATH**.
+    **doctor**: nono or a probe utility is not on **PATH**. A missing selected
+    agent is a failed check (status 1).
 
 **128**+*N*
 :   Stopped by signal *N*.
 
 Otherwise **opencode** and **codex** exit with the agent's own status, as
 env(1) and timeout(1) do.
+
+## TROUBLESHOOTING
+
+For a single-agent installation, run **doctor codex** or **doctor opencode**.
+Doctor checks tool availability and offline shell probes, not login, agent
+resolution or the full session policy. Read the first FAIL entry or launch
+error before changing access rules.
+
+If a Mise shim cannot resolve an agent, run **mise which codex** or
+**mise which opencode** from the project directory. If a writable grant
+overlaps a protected launch location, check the two paths in the error and
+move the executable/state or narrow the grant. Adding write access cannot
+fix that refusal.
+
+For login or network problems, check the session report for a matching
+refusal. A service's error alone does not establish a sandbox denial.
+Apply needed allowances with **config** from a normal terminal, outside the
+sandbox, then restart the affected agent.
+
+**config** *AGENT* **show** lists user additions only. **nono why --profile**
+*PROFILE* checks that named profile, not the full session policy. PROFILE is
+a base name such as codex-chatgpt, an external NONO_PROFILE name/path, or
+a user profile such as codex-user. Runtime and launch-time grants can differ.
+**nono audit show** *SESSION_ID* shows recorded activity, not every filesystem
+access. If the report is unavailable, use its printed audit-list command.
+
+For wrapper help, use **nono-wrapper help codex**; **nono-wrapper codex --help**
+runs Codex's help under the sandbox. Native nono flags belong to **nono run**.
 
 ## FILES
 
@@ -194,7 +236,7 @@ Allow one more host for Codex:
 
 Check what changed during a session:
 
-    marker=$(mktemp); nono-wrapper codex; nono-wrapper audit "$marker" .; rm -f "$marker"
+    marker=$(mktemp); nono-wrapper codex; nono-wrapper changes "$marker" .; rm -f "$marker"
 
 ## SEE ALSO
 

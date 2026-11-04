@@ -41,9 +41,11 @@ setup)
   exit 0 ;;
 profile)
   [ "$#" -eq 4 ] && [ "$2 $3" = "show --json" ] || exit 99
+  block=false
+  case "$4" in *-offline) block=true ;; esac
   case "$4" in
-    /*) printf '{"network":{"block":false}}\n' ;;
-    *) printf '{"network":{"block":false},"linux":{"af_unix_mediation":"pathname"}}\n' ;;
+    /*) printf '{"network":{"block":%s}}\n' "$block" ;;
+    *) printf '{"network":{"block":%s},"linux":{"af_unix_mediation":"pathname"}}\n' "$block" ;;
   esac
   exit 0 ;;
 run)
@@ -100,10 +102,10 @@ func TestLauncherDropsSocketMediationOnWSL2(t *testing.T) {
 	}
 }
 
-func TestVerifyNotesMissingSocketMediationOnWSL2(t *testing.T) {
-	f, _ := newVerifyFixture(t)
+func TestDoctorNotesMissingSocketMediationOnWSL2(t *testing.T) {
+	f, _ := newDoctorFixture(t)
 	profiles := useWSL2Fixture(t, f)
-	stdout, stderr, status := runLauncher(t, f, "verify", []string{"opencode"}, []string{"WSL_DISTRO_NAME=fixture", "WSL2_FIXTURE=1"})
+	stdout, stderr, status := runLauncher(t, f, "doctor", []string{"opencode"}, []string{"WSL_DISTRO_NAME=fixture", "WSL2_FIXTURE=1"})
 	if status != 0 || stderr != "" || strings.Count(probeOutput(stdout), "  ok    ") != 5 ||
 		strings.Count(string(stdout), "  note  WSL2 cannot run the seccomp listener") != 1 {
 		t.Fatalf("status=%d, stdout=%q, stderr=%q", status, stdout, stderr)

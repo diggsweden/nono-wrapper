@@ -17,7 +17,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func verify(ctx context.Context, agents []string, output io.Writer) error {
+func doctor(ctx context.Context, agents []string, output io.Writer) error {
 	if len(agents) == 0 {
 		agents = []string{"opencode", "codex"}
 	}
@@ -37,10 +37,10 @@ func verify(ctx context.Context, agents []string, output io.Writer) error {
 	// The sandbox probes use these utilities; missing tools must not look like denials.
 	for _, tool := range []string{"curl", "ls", "touch"} {
 		if _, err := exec.LookPath(tool); err != nil {
-			return cli.Exit(tool+" is required for verification", exitNotFound)
+			return cli.Exit(tool+" is required for the checks", exitNotFound)
 		}
 	}
-	failed := !verifySetup(ctx, nono, agents, output)
+	failed := !checkSetup(ctx, nono, agents, output)
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -49,7 +49,7 @@ func verify(ctx context.Context, agents []string, output io.Writer) error {
 	if codexHome == "" {
 		codexHome = filepath.Join(home, ".codex")
 	}
-	work, err := os.MkdirTemp("", "nono-wrapper-verify-")
+	work, err := os.MkdirTemp("", "nono-wrapper-doctor-")
 	if err != nil {
 		return err
 	}
@@ -82,14 +82,27 @@ func verify(ctx context.Context, agents []string, output io.Writer) error {
 		fmt.Fprintf(output, "%s under nono (profile %s-offline):\n", agent, agent)
 		profile := agent + "-offline"
 		// A profile that cannot be shown is left for the checks below to report.
-		if shown, _, err := showProfile(ctx, nono, profile); err == nil && socketMediationUnavailable(ctx, nono, profile, shown) {
-			composed, cleanup, err := composeSessionPolicy(ctx, nono, profile, "", "", shown, nil, true, nil)
-			if err != nil {
-				return err
+		if shown, _, err := showProfile(ctx, nono, profile); err == nil {
+			blocked, policyErr := profileBlocksNetwork(shown, profile)
+			if policyErr != nil {
+				failed = true
+				fmt.Fprintf(output, "  FAIL  %s\n", policyErr)
+				continue
 			}
-			defer cleanup()
-			profile = composed
-			fmt.Fprintf(output, "  note  %s\n", socketMediationNotice)
+			if !blocked {
+				failed = true
+				fmt.Fprintf(output, "  FAIL  profile %q is not offline: network.block must be true\n", profile)
+				continue
+			}
+			if socketMediationUnavailable(ctx, nono, profile, shown) {
+				composed, cleanup, err := composeSessionPolicy(ctx, nono, profile, "", "", shown, nil, true, nil)
+				if err != nil {
+					return err
+				}
+				defer cleanup()
+				profile = composed
+				fmt.Fprintf(output, "  note  %s\n", socketMediationNotice)
+			}
 		}
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -121,34 +134,55 @@ func verify(ctx context.Context, agents []string, output io.Writer) error {
 		}
 	}
 	if failed {
+		fmt.Fprintln(output, "Checks failed. Resolve the FAIL entries and rerun doctor; see 'nono-wrapper man' under TROUBLESHOOTING.")
 		return cli.Exit("", exitFinding)
 	}
 	fmt.Fprintln(output, "Installed offline-profile checks passed.")
-	fmt.Fprintln(output, "ChatGPT login and your additional access rules were not tested.")
+	fmt.Fprintln(output, "ChatGPT login, your additional access rules and the full agent launch were not tested.")
+	if root, _, err := projectRoot(); err == nil {
+		logins := make([]string, 0, len(agents))
+		for _, agent := range agents {
+			logins = append(logins, "'nono-wrapper "+agent+" "+agentLogin(agent)+"'")
+		}
+		fmt.Fprintf(output, "Next: sign in once with %s,\n      then start the agent in your workspace (project root: %s).\n", strings.Join(logins, " or "), root)
+	}
 	return nil
 }
 
-// verifySetup reports what testers met before the sandbox itself: the tools
+// checkSetup reports what testers met before the sandbox itself: the tools
 // found, and the project root and proxy setting that every launch needs.
-// Agents run only under nono, so they are located but never executed here.
-func verifySetup(ctx context.Context, nono string, agents []string, output io.Writer) bool {
+// Agents run only under nono, so their paths are resolved but not executed here.
+func checkSetup(ctx context.Context, nono string, agents []string, output io.Writer) bool {
 	fmt.Fprintln(output, "Setup:")
+	ok := true
 	if version, err := exec.CommandContext(ctx, nono, "--version").Output(); err == nil {
 		fmt.Fprintf(output, "  ok    %s\n", strings.TrimSpace(string(version)))
 	} else {
-		fmt.Fprintf(output, "  note  nono --version failed: %v\n", err)
-	}
-	for _, agent := range agents {
-		if path, err := exec.LookPath(agent); err == nil {
-			fmt.Fprintf(output, "  ok    %s found at %s\n", agent, path)
-		} else {
-			fmt.Fprintf(output, "  note  %s is not on PATH; install: %s\n", agent, agentInstallURLs[agent])
+		ok = false
+		fmt.Fprintf(output, "  FAIL  nono --version failed: %v; check nono on PATH and its Mise configuration, if used\n", err)
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && len(exit.Stderr) > 0 {
+			fmt.Fprintf(output, "        %s\n", strings.ReplaceAll(strings.TrimSpace(string(exit.Stderr)), "\n", "\n        "))
 		}
 	}
-	ok := true
+	for _, agent := range agents {
+		path, err := exec.LookPath(agent)
+		if err != nil {
+			ok = false
+			fmt.Fprintf(output, "  FAIL  %s is not on PATH; install through DevBase or see %s\n", agent, agentInstallURLs[agent])
+			continue
+		}
+		resolved, err := resolveExecutable(ctx, agent, path)
+		if err != nil {
+			ok = false
+			fmt.Fprintf(output, "  FAIL  %s\n", strings.ReplaceAll(err.Error(), "\n", "\n        "))
+			continue
+		}
+		fmt.Fprintf(output, "  ok    %s found at %s\n", agent, resolved.path)
+	}
 	root, _, err := projectRoot()
 	if err == nil {
-		fmt.Fprintf(output, "  ok    agents start below the project root %s\n", root)
+		fmt.Fprintf(output, "  ok    project root %s\n", root)
 	} else {
 		ok = false
 		fmt.Fprintf(output, "  FAIL  %s\n", strings.ReplaceAll(err.Error(), "\n", "\n        "))

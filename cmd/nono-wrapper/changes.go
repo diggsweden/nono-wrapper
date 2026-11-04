@@ -17,13 +17,13 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func audit(ctx context.Context, marker, directory string, output io.Writer) error {
+func changes(ctx context.Context, marker, directory string, output io.Writer) error {
 	info, err := os.Stat(marker)
 	if err != nil {
-		return fmt.Errorf("audit marker: %w", quotePathError(err))
+		return fmt.Errorf("marker: %w", quotePathError(err))
 	}
 	if !info.Mode().IsRegular() {
-		return cli.Exit(fmt.Sprintf("audit marker must be a regular file: %q", marker), exitNoInput)
+		return cli.Exit(fmt.Sprintf("marker must be a regular file: %q", marker), exitNoInput)
 	}
 	changed, err := changedFiles(ctx, directory, info.ModTime())
 	if err != nil {
@@ -67,7 +67,7 @@ func changedFiles(ctx context.Context, directory string, since time.Time) ([]str
 		return nil, err
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("audit directory is not a directory: %q", directory)
+		return nil, fmt.Errorf("review directory is not a directory: %q", directory)
 	}
 	var changed []string
 	prune := false
@@ -92,7 +92,7 @@ func changedFiles(ctx context.Context, directory string, since time.Time) ([]str
 			return err
 		}
 		name = filepath.ToSlash(name)
-		if !auditPath(name) {
+		if !selectedPath(name) {
 			return nil
 		}
 		info, err := entry.Info() // lstat: inspect links, never traverse their targets.
@@ -128,7 +128,7 @@ func changedFiles(ctx context.Context, directory string, since time.Time) ([]str
 	return changed, nil
 }
 
-func auditPath(path string) bool {
+func selectedPath(path string) bool {
 	switch path {
 	case ".git", ".git/config", ".git/hooks", "lefthook.yml", ".lefthook.yml", ".pre-commit-config.yaml", "opencode.json", "opencode.jsonc", ".gitlab-ci.yml":
 		return true

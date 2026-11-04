@@ -186,7 +186,7 @@ func TestNativeIntegration(t *testing.T) {
 			}
 		}
 	}
-	run(project, nil, wrapper, "verify")
+	run(project, nil, wrapper, "doctor")
 	// Validate saved rules with real nono, without contacting any destination.
 	// Keep a baseline domain so removing a test rule never means open networking.
 	for _, agent := range []string{"opencode", "codex"} {

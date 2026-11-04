@@ -94,9 +94,10 @@ Its commands are:
 | `nono-wrapper config opencode\|codex allow-tcp-port\|remove-tcp-port PORT` | manage host-independent TCP connect/listen allowances |
 | `nono-wrapper config opencode\|codex add-dir\|remove-dir PATH` | manage user directory allowances |
 | `nono-wrapper config opencode\|codex add-file\|remove-file PATH` | manage user file allowances |
-| `nono-wrapper verify [opencode\|codex ...]` | check one or both installed offline profiles |
-| `nono-wrapper audit MARKER [DIRECTORY]` | report selected files changed since a marker |
+| `nono-wrapper doctor [opencode\|codex ...]` | check tools, project root and offline profiles; defaults to both agents |
+| `nono-wrapper changes MARKER [DIRECTORY]` | list selected project files changed since a marker |
 | `nono-wrapper man` | print the manual, as `man nono-wrapper` shows it |
+| `nono-wrapper completion bash\|zsh\|fish` | print a completion script for that shell, to source from its startup file |
 | `nono-wrapper --help` | show wrapper help |
 | `nono-wrapper --version` | show embedded build and Go toolchain information |
 
@@ -126,22 +127,22 @@ identify themselves as `devel`, with module/VCS metadata when available; help
 links to the project documentation.
 
 The `config` commands are described in [Configuration](configuration.md);
-`verify` and `audit` in [Verify and review](verify-and-review.md).
+`doctor` and `changes` in [Check and review](verify-and-review.md).
 
 ## Exit status
 
 | Status | Meaning |
 | --- | --- |
 | 0 | success |
-| 1 | `verify`: a check failed; `audit`: changed files are listed |
+| 1 | `doctor`: a check failed, including a missing selected agent; `changes`: changed files are listed |
 | 64 | usage error: an unknown command or flag, or wrong arguments |
 | 65 | a malformed value or a conflicting whole-domain/endpoint edit |
 | 66 | a named file or directory does not exist |
 | 70 | an unexpected failure |
 | 77 | permission denied, or refused by policy |
 | 78 | the user configuration is unusable |
-| 125 | `opencode`, `codex`: the wrapper could not start the session |
-| 127 | nono, the agent or a required tool is not on `PATH` |
+| 125 | `opencode`, `codex`: the wrapper could not start the session, a refused start directory included |
+| 127 | `opencode`/`codex`: nono or the agent is not on `PATH`; `doctor`: nono or a probe utility is not on `PATH` |
 | 128 + N | stopped by signal N |
 | other | `opencode`, `codex`: the agent's own status |
 
@@ -159,6 +160,14 @@ normal exits, interrupted sessions and non-interactive commands such as
 `--help`. It includes the exit status, audit ID, recorded network events
 (allowed and denied), denial reasons when available, and commands for
 inspecting the full audit and checking access with `nono why`.
+
+The named-profile diagnostic inspects only the profile you select, not the
+full session policy. `PROFILE` means a base profile such as
+`codex-chatgpt`, an external `NONO_PROFILE` name/path, or a user profile such
+as `codex-user`. User composition, runtime grants and launch-time additions
+can change the actual session's access. See
+[Troubleshooting](verify-and-review.md#troubleshooting) for the distinction
+between user additions, base profiles and recorded activity.
 
 For each eligible refused hostname, the report shows a persistent allowance
 command, such as `nono-wrapper config opencode allow-domain api.github.com`.
@@ -200,8 +209,8 @@ nono audit show <session-id>
 
 Use `--command codex` for Codex sessions. Reports contain supervisor-observed
 activity; they are not a complete log of every filesystem access. The
-separate `nono-wrapper audit MARKER` helper reviews selected changed project
-files; see [Verify and review](verify-and-review.md).
+separate `nono-wrapper changes MARKER` helper reviews selected changed project
+files; see [Check and review](verify-and-review.md).
 
 ## Profiles and login
 

@@ -24,15 +24,15 @@ import (
 // commands follow env(1) and timeout(1) instead: the agent's own status passes
 // through, so the wrapper's failures there use statuses agents rarely do.
 const (
-	exitFinding  = 1   // verify: a check failed; audit: changed files listed
+	exitFinding  = 1   // doctor: a check failed; changes: changed files listed
 	exitUsage    = 64  // EX_USAGE: unknown command or flag, or wrong arguments
 	exitDataErr  = 65  // EX_DATAERR: a malformed value, such as a host name
 	exitNoInput  = 66  // EX_NOINPUT: a named file does not exist
 	exitSoftware = 70  // EX_SOFTWARE: an unexpected failure
 	exitNoPerm   = 77  // EX_NOPERM: permission denied or refused by policy
 	exitConfig   = 78  // EX_CONFIG: the user configuration is unusable
-	exitLaunch   = 125 // opencode, codex: the wrapper could not start the session
-	exitNotFound = 127 // nono, the agent or a required tool is not on PATH
+	exitLaunch   = 125 // opencode, codex: the wrapper could not start the session, a refused start directory included
+	exitNotFound = 127 // launch/doctor prerequisite not on PATH; missing doctor agents use 1
 )
 
 const (
@@ -47,7 +47,7 @@ const conciseHelp = `Run OpenCode and Codex with nono's sandbox profiles.
 Examples:
   nono-wrapper opencode    start OpenCode in this directory
   nono-wrapper codex       start Codex in this directory
-  nono-wrapper verify      check the installed profiles
+  nono-wrapper doctor      check the installation
 
 Run 'nono-wrapper --help' for all commands and options.
 
@@ -56,7 +56,7 @@ Run 'nono-wrapper --help' for all commands and options.
 const rootDescription = `Examples:
   nono-wrapper opencode                              start OpenCode in this directory
   nono-wrapper codex                                 start Codex in this directory
-  nono-wrapper verify                                check the installed profiles
+  nono-wrapper doctor                                check the installation
   nono-wrapper config opencode allow-domain api.github.com
 
 Help forwarding:
@@ -72,15 +72,15 @@ Environment:
 
 Exit status:
   0      success
-  1      verify: a check failed; audit: changed files listed
+  1      doctor: a check failed, including a missing selected agent; changes: changed files listed
   64     usage error: unknown command or flag, or wrong arguments
   65     a malformed value, such as an invalid host name
   66     a named file or directory does not exist
   70     an unexpected failure
   77     permission denied, or refused by policy
   78     the user configuration is unusable
-  125    opencode, codex: the wrapper could not start the session
-  127    nono, the agent or a required tool is not on PATH
+  125    opencode, codex: the wrapper could not start the session, a refused start directory included
+  127    opencode/codex: nono or agent not on PATH; doctor: nono or a probe utility not on PATH
   128+N  stopped by signal N
   Otherwise opencode and codex exit with the agent's status.
 
@@ -154,40 +154,42 @@ func (err invalidConfig) Unwrap() error { return err.error }
 
 func command() *cli.Command {
 	return &cli.Command{
-		Name:        "nono-wrapper",
-		Usage:       "Run OpenCode and Codex with nono's sandbox profiles",
-		Version:     buildVersion(),
-		Description: rootDescription,
+		Name:    "nono-wrapper",
+		Usage:   "Run OpenCode and Codex with nono's sandbox profiles",
+		Version: buildVersion(),
+		// Shell completion uses the framework's action-free completion protocol.
+		EnableShellCompletion: true,
+		Description:           rootDescription,
 		// Return errors to main so helper cleanup runs before exiting.
 		ExitErrHandler: func(context.Context, *cli.Command, error) {},
 		OnUsageError:   usageError,
 		Action:         helpOrUnknown,
 		Commands: []*cli.Command{
-			agentCommand("opencode", "Run OpenCode under nono"),
-			agentCommand("codex", "Run Codex under nono"),
+			agentCommand("opencode", "OpenCode"),
+			agentCommand("codex", "Codex"),
 			configCommand(),
 			manCommand(),
 			{
-				Name: "verify", Usage: "Check installed offline profiles without an agent login",
-				Description: "Reports the versions of nono and the agents, and checks the project root and the proxy setting. Then runs short probes under each agent's offline profile: the project and the temporary directory must be writable; the home directory, your configuration directory and the network must be refused.\n\nExits 0 when every check passes and 1 when a check fails; see 'nono-wrapper --help' for the other statuses.\n\nExamples:\n  nono-wrapper verify\n  nono-wrapper verify codex",
+				Name: "doctor", Usage: "Check the installed tools and offline profiles without an agent login",
+				Description: "Reports the nono version and resolved agent paths, and checks the project root and proxy setting. Resolves Mise shims without executing agents; an inactive shim fails the check. With no arguments, checks both agents; name one for a single-agent installation. A missing selected agent fails the check.\n\nRuns short probes under the installed offline profiles: the project and temporary directory must be writable; the home directory, configuration directory and network must be refused. Login, additional access rules and the full agent launch are not tested.\n\nExits 0 when every check passes and 1 when a check fails; see 'nono-wrapper --help' for the other statuses.\n\nExamples:\n  nono-wrapper doctor\n  nono-wrapper doctor codex",
 				ArgsUsage:   "[opencode|codex ...]", OnUsageError: usageError,
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					return verify(ctx, cmd.Args().Slice(), cmd.Root().Writer)
+					return doctor(ctx, cmd.Args().Slice(), cmd.Root().Writer)
 				},
 			},
 			{
-				Name: "audit", Usage: "Selected-file change review since a marker (not the session audit)",
-				Description: "MARKER is a file you create before a session, for example with mktemp. Lists hooks, CI workflows, editor tasks, package scripts and agent or tool settings in DIRECTORY (default: the current directory) that changed after MARKER was last modified.\n\nThis is not nono's session audit; see 'nono audit'.\n\nExits 0 when nothing is listed and 1 when changed files are listed; see 'nono-wrapper --help' for the other statuses.\n\nExample:\n  marker=$(mktemp); nono-wrapper codex; nono-wrapper audit \"$marker\" .; rm -f \"$marker\"",
+				Name: "changes", Usage: "List selected project files changed since a marker",
+				Description: "MARKER is a file you create before a session, for example with mktemp. Lists hooks, CI workflows, editor tasks, package scripts and agent or tool settings in DIRECTORY (default: the current directory) that changed after MARKER was last modified.\n\nFor nono's own record of the session, see 'nono audit'.\n\nExits 0 when nothing is listed and 1 when changed files are listed; see 'nono-wrapper --help' for the other statuses.\n\nExample:\n  marker=$(mktemp); nono-wrapper codex; nono-wrapper changes \"$marker\" .; rm -f \"$marker\"",
 				ArgsUsage:   "MARKER [DIRECTORY]", OnUsageError: usageError,
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					if cmd.NArg() < 1 || cmd.NArg() > 2 {
-						return cli.Exit("usage: nono-wrapper audit MARKER [DIRECTORY]", exitUsage)
+						return cli.Exit("usage: nono-wrapper changes MARKER [DIRECTORY]", exitUsage)
 					}
 					directory := "."
 					if cmd.NArg() == 2 {
 						directory = cmd.Args().Get(1)
 					}
-					return audit(ctx, cmd.Args().First(), directory, cmd.Root().Writer)
+					return changes(ctx, cmd.Args().First(), directory, cmd.Root().Writer)
 				},
 			},
 		},
@@ -329,10 +331,21 @@ func manCommand() *cli.Command {
 	}
 }
 
-func agentCommand(agent, usage string) *cli.Command {
+// agentLogin is the sign-in subcommand of an agent, named by the agent help and
+// by doctor.
+func agentLogin(agent string) string {
+	if agent == "opencode" {
+		return "auth login"
+	}
+	return "login"
+}
+
+func agentCommand(agent, name string) *cli.Command {
+	login := agentLogin(agent)
+	examples := fmt.Sprintf("Examples:\n  %-34s sign in once\n  %-34s start %s in this directory", "nono-wrapper "+agent+" "+login, "nono-wrapper "+agent, name)
 	return &cli.Command{
-		Name: agent, Usage: usage, ArgsUsage: "[agent arguments...]",
-		Description: "Uses NONO_PROFILE or " + agent + "-chatgpt, plus optional " + agent + "-user.jsonc in your nono profiles directory. Prints a session audit summary on stderr after exit. All arguments, including --help, go to the agent.",
+		Name: agent, Usage: "Run " + name + " under nono", ArgsUsage: "[agent arguments...]",
+		Description: "All arguments, including --help, go to " + name + "; this text is 'nono-wrapper help " + agent + "'. The profile is NONO_PROFILE or " + agent + "-chatgpt, plus the optional " + agent + "-user.jsonc in your nono profiles directory. A session report follows on stderr after exit. To list project files the session changed, create a marker file before you start; see 'nono-wrapper help changes'.\n\n" + examples,
 		// In particular, neither --help nor a positional 'help' belongs to us.
 		SkipFlagParsing: true,
 		HideHelp:        true,

@@ -4,31 +4,75 @@ SPDX-FileCopyrightText: The nono-wrapper Authors
 SPDX-License-Identifier: CC0-1.0
 -->
 
-# Verify and review
+# Check and review
 
-## Verify the installed profiles
+## Check the installation
 
 After installing or upgrading:
 
 ```sh
-nono-wrapper verify          # both installed offline profiles
-nono-wrapper verify codex
+nono-wrapper doctor codex    # Codex-only installation
+nono-wrapper doctor         # both agents and their offline profiles
 ```
 
-It first reports the setup: the versions of nono and the agents it finds,
+It first reports the setup: the nono version and the paths of the selected agents,
 whether the [project root](usage.md#where-an-agent-may-start) exists, and
 whether the proxy setting can be used. A missing project root or an unusable
 proxy setting fails verification, because every launch would stop on it.
+No arguments selects both agents; a missing selected agent or an unusable
+nono executable also fails. Agents are resolved through symlinks and Mise
+shims without executing them; an inactive Mise agent fails the check.
+This is still not a full agent launch check.
 
 Then it runs probe commands under the profiles without an agent login or model.
-Success means the installed offline-profile checks passed; ChatGPT login and
-your additional access rules were not tested.
+Each resolved offline profile must set `network.block` to `true`; a host
+allowlist that merely refuses the sample destination is not an offline check.
+Success means the installed offline-profile checks passed; ChatGPT login,
+your additional access rules and the full agent launch were not tested.
 It checks successful project/temp writes alongside refused home/config
 listing and networking. The configuration check uses `XDG_CONFIG_HOME`,
 falling back to `~/.config`. It uses a private temporary directory and stops
 checking a profile if a positive control fails. The full container suite also
 tests the wrapper, representative inherited grants and ChatGPT allowlists;
 see [Development](development.md#container-integration).
+
+## Troubleshooting
+
+Start with the first failure, before changing permissions. Wrapper startup
+errors appear before the agent starts; the post-exit report describes nono's
+recorded session activity. An agent or service error alone does not establish
+a sandbox denial.
+
+| Symptom | First check and next step |
+| --- | --- |
+| The agent does not start | Read the wrapper error. Check the named executable on `PATH`, the selected profile, or the [start directory](usage.md#where-an-agent-may-start), as indicated. For a Mise shim, run `mise which codex` or `mise which opencode` from that project. |
+| `doctor` passes but launch fails | Doctor uses offline shell probes, not the full agent launch. Check the launch error for agent resolution, state-directory or [protected-path](usage.md#commands) failures. |
+| A writable grant overlaps a protected launch location | Read both paths in the error. Check the workspace, `NONO_ALLOW`, user path grants and relocated state. Move the executable/state or narrow the grant; adding write access cannot fix this refusal. |
+| Login fails or a service is unreachable | Check the session report for a matching network refusal. If there is none, check the agent's login/provider and the service response. A 403 alone does not identify who refused the request. See [login](usage.md#first-time-chatgpt-login) and [network allowances](configuration.md#network-allowance-matrix). |
+| A file cannot be read or written | Establish the exact path and operation. Check whether it is in the workspace or covered by a user or inherited grant. Start with read-only access when reading is all that is needed; see [user configuration](configuration.md#user-configuration). |
+| An allowance change has no effect | Confirm the agent named in `config`, inspect its user additions with `config AGENT show`, and restart the session. Broader grants or deny rules may still determine access. |
+| The session report is unavailable | Use the printed `nono audit list` command to locate the recorded session. A reporting failure does not change the agent's exit status. |
+
+### Which policy does a diagnostic inspect?
+
+- `nono-wrapper config codex show` lists **user additions**, not all access.
+- `nono profile show codex-chatgpt` shows that **base profile** with its
+  inheritance. For another selected base, use its `NONO_PROFILE` name/path.
+- `nono why --profile codex-chatgpt --host example.com` checks that named
+  profile only. Use `--path /absolute/path --op read` for a file check, or
+  `codex-user` to inspect user policy separately.
+- `nono audit show SESSION_ID` shows **recorded activity** from a session,
+  not every permission or filesystem access.
+
+Use `opencode` instead of `codex` for OpenCode. A named-profile check does
+not reconstruct the full session policy: user composition, generated runtime
+grants and launch-time additions can change access. The wrapper's report
+labels these diagnostics accordingly.
+
+For wrapper help, use `nono-wrapper help codex`; `nono-wrapper codex --help`
+launches Codex's help under the sandbox. Native nono flags belong to
+`nono run`, not the wrapper's agent commands. Make persistent changes with
+`nono-wrapper config` from a normal terminal and restart the agent.
 
 ## Review a session
 
@@ -44,7 +88,7 @@ The wrapper's own post-exit report is described under
 
 ## Selected-file change review
 
-For lightweight reminders, `nono-wrapper audit MARKER [DIRECTORY]` reports
+For lightweight reminders, `nono-wrapper changes MARKER [DIRECTORY]` reports
 changed project hooks/configuration, editor tasks, CI workflows, package
 scripts and agent settings for review before later host execution. This
 includes mise's shared/local configuration and lockfiles.
@@ -56,7 +100,7 @@ works from Fish or Bash:
 sh -c '
 marker=$(mktemp)
 nono-wrapper codex
-nono-wrapper audit "$marker" .
+nono-wrapper changes "$marker" .
 rm -f "$marker"
 '
 ```

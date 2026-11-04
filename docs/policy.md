@@ -170,7 +170,7 @@ WSL2 is best effort and starts with reduced protection.
   which WSL2 refuses ([microsoft/WSL#9548](https://github.com/microsoft/WSL/issues/9548)),
   and nono then declines to start. When nono reports WSL2, the wrapper
   starts the bundled profiles without `linux.af_unix_mediation` and says so
-  on every launch and in `nono-wrapper verify`: the agent can then connect to
+  on every launch and in `nono-wrapper doctor`: the agent can then connect to
   any Unix socket your user can, such as Docker's. The installed profile
   files are not changed, so running `nono` directly with them still fails on
   WSL2.

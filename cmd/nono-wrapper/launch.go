@@ -92,6 +92,9 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 	}
 	if loadErr != nil {
 		fmt.Fprint(stderr, diagnostic)
+		if chosen && !bundledProfile(profile) {
+			return fmt.Errorf("cannot load selected profile %q.\nCheck NONO_PROFILE and inspect that name or path with 'nono profile show'. If it comes from a pack, check that the pack is installed", profile)
+		}
 		return fmt.Errorf("cannot load profile %q.\nRun 'just install-local' from the nono-wrapper checkout to install our profiles and the pinned nolabs-ai/%s pack.\nSee docs/install.md in the nono-wrapper checkout", profile, officialPacks[agent])
 	}
 	block, err := profileBlocksNetwork(shown, profile)
@@ -240,7 +243,7 @@ func prepareAgentState(agent string, protected []pathRule) ([]pathRule, error) {
 			return nil, fmt.Errorf("cannot prepare agent state: %w", err)
 		}
 		if err := os.MkdirAll(path, 0o700); err != nil {
-			return nil, quotePathError(err)
+			return nil, fmt.Errorf("cannot prepare agent state directory %q; check its ownership and the agent's HOME/XDG or CODEX_HOME setting: %w", path, quotePathError(err))
 		}
 		fallback, err := canonicalConfigPath(directory.fallback)
 		if err != nil {

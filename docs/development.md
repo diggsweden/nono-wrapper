@@ -9,7 +9,7 @@ SPDX-License-Identifier: CC0-1.0
 ## Project layout
 
 ```text
-cmd/nono-wrapper/   Go CLI: launch, config, verify, audit and man
+cmd/nono-wrapper/   Go CLI: launch, config, doctor, changes and man
 docs/              user and developer documentation
 docs/manpages/     the manual source, embedded and rendered for man(1)
 profiles/          editable nono profiles
@@ -32,8 +32,8 @@ test/              CLI/installation tests, container probes and version pins
 | `cmd/nono-wrapper/policy.go` | user precedence over matching bundled profile rules |
 | `cmd/nono-wrapper/filesystem_policy.go` | canonical path matching and effective access-mode checks |
 | `cmd/nono-wrapper/session.go` | supervised launch, signal forwarding and post-exit audit summary |
-| `cmd/nono-wrapper/verify.go` | installed-profile smoke checks |
-| `cmd/nono-wrapper/audit.go` | optional, manually invoked project-file reminder |
+| `cmd/nono-wrapper/doctor.go` | installed-tool and offline-profile checks |
+| `cmd/nono-wrapper/changes.go` | optional, manually invoked changed-project-file listing |
 | `cmd/nono-wrapper/conformance_test.go` | exit-status, stream, no-escape and help-truth contracts |
 | `test/http-check.sh` | HTTP response/refusal assertions used by network tests |
 | `test/image-inputs.sh` | image-build fingerprint generation and freshness checks |
@@ -129,15 +129,15 @@ machine-local mise overrides (`.mise.local.toml`, `mise.local.toml`,
 
 ## Local tests
 
-`just test-unit` covers auditing, verification and the probe helper, plus
+`just test-unit` covers the doctor and changes commands and the probe helper, plus
 native CLI and installation/cleanup contracts. CLI tests build the real
 wrapper and run it in isolated temporary directories with fake nono/agent
 executables. They verify exact arguments (including agent help), profile
 selection, executable canonicalization, terminal descriptors, signals, exit
 statuses, setup hints and session-specific post-exit reports. Reporting tests
 cover clean exits with network denials, repeated events, missing or invalid
-audits, lookup timeouts and terminal-control escaping. Verification tests
-exercise success/failure and interrupted cleanup; audit tests cover selected
+audits, lookup timeouts and terminal-control escaping. Doctor tests
+exercise success/failure and interrupted cleanup; changes tests cover selected
 paths, symlinks and change times. Recipe tests build and install the real
 binary into temporary homes, use fake nono to check pinned pack setup,
 profile selection and failure handling, and use fake Podman to check bounded

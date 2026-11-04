@@ -116,7 +116,7 @@ echo "Profiles: syntax and inheritance"
 for file in "$XDG_CONFIG_HOME"/nono/profiles/*.jsonc; do
   expect WORKS "$(basename "$file") validates" nono profile validate "$file"
 done
-nono-wrapper verify || failed=1
+nono-wrapper doctor || failed=1
 
 # Exercise the installed agents with their real upstream plugin wiring.
 expect WORKS "nono-wrapper starts real OpenCode" nono-wrapper opencode session list
@@ -442,7 +442,7 @@ PROFILE
   expect FAILS "an official pack alone cannot start the agent" said STANDIN-RAN
 
   mkdir -p "$work/none/.config" "$work/no-packs/nono/profiles"
-  expect FAILS "missing profiles make verification fail" env XDG_CONFIG_HOME="$work/none/.config" nono-wrapper verify "$agent"
+  expect FAILS "missing profiles make verification fail" env XDG_CONFIG_HOME="$work/none/.config" nono-wrapper doctor "$agent"
   status=0
   out=$(XDG_CONFIG_HOME="$work/none/.config" nono-wrapper "$agent" 2>&1) || status=$?
   expect WORKS "missing profiles make the launcher fail" test "$status" -ne 0
@@ -463,7 +463,7 @@ expect WORKS "the real OpenCode executable is restored" test "$(command -v openc
 expect WORKS "the real Codex executable is restored" test "$(command -v codex)" = "$real_codex"
 
 status=0
-out=$(nono-wrapper audit "$work/audit-started" "$project" 2>&1) || status=$?
+out=$(nono-wrapper changes "$work/audit-started" "$project" 2>&1) || status=$?
 expect WORKS "manual auditing reports selected changes" test "$status" -eq 1
 expect WORKS "manual auditing reports a planted Git hook" said .git/hooks/pre-commit
 expect WORKS "manual auditing reports a nested package.json" said web/package.json
