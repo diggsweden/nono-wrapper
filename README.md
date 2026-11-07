@@ -377,7 +377,7 @@ Built-in help is available through `nono-wrapper --help`.
 
 - **[Development](docs/development.md)** • Project layout, checks, local,
   native and container tests
-- **[Issues](https://codefloe.com/itiquette/nono-wrapper/issues)** • Report
+- **[Issues](https://github.com/diggsweden/nono-wrapper/issues)** • Report
   bugs or request features
 
 ## License

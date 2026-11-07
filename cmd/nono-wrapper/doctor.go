@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -75,40 +76,47 @@ func doctor(ctx context.Context, agents []string, output io.Writer) error {
 	}{
 		{"the sandbox starts and the project is writable", "command -v ls >/dev/null && command -v curl >/dev/null && touch ./written", true},
 		{"the temporary directory is writable", `touch "$TMPDIR/written"`, true},
-		{"the home directory cannot be listed", `ls "$HOME"`, false},
-		{"your configuration directory cannot be listed", `ls "${XDG_CONFIG_HOME:-$HOME/.config}"`, false},
-		{"the network is unreachable", "curl -s -m 5 -o /dev/null https://example.com", false},
+		{"the sandbox hides the home directory", `ls "$HOME"`, false},
+		{"the sandbox hides your configuration directory", `ls "${XDG_CONFIG_HOME:-$HOME/.config}"`, false},
+		{"the sandbox blocks the network", "curl -s -m 5 -o /dev/null https://example.com", false},
 	}
 	for _, agent := range agents {
 		fmt.Fprintf(output, "%s under nono (profile %s-offline):\n", agent, agent)
 		profile := agent + "-offline"
-		// A profile that cannot be shown is left for the checks below to report.
-		if shown, _, err := showProfile(ctx, nono, profile); err == nil {
-			blocked, policyErr := profileBlocksNetwork(shown, profile)
-			if policyErr != nil {
-				failed = true
-				fmt.Fprintf(output, "  FAIL  %s\n", policyErr)
-				continue
+		shown, diagnostic, err := showProfile(ctx, nono, profile)
+		if err != nil {
+			// The sandbox checks would fail for this reason too, and their
+			// namespace advice would point the wrong way.
+			failed = true
+			fmt.Fprintf(output, "  FAIL  profile %s cannot be loaded\n%s", profile, diagnostic)
+			fmt.Fprintf(output, "  Install the bundled profiles with 'just install-local' from a nono-wrapper checkout; see %s.\n", installDoc)
+			continue
+		}
+		fmt.Fprintf(output, "  profile SHA-256: %x (installed, resolved)\n", sha256.Sum256(shown))
+		blocked, policyErr := profileBlocksNetwork(shown, profile)
+		if policyErr != nil {
+			failed = true
+			fmt.Fprintf(output, "  FAIL  %s\n", policyErr)
+			continue
+		}
+		if !blocked {
+			failed = true
+			fmt.Fprintf(output, "  FAIL  profile %q is not offline: network.block must be true\n", profile)
+			continue
+		}
+		if socketMediationUnavailable(ctx, nono, profile, shown) {
+			composed, cleanup, err := composeSessionPolicy(ctx, nono, profile, "", "", shown, nil, true, nil, nil)
+			if err != nil {
+				return err
 			}
-			if !blocked {
-				failed = true
-				fmt.Fprintf(output, "  FAIL  profile %q is not offline: network.block must be true\n", profile)
-				continue
-			}
-			if socketMediationUnavailable(ctx, nono, profile, shown) {
-				composed, cleanup, err := composeSessionPolicy(ctx, nono, profile, "", "", shown, nil, true, nil, nil)
-				if err != nil {
-					return err
-				}
-				defer cleanup()
-				profile = composed
-				fmt.Fprintf(output, "  note  %s\n", socketMediationNotice)
-			}
+			defer cleanup()
+			profile = composed
+			fmt.Fprintf(output, "  note  %s\n", socketMediationNotice)
 		}
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		privateLoopback := agent == "opencode" && runtime.GOOS == "linux"
+		privateLoopback := runtime.GOOS == "linux"
 		for _, check := range checks {
 			args := []string{"run", "--silent", "--profile", profile}
 			if privateLoopback {
@@ -138,8 +146,8 @@ func doctor(ctx context.Context, agents []string, output io.Writer) error {
 				// Refusals are meaningful only after the positive controls succeed.
 				if check.works {
 					if privateLoopback {
-						fmt.Fprintln(output, "  OpenCode 2 requires private loopback. For Ubuntu AppArmor setup, see README.md#ubuntu-apparmor-setup.")
-						fmt.Fprintln(output, "  For other namespace requirements and explicit-server setup, see docs/opencode-2-evaluation.md.")
+						fmt.Fprintf(output, "  Bundled Linux sessions require private loopback. For Ubuntu AppArmor setup, see %s.\n", appArmorDoc)
+						fmt.Fprintf(output, "  For other namespace requirements and explicit-server setup, see %s.\n", openCodeDoc)
 					}
 					break
 				}
@@ -153,16 +161,15 @@ func doctor(ctx context.Context, agents []string, output io.Writer) error {
 	fmt.Fprintln(output, "Installed offline-profile checks passed.")
 	fmt.Fprintln(output, "ChatGPT login, your additional access rules and the full agent launch were not tested.")
 	if root, _, err := projectRoot(); err == nil {
-		logins := make([]string, 0, len(agents))
+		fmt.Fprintln(output, "Next: sign in once, then start the agent in a project below "+root+" (NONO_WRAPPER_ROOT changes it).")
 		for _, agent := range agents {
-			login := agentLogin(agent)
 			if agent == "opencode" {
-				fmt.Fprintln(output, "OpenCode 2: start with 'nono-wrapper opencode'. Setup guide: docs/opencode-2-evaluation.md.")
-				login = "--server SERVER_URL auth login openai --method chatgpt-token-sharing"
+				// ChatGPT sign-in needs a temporary explicit server; one command cannot show it.
+				fmt.Fprintf(output, "  OpenCode: sign in with the explicit-server steps in %s,\n            then start 'nono-wrapper opencode'.\n", openCodeLoginDoc)
+				continue
 			}
-			logins = append(logins, "'nono-wrapper "+agent+" "+login+"'")
+			fmt.Fprintf(output, "  Codex: 'nono-wrapper codex %s', then 'nono-wrapper codex'.\n", agentLogin(agent))
 		}
-		fmt.Fprintf(output, "Next: sign in once with %s,\n      then start the agent in your workspace (project root: %s).\n", strings.Join(logins, " or "), root)
 	}
 	return nil
 }
@@ -172,7 +179,22 @@ func doctor(ctx context.Context, agents []string, output io.Writer) error {
 // Agents run only under nono, so their paths are resolved but not executed here.
 func checkSetup(ctx context.Context, nono string, agents []string, output io.Writer) bool {
 	fmt.Fprintln(output, "Setup:")
+	fmt.Fprintf(output, "  wrapper: %s\n  nono executable: %s\n", buildVersion(), nono)
 	ok := true
+	if path, err := os.Executable(); err == nil {
+		if file, err := os.Open(path); err == nil {
+			hash := sha256.New()
+			if _, err := io.Copy(hash, file); err == nil {
+				fmt.Fprintf(output, "  wrapper executable: %s\n  wrapper SHA-256: %x\n", path, hash.Sum(nil))
+			}
+			file.Close()
+		}
+	}
+	if defaults, err := loadRuntimeDefaults(); err == nil && runtime.GOOS == "linux" {
+		if env := podmanSessionEnvironment("opencode-offline", defaults); len(env) > 0 {
+			fmt.Fprintf(output, "  Podman transport: %s (existing user-owned socket; service not probed)\n", env[0])
+		}
+	}
 	if version, err := exec.CommandContext(ctx, nono, "--version").Output(); err == nil {
 		fmt.Fprintf(output, "  ok    %s\n", strings.TrimSpace(string(version)))
 	} else {
@@ -187,7 +209,7 @@ func checkSetup(ctx context.Context, nono string, agents []string, output io.Wri
 		path, err := exec.LookPath(agent)
 		if err != nil {
 			ok = false
-			fmt.Fprintf(output, "  FAIL  %s is not on PATH; install through DevBase or see %s\n", agent, agentInstallURLs[agent])
+			fmt.Fprintf(output, "  FAIL  %s is not on PATH; install it: %s\n", agent, agentInstallURLs[agent])
 			continue
 		}
 		resolved, err := resolveExecutable(ctx, agent, path)

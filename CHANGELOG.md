@@ -19,6 +19,14 @@ profiles.
 
 ### Fixed
 
+- Report missing bundled profiles in doctor with the install step, instead of
+  failing every sandbox check with namespace advice. Name documents by their
+  GitHub URL, not a checkout path, and link OpenCode's sign-in steps instead of
+  a `SERVER_URL` placeholder. Help names the profiles directory and whether a
+  `run` grant covers a directory or one file.
+- Word doctor's refusal checks as what the sandbox does, show a Podman line
+  only when a socket is selected, and point help to `nono-wrapper man`, which
+  works without an installed manual page.
 - Permit Go module extraction, Cargo dependency caches and exact lock/database
   files, and Gradle cache/daemon writes by default, including relocated roots.
   Keep installed tools, ordinary configuration and dedicated credentials protected.

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/urfave/cli/v3"
 )
@@ -24,7 +25,7 @@ type launchOptions struct {
 func runCommand() *cli.Command {
 	stop := 1
 	command := &cli.Command{
-		Name: "run", Usage: "Run an agent with temporary nono-style sandbox options",
+		Name: "run", Usage: "Run an agent with extra sandbox grants for one session",
 		ArgsUsage: "AGENT [--] [agent arguments...]", StopOnNthArg: &stop,
 		// Native nono takes one value per occurrence. Commas in paths and URLs
 		// are literal data, not a second grant or a second destination.
@@ -46,7 +47,11 @@ func runCommand() *cli.Command {
 		if name == "" {
 			name = field.name
 		}
-		flag := &cli.StringSliceFlag{Name: name, Usage: fmt.Sprintf("Grant %s access to a path for this session (repeatable)", field.access)}
+		target := "a directory and everything below it"
+		if strings.HasSuffix(field.name, "_file") {
+			target = "one file"
+		}
+		flag := &cli.StringSliceFlag{Name: name, Usage: fmt.Sprintf("Grant %s access to %s for this session (repeatable)", field.access, target)}
 		switch name {
 		case "allow":
 			flag.Aliases = []string{"a"}

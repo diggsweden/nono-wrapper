@@ -36,9 +36,15 @@ const (
 )
 
 const (
-	docsURL   = "https://codefloe.com/itiquette/nono-wrapper"
-	issuesURL = "https://codefloe.com/itiquette/nono-wrapper/issues"
-	helpLinks = "Docs:   " + docsURL + "\nIssues: " + issuesURL + "\nManual: man nono-wrapper"
+	docsURL     = "https://github.com/diggsweden/nono-wrapper"
+	issuesURL   = docsURL + "/issues"
+	helpLinks   = "Docs:   " + docsURL + "\nIssues: " + issuesURL + "\nManual: nono-wrapper man"
+	profilesDir = "$XDG_CONFIG_HOME/nono/profiles, normally ~/.config/nono/profiles"
+	// Output names documents by URL: a binary-only installation has no checkout.
+	installDoc       = docsURL + "/blob/main/docs/install.md"
+	openCodeDoc      = docsURL + "/blob/main/docs/opencode-2-evaluation.md"
+	openCodeLoginDoc = openCodeDoc + "#modern-chatgpt-browser-token-sharing-login"
+	appArmorDoc      = docsURL + "/blob/main/README.md#ubuntu-apparmor-setup"
 )
 
 // conciseHelp is what a bare invocation prints, on stderr, before exiting 64.
@@ -363,11 +369,11 @@ func agentCommand(agent, name string) *cli.Command {
 	login := agentLogin(agent)
 	examples := fmt.Sprintf("Examples:\n  %-34s sign in once\n  %-34s start %s in this directory", "nono-wrapper "+agent+" "+login, "nono-wrapper "+agent, name)
 	if agent == "opencode" {
-		examples = "OpenCode 2 (Linux):\n  nono-wrapper opencode\n  NONO_PROFILE=opencode-offline nono-wrapper opencode session list\n\nThe installed CLI's --version is checked inside the sandbox before the requested command. Only major 2 is accepted; other or unrecognized versions are refused with an instruction to use OpenCode 2.\n\nThe wrapper adds --standalone and nono --isolate net,loopback. OpenCode owns the private server and stops it with the client. User/network namespaces must be permitted; doctor checks startup. No automatic fallback opens host ports. WSL2 support needs native validation.\n\nFor login, host requirements and macOS limits, see docs/opencode-2-evaluation.md."
+		examples = "OpenCode 2 (Linux):\n  nono-wrapper opencode\n  NONO_PROFILE=opencode-offline nono-wrapper opencode session list\n\nThe installed CLI's --version is checked inside the sandbox before the requested command. Only major 2 is accepted; other or unrecognized versions are refused with an instruction to use OpenCode 2.\n\nThe wrapper adds --standalone and nono --isolate net,loopback. OpenCode owns the private server and stops it with the client. User/network namespaces must be permitted; doctor checks startup. No automatic fallback opens host ports. WSL2 support needs native validation.\n\nFor login, host requirements and macOS limits, see " + openCodeDoc + "."
 	}
 	return &cli.Command{
 		Name: agent, Usage: "Run " + name + " under nono", ArgsUsage: "[agent arguments...]",
-		Description: "All arguments, including --help, go to " + name + "; this text is 'nono-wrapper help " + agent + "'. The profile is NONO_PROFILE or " + agent + "-chatgpt, plus the optional " + agent + "-user.jsonc in your nono profiles directory. A session report follows on stderr after exit. To list project files the session changed, create a marker file before you start; see 'nono-wrapper help changes'.\n\n" + examples,
+		Description: "All arguments, including --help, go to " + name + "; this text is 'nono-wrapper help " + agent + "'. The profile is NONO_PROFILE or " + agent + "-chatgpt, plus the optional " + agent + "-user.jsonc in your nono profiles directory (" + profilesDir + "). A session report follows on stderr after exit. To list project files the session changed, create a marker file before you start; see 'nono-wrapper help changes'.\n\n" + examples,
 		// In particular, neither --help nor a positional 'help' belongs to us.
 		SkipFlagParsing: true,
 		HideHelp:        true,

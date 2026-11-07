@@ -42,6 +42,7 @@ if [ "$1" = --version ]; then
   exit 0
 fi
 if [ "$1 $2 $3" = 'profile show --json' ]; then
+  [ "${VERIFY_MODE:-}" != profile-missing ] || { printf 'nono: Profile not found: %s\n' "$4" >&2; exit 1; }
   if [ "${VERIFY_MODE:-}" = network-enabled ]; then
     printf '{"network":{"block":false,"allow_domain":["chatgpt.com"]}}\n'
   else
@@ -84,7 +85,7 @@ func TestDoctorUsesXDGConfigHome(t *testing.T) {
 	stdout, stderr, status := runLauncher(t, f, "doctor", []string{"codex"}, []string{
 		"VERIFY_LOG=" + log, "VERIFY_MODE=config-readable", "XDG_CONFIG_HOME=" + config,
 	})
-	if status != 1 || stderr != "" || !strings.Contains(string(stdout), "  FAIL  your configuration directory cannot be listed") {
+	if status != 1 || stderr != "" || !strings.Contains(string(stdout), "  FAIL  the sandbox hides your configuration directory") {
 		t.Fatalf("readable XDG configuration was missed: status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
 	}
 }
@@ -100,6 +101,24 @@ func TestDoctorRejectsNetworkEnabledOfflineProfile(t *testing.T) {
 	}
 	if _, err := os.Stat(log); !os.IsNotExist(err) {
 		t.Fatalf("probes ran under a network-enabled profile: %v", err)
+	}
+}
+
+// Without installed profiles every sandbox check fails too, and their
+// namespace advice would send a person to AppArmor instead of the install.
+func TestDoctorNamesMissingProfilesAndTheirInstall(t *testing.T) {
+	f, log := newDoctorFixture(t)
+	stdout, _, status := runLauncher(t, f, "doctor", []string{"codex"}, []string{
+		"VERIFY_LOG=" + log, "VERIFY_MODE=profile-missing",
+	})
+	out := string(stdout)
+	if status != 1 || !strings.Contains(out, "profile codex-offline cannot be loaded") ||
+		!strings.Contains(out, "Profile not found") || !strings.Contains(out, "just install-local") ||
+		!strings.Contains(out, "/docs/install.md") || strings.Contains(out, "private loopback") {
+		t.Fatalf("missing profile was not reported as such: status=%d\n%s", status, out)
+	}
+	if _, err := os.Stat(log); !os.IsNotExist(err) {
+		t.Fatalf("probes ran without a loadable profile: %v", err)
 	}
 }
 
@@ -166,7 +185,7 @@ func TestDoctorOutcomesAndCleanup(t *testing.T) {
 				agents = []string{"opencode", "codex"}
 			}
 			for _, agent := range []string{"opencode", "codex"} {
-				named := strings.Contains(string(stdout), "'nono-wrapper "+agent+" ")
+				named := strings.Contains(string(stdout), "'nono-wrapper "+agent)
 				if passed && named != slices.Contains(agents, agent) {
 					t.Fatalf("the next step must name the checked agents only: %s", stdout)
 				}
@@ -226,7 +245,7 @@ func TestDoctorRequiresOnlySelectedAgents(t *testing.T) {
 	}
 }
 
-func TestDoctorRequiresNamespacesOnlyForOpenCode(t *testing.T) {
+func TestDoctorReportsNamespaceFailureForBundledAgents(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("private loopback is Linux-only")
 	}
@@ -235,11 +254,7 @@ func TestDoctorRequiresNamespacesOnlyForOpenCode(t *testing.T) {
 			f, log := newDoctorFixture(t)
 			env := []string{"VERIFY_LOG=" + log, "VERIFY_MODE=namespace-denied"}
 			stdout, stderr, status := runLauncher(t, f, "doctor", []string{agent}, env)
-			if agent == "codex" {
-				if status != 0 || stderr != "" {
-					t.Fatalf("Codex unexpectedly required namespaces: %d %s %s", status, stdout, stderr)
-				}
-			} else if status != 1 || !strings.Contains(string(stdout), "user namespace denied") ||
+			if status != 1 || !strings.Contains(string(stdout), "user namespace denied") ||
 				!strings.Contains(string(stdout), "namespace requirements") ||
 				!strings.Contains(string(stdout), "README.md#ubuntu-apparmor-setup") || strings.Contains(probeOutput(stdout), "  ok    ") {
 				t.Fatalf("unsupported namespace produced successful checks: %d %s %s", status, stdout, stderr)

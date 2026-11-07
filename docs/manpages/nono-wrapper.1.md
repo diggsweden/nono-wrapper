@@ -342,5 +342,5 @@ Check what changed during a session:
 
 nono(1), opencode(1), codex(1)
 
-Documentation: <https://codefloe.com/itiquette/nono-wrapper>  
-Issues: <https://codefloe.com/itiquette/nono-wrapper/issues>
+Documentation: <https://github.com/diggsweden/nono-wrapper>  
+Issues: <https://github.com/diggsweden/nono-wrapper/issues>
