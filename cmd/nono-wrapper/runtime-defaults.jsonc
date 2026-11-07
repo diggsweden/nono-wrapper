@@ -28,17 +28,10 @@
   "applications": [
     {
       "variable": "XDG_DATA_HOME",
-      "description": "Install user manuals and use Whdkit's working data without granting the data parent. Writable application data may influence later host runs.",
+      "description": "Install user manuals without granting the data parent.",
       "default_root": "$HOME/.local/share",
-      "prepare": ["man", "whdkit"],
-      "filesystem": { "allow": ["man", "whdkit"] }
-    },
-    {
-      "variable": "XDG_STATE_HOME",
-      "description": "Whdkit's writable application state; never the shared state parent or other applications' state.",
-      "default_root": "$HOME/.local/state",
-      "prepare": ["whdkit"],
-      "filesystem": { "allow": ["whdkit"] }
+      "prepare": ["man"],
+      "filesystem": { "allow": ["man"] }
     },
     {
       "variable": "XDG_CONFIG_HOME",
@@ -63,10 +56,10 @@
     },
     {
       "variable": "XDG_CACHE_HOME",
-      "description": "Prepare only OpenGrep's cache and checksum-verified VM media. The VM child allows explicit download cleanup, never access to the shared cache parent.",
+      "description": "Prepare only OpenGrep's cache, never access to the shared cache parent.",
       "default_root": "$HOME/.cache",
-      "prepare": ["opengrep", "itiquette-test-vm"],
-      "filesystem": { "allow": ["opengrep", "itiquette-test-vm"] }
+      "prepare": ["opengrep"],
+      "filesystem": { "allow": ["opengrep"] }
     },
     {
       "variable": "MISE_CACHE_DIR",

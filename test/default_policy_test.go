@@ -167,7 +167,7 @@ func TestDevBaseDefaultsKeepCodeReadOnly(t *testing.T) {
 	if !slices.Contains(profile.Filesystem["allow"], "$HOME/.gradle/wrapper/dists") || slices.Contains(profile.Filesystem["allow"], "$HOME/.gradle") || slices.Contains(profile.Filesystem["allow"], "$HOME/.gradle/wrapper") {
 		t.Fatal("Gradle wrapper writes must stay within wrapper/dists")
 	}
-	for _, path := range []string{"$HOME/.local/share/man", "$XDG_DATA_HOME/man", "$HOME/.cache/itiquette-test-vm", "$XDG_CACHE_HOME/itiquette-test-vm"} {
+	for _, path := range []string{"$HOME/.local/share/man", "$XDG_DATA_HOME/man"} {
 		if !slices.Contains(profile.Filesystem["allow"], path) {
 			t.Errorf("missing scoped user-data write: %s", path)
 		}
@@ -232,23 +232,6 @@ func TestDevBaseDefaultsKeepCodeReadOnly(t *testing.T) {
 	}
 	if !slices.Contains(profile.Filesystem["read_file"], "$XDG_CONFIG_HOME/containers/registries.conf") {
 		t.Error("missing exact registry config read")
-	}
-	whdkit := map[string]string{
-		"$HOME/.config/whdkit": "read", "$XDG_CONFIG_HOME/whdkit": "read",
-		"$HOME/.local/share/whdkit": "allow", "$XDG_DATA_HOME/whdkit": "allow",
-		"$HOME/.local/state/whdkit": "allow", "$XDG_STATE_HOME/whdkit": "allow",
-	}
-	for path, field := range whdkit {
-		if !slices.Contains(profile.Filesystem[field], path) {
-			t.Errorf("missing Whdkit %s grant: %s", field, path)
-		}
-	}
-	for field, paths := range profile.Filesystem {
-		for _, path := range paths {
-			if strings.Contains(path, "/whdkit") && whdkit[path] != field {
-				t.Errorf("unexpected Whdkit grant: %s %s", field, path)
-			}
-		}
 	}
 	for _, filesystem := range []map[string][]string{profile.Filesystem, linux} {
 		for field, paths := range filesystem {

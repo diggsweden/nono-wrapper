@@ -433,12 +433,6 @@ func testNativeRuntimeOverrides(t *testing.T, root, project, wrapper, opencodeDa
 		{"codex", filepath.Join(root, "xdg cache/mise"), `"$MISE_CACHE_DIR/runtime-probe"`},
 		{"opencode", filepath.Join(root, "xdg data/man"), `"$XDG_DATA_HOME/man/runtime-probe"`},
 		{"codex", filepath.Join(root, "xdg data/man"), `"$XDG_DATA_HOME/man/runtime-probe"`},
-		{"opencode", filepath.Join(root, "xdg data/whdkit"), `"$XDG_DATA_HOME/whdkit/runtime-probe"`},
-		{"codex", filepath.Join(root, "xdg data/whdkit"), `"$XDG_DATA_HOME/whdkit/runtime-probe"`},
-		{"opencode", filepath.Join(root, "xdg state/whdkit"), `"$XDG_STATE_HOME/whdkit/runtime-probe"`},
-		{"codex", filepath.Join(root, "xdg state/whdkit"), `"$XDG_STATE_HOME/whdkit/runtime-probe"`},
-		{"opencode", filepath.Join(root, "xdg cache/itiquette-test-vm"), `"$XDG_CACHE_HOME/itiquette-test-vm/runtime-probe"`},
-		{"codex", filepath.Join(root, "xdg cache/itiquette-test-vm"), `"$XDG_CACHE_HOME/itiquette-test-vm/runtime-probe"`},
 	} {
 		body := "#!/bin/sh\nif printf probe > " + spec.target + "; then printf 'STATE_WRITABLE\\n'; else printf 'STATE_READ_ONLY\\n'; fi\n"
 		if spec.agent == "opencode" {

@@ -132,11 +132,6 @@ printf 'fixture manual\n' > "$base/man/man1/private-fixture.1"
 cat "$base/man/man1/private-fixture.1" >/dev/null
 rm "$base/man/man1/private-fixture.1"
 if (printf changed > "$base/bash-completion/completions/private-fixture") 2>/dev/null; then exit 95; fi
-base=$XDG_CACHE_HOME
-mkdir -p "$base/itiquette-test-vm/downloads"
-printf fixture > "$base/itiquette-test-vm/downloads/media"
-rm -r "$base/itiquette-test-vm/downloads"
-[ ! -e "$base/itiquette-test-vm/downloads" ]
 if [ -e /etc/dpkg/origins/default ]; then cat /etc/dpkg/origins/default >/dev/null; fi
 if [ -e /etc/dpkg/dpkg.cfg ]; then cat /etc/dpkg/dpkg.cfg >/dev/null; fi
 if [ -d /etc/dpkg/dpkg.cfg.d ]; then ls /etc/dpkg/dpkg.cfg.d >/dev/null; fi

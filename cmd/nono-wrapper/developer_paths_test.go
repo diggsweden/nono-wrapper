@@ -148,7 +148,7 @@ func TestPrepareRuntimeFilePreservesContentAndRejectsAliases(t *testing.T) {
 }
 
 func TestUserDataPreparationRejectsProtectedAliases(t *testing.T) {
-	for _, name := range []string{"manuals", "vm media", "whdkit data", "whdkit state"} {
+	for _, name := range []string{"manuals", "opengrep cache"} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
 			t.Setenv("HOME", root)
@@ -156,18 +156,11 @@ func TestUserDataPreparationRejectsProtectedAliases(t *testing.T) {
 			t.Setenv("XDG_DATA_HOME", data)
 			t.Setenv("XDG_CACHE_HOME", cache)
 			t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
-			state := filepath.Join(root, "state")
-			t.Setenv("XDG_STATE_HOME", state)
+			t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
 			target := filepath.Join(root, "protected")
 			alias := filepath.Join(data, "man")
-			if name == "vm media" {
-				alias = filepath.Join(cache, "itiquette-test-vm")
-			}
-			if name == "whdkit data" {
-				alias = filepath.Join(data, "whdkit")
-			}
-			if name == "whdkit state" {
-				alias = filepath.Join(state, "whdkit")
+			if name == "opengrep cache" {
+				alias = filepath.Join(cache, "opengrep")
 			}
 			for _, path := range []string{target, filepath.Dir(alias)} {
 				if err := os.MkdirAll(path, 0o700); err != nil {

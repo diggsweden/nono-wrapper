@@ -108,14 +108,8 @@
       "$HOME/.cache/staticcheck", "$XDG_CACHE_HOME/staticcheck",
       "$HOME/.cache/trivy", "$XDG_CACHE_HOME/trivy",
       "$HOME/.cache/opengrep", "$XDG_CACHE_HOME/opengrep",
-      // VM media is checksum-verified before use; grant its dedicated parent
-      // so explicit cleanup can remove downloads itself, not the cache parent.
-      "$HOME/.cache/itiquette-test-vm", "$XDG_CACHE_HOME/itiquette-test-vm",
       // User manuals only; executable and shell-completion trees stay protected.
       "$HOME/.local/share/man", "$XDG_DATA_HOME/man",
-      // Whdkit's working data and state, never the enclosing XDG roots.
-      "$HOME/.local/share/whdkit", "$XDG_DATA_HOME/whdkit",
-      "$HOME/.local/state/whdkit", "$XDG_STATE_HOME/whdkit",
       // Dependency caches contain executable code and can influence host builds.
       // Keep installed tools, credentials and ordinary configuration outside grants.
       "$HOME/go/pkg/mod", "$HOME/.cache/go-build", "$XDG_CACHE_HOME/go-build",
@@ -142,8 +136,6 @@
       "$HOME/.cargo/env.fish", "$HOME/.cargo/.crates.toml", "$HOME/.cargo/.crates2.json"
     ],
     "read": [
-      // Ordinary Whdkit configuration is deliberately shared, not writable.
-      "$HOME/.config/whdkit", "$XDG_CONFIG_HOME/whdkit",
       // Installed defaults and cached configuration; deliberately shared read-only.
       "$HOME/.local/share/nanolinter", "$XDG_DATA_HOME/nanolinter",
       // Files a user's Git configuration commonly includes; the pack grants

@@ -740,14 +740,9 @@ are readable too. Exact ordinary npm, pip, Bundler, Gradle and Cargo config file
 are shared read-only as-is; users are responsible for secrets placed in those
 deliberately shared files. No whole config/data roots, Docker auth store or
 Maven master-password file is added.
-Whdkit configuration is shared read-only at `~/.config/whdkit` and
-`$XDG_CONFIG_HOME/whdkit`, including its `environment` file. Whdkit's dedicated
-data and state directories are writable at `~/.local/share/whdkit`,
-`~/.local/state/whdkit` and their `$XDG_DATA_HOME` / `$XDG_STATE_HOME` equivalents.
-Those writable directories are prepared before launch; their parents remain
-ungranted. Secrets placed in the shared configuration, data or state are visible,
-and writable application data may influence later unsandboxed Whdkit runs.
-Explicit user restrictions still apply. No host-specific path is required.
+Other applications' configuration, data and state are not shared. Grant the
+directories one of your tools needs with `nono-wrapper config AGENT add-dir`,
+read-only unless the agent must write there.
 
 Broad inherited Cargo/uv data reads are excluded. Rust toolchains, Cargo
 bin and uv Python/tools subtrees remain read-only, while
@@ -817,12 +812,6 @@ that deliberately shared data are visible; no writes or data-parent grant is add
 User manuals are writable under `~/.local/share/man` and `$XDG_DATA_HOME/man`.
 The configured tree is prepared automatically; executables and shell completions
 are not included. Manuals are user-controlled content, not trusted system docs.
-
-The dedicated `~/.cache/itiquette-test-vm` / `$XDG_CACHE_HOME/itiquette-test-vm`
-cache is writable. Its parent is granted so an explicit cleanup recipe can remove
-the `downloads` child itself. The general cache directory remains ungranted.
-Cleanup can remove media shared with other checkouts; it never runs automatically.
-The VM runner must verify pinned checksums before using cached images.
 
 Linux reads `/etc/dpkg/origins` for public vendor metadata, including the usual
 `default` symlink to a vendor file, `/etc/dpkg/dpkg.cfg.d` for configuration

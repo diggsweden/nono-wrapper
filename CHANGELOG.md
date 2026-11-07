@@ -17,6 +17,12 @@ profiles.
 
 ## [Unreleased]
 
+### Removed
+
+- Drop the Whdkit configuration, data and state grants and the
+  `itiquette-test-vm` cache from the bundled profile. They served one
+  developer's tools; grant such directories with `config AGENT add-dir`.
+
 ### Fixed
 
 - Say before an online session starts when the agent has no saved sign-in,

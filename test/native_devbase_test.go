@@ -28,10 +28,6 @@ func testNativeDevBaseDefaults(t *testing.T, root, project, wrapper string, env 
 		filepath.Join(config, "pip/pip.conf"):                                    "[global]\ndisable-pip-version-check = true\n",
 		filepath.Join(config, "containers/registries.conf"):                      "unqualified-search-registries = ['docker.io']\n",
 		filepath.Join(config, "containers/auth.json"):                            "{\"auths\":{\"fixture\":\"dummy-token\"}}\n",
-		filepath.Join(config, "whdkit/environment"):                              "WHDKIT_FIXTURE=xdg-config\n",
-		filepath.Join(config, "whdkit/settings"):                                 "fixture-settings\n",
-		filepath.Join(data, "whdkit/marker"):                                     "fixture-data\n",
-		filepath.Join(state, "whdkit/marker"):                                    "fixture-state\n",
 		filepath.Join(state, "unrelated/private-state"):                          "dummy-unrelated-state\n",
 		filepath.Join(data, "nanolinter/linter-defaults/rumdl.toml"):             "fixture-rumdl\n",
 		filepath.Join(data, "nanolinter/linter-defaults/shellcheckrc"):           "fixture-shellcheck\n",
@@ -99,14 +95,7 @@ set -eu
 grep -q 'fixture=ordinary-config' "$HOME/.gradle/gradle.properties"
 cat "$XDG_CONFIG_HOME/pip/pip.conf" "$HOME/.bundle/config" >/dev/null
 grep -q docker.io "$XDG_CONFIG_HOME/containers/registries.conf"
-grep -q '^WHDKIT_FIXTURE=xdg-config$' "$XDG_CONFIG_HOME/whdkit/environment"
-if (printf changed > "$XDG_CONFIG_HOME/whdkit/environment") 2>/dev/null; then exit 93; fi
-cat "$XDG_CONFIG_HOME/whdkit/settings" >/dev/null
-if (printf changed > "$XDG_CONFIG_HOME/whdkit/settings") 2>/dev/null; then exit 93; fi
 for base in "$XDG_DATA_HOME" "$XDG_STATE_HOME"; do
-  cat "$base/whdkit/marker" >/dev/null
-  printf fixture > "$base/whdkit/write-probe"
-  rm "$base/whdkit/write-probe"
   if cat "$base/unrelated/private-state" >/dev/null 2>&1; then exit 94; fi
 done
 if cat "$XDG_CONFIG_HOME/containers/auth.json" >/dev/null 2>&1; then exit 94; fi
