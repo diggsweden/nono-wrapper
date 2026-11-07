@@ -41,9 +41,24 @@ policies.
 
 The online profiles also inherit `profiles/developer-network.jsonc`, the
 single source of shared defaults: GitHub, GitLab, Codefloe, Codeberg,
-English/Swedish Wikipedia, Stack Overflow, OpenAI API/file delivery and
-vulnerability-data services. The file lists exact hosts and explains their
-purpose. It grants no raw TCP ports, credentials, container sockets or
+English/Swedish Wikipedia, Stack Overflow, OpenAI API/file delivery,
+vulnerability-data services, Go module/checksum services and reviewed documentation,
+licensing, contributor/asset attribution and badge sites. The exact public
+OSS-Fuzz build-log bucket is included, not all Google Storage subdomains.
+Tool endpoints include `mise-versions.jdx.dev`, `pypi.org`, `nodejs.org` and
+`semgrep.dev`. Package/compiler/reference hosts include `registry.npmjs.org`,
+`index.crates.io`, `ziglang.org` and `semver.org`. Container registry hosts include
+`registry-1.docker.io`, `registry.fedoraproject.org`, `registry.opensuse.org` and
+`gcr.io`; authentication and redirect hosts need their own allowances.
+Payload downloads include `static.rust-lang.org`, `static.crates.io` and
+`files.pythonhosted.org`; `tuf-repo-cdn.sigstore.dev` serves signed trust-root
+metadata. These network allowances do not permit writes to tool installations.
+The exact approved Zig community mirrors and `unofficial-builds.nodejs.org`
+are also included, along with `npm.jsr.io`, `endevco.github.io`, `mise.jdx.dev`,
+`just.systems` and `api.reuse.software`. Mirror access does not establish trust
+in downloaded artifacts; installers must still verify checksums/signatures.
+The file lists exact hosts and explains their purpose. It grants
+no raw TCP ports, credentials, container sockets or
 scanner installation/cache permissions. Offline profiles do not inherit it.
 
 Agent-specific login rules remain in `profiles/opencode-chatgpt.jsonc` and
@@ -52,7 +67,9 @@ and refuse other HTTPS methods or paths:
 
 | Host | Allowed HTTPS requests |
 | --- | --- |
-| `chatgpt.com` (OpenCode) | `POST /backend-api/codex/responses` |
+| `opencode.ai` (OpenCode) | whole host |
+| `chatgpt.com` (OpenCode) | whole host |
+| `models.opencode.ai` (OpenCode) | `GET /api.json`, `GET /experimental/v2.0/api.json` |
 | `chatgpt.com` (Codex) | whole host |
 | `auth.openai.com` (OpenCode 2) | `POST /api/accounts/oauth/token`, `GET /.well-known/jwks.json` |
 | `auth.openai.com` (Codex) | `POST /oauth/token`, `POST /api/accounts/deviceauth/usercode`, `POST /api/accounts/deviceauth/token`, `POST /oauth/revoke` |
@@ -64,14 +81,14 @@ and refuse other HTTPS methods or paths:
 }
 ```
 
-Codex keeps the whole `chatgpt.com` host because it streams responses over a
-WebSocket, and nono refuses WebSocket upgrades on hosts with endpoint
+Both agents keep the whole `chatgpt.com` host to support response streaming over
+WebSockets, because nono refuses WebSocket upgrades on hosts with endpoint
 rules. The paths come from the pinned agent executables; review them when
 upgrading either CLI. An agent request that nono refuses receives a 403 with
 the body `{"error":"Forbidden"}`.
 
 OpenCode 2.2.5's token-sharing flow uses `api.openai.com` for model traffic.
-The existing narrow `chatgpt.com` route remains in the profile. Only OpenCode
+The `chatgpt.com` host also remains available for ChatGPT model traffic. Only OpenCode
 2 is supported; its policy does not include legacy Codex login endpoints.
 See [OpenCode versions and server setup](opencode-2-evaluation.md).
 
@@ -92,8 +109,9 @@ installed copies in `~/.config/nono/profiles/`
 
 The host lists constrain connections from the sandbox. Upstream host
 integrations, such as delegated URL opening, retain their own upstream
-policies. Language-package registries and remote MCP destinations are not
-added automatically. Add other forges using `config AGENT allow-domain HOST`.
+policies. Apart from the explicitly listed tool and language hosts, package
+registries and remote MCP destinations are not added automatically. Add other
+forges using `config AGENT allow-domain HOST`.
 Whole-host proxy grants can carry HTTPS and SSH through CONNECT; they are not
 HTTPS-only or repository-specific. See [Git over SSH](#git-over-ssh).
 
@@ -805,6 +823,11 @@ Linux reads `/etc/dpkg/origins` for public vendor metadata, including the usual
 `default` symlink to a vendor file, `/etc/dpkg/dpkg.cfg.d` for configuration
 snippets and the exact `/etc/dpkg/dpkg.cfg` file, all read even by version
 comparisons. Neither all of `/etc/dpkg` nor writes to system metadata are granted.
+
+On Linux, `/dev/shm` is read/write for POSIX shared memory and multiprocessing
+semaphores (including REUSE's worker setup). This shares the host IPC area, not
+an isolated namespace: accessible same-user shared-memory objects may be read or
+modified. The grant does not extend to the rest of `/dev` or enable IPC sockets.
 
 Python multiprocessing managers also bind pathname Unix sockets. Linux defaults
 permit connect/bind only beneath `~/.cache/opencode/tmp` and

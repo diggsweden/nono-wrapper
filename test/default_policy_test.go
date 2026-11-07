@@ -80,6 +80,41 @@ func TestJustRuntimeGrantIsLinuxOnly(t *testing.T) {
 	}
 }
 
+func TestOpenCodeModelCatalogEndpoints(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join(testRepository(t), "profiles", "opencode-chatgpt.jsonc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err = hujson.Standardize(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var profile struct {
+		Network struct {
+			AllowDomain []json.RawMessage `json:"allow_domain"`
+		} `json:"network"`
+	}
+	if err := json.Unmarshal(data, &profile); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, entry := range profile.Network.AllowDomain {
+		var host struct {
+			Domain    string                          `json:"domain"`
+			Endpoints []struct{ Method, Path string } `json:"endpoints"`
+		}
+		if json.Unmarshal(entry, &host) != nil || host.Domain != "models.opencode.ai" {
+			continue
+		}
+		for _, endpoint := range host.Endpoints {
+			got = append(got, endpoint.Method+" "+endpoint.Path)
+		}
+	}
+	if !slices.Equal(got, []string{"GET /api.json", "GET /experimental/v2.0/api.json"}) {
+		t.Fatalf("model catalog grants must cover both versions, not the whole host: %v", got)
+	}
+}
+
 func TestDevBaseDefaultsKeepCodeReadOnly(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(testRepository(t), "profiles/agent-policy.jsonc"))
 	if err != nil {

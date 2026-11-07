@@ -10,17 +10,19 @@
 // over HTTPS. Plain HTTP to a listed host is not covered by them.
 {
   "extends": ["opencode-base", "developer-network"],
-  "meta": { "name": "opencode-chatgpt", "version": "0.4.0", "description": "OpenCode 2 ChatGPT login with developer network defaults" },
+  "meta": { "name": "opencode-chatgpt", "version": "0.5.0", "description": "OpenCode 2 ChatGPT login with developer network defaults" },
   "network": {
     "allow_domain": [
+      "opencode.ai",
       {
         "domain": "models.opencode.ai",
-        "endpoints": [{ "method": "GET", "path": "/api.json" }]
+        "endpoints": [
+          { "method": "GET", "path": "/api.json" },
+          { "method": "GET", "path": "/experimental/v2.0/api.json" }
+        ]
       },
-      {
-        "domain": "chatgpt.com",
-        "endpoints": [{ "method": "POST", "path": "/backend-api/codex/responses" }]
-      },
+      // Whole host: nono refuses WebSocket upgrades on hosts with endpoint rules.
+      "chatgpt.com",
       {
         // OpenCode 2.2.5 token sharing and ID-token verification.
         "domain": "auth.openai.com",
