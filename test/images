@@ -17,6 +17,6 @@ fedora-44=registry.fedoraproject.org/fedora:44@sha256:94e175d9796d3582d4d3cdcff1
 # renovate: datasource=docker depName=registry.opensuse.org/opensuse/leap
 opensuse-leap-16=registry.opensuse.org/opensuse/leap:16.0@sha256:5bc9e1242fc2c92dbbcaf4db5e2eadad062c4c0434550c53822201f18799d55a
 # renovate: datasource=docker depName=registry.opensuse.org/opensuse/tumbleweed
-opensuse-tumbleweed=registry.opensuse.org/opensuse/tumbleweed:20260923@sha256:5cf76e9d0151ac988135992927da162777a7b51dca0d3f2134eed78204079cc8
+opensuse-tumbleweed=registry.opensuse.org/opensuse/tumbleweed:20261103@sha256:bb5614ceec98b03658da2485da272c468661bd273e80c02bafcbefc3c661a84f
 # renovate: datasource=docker depName=docker.io/library/archlinux
 arch=docker.io/library/archlinux:base-20260920.0.596911@sha256:f3691b4dde62ba4c4b6f0ae2c1fbf28e8c0c8c4b9a35c7e06dc1f70e21aa29f6

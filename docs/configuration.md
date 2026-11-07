@@ -546,6 +546,10 @@ Codex session, without creating or changing a profile:
 nono-wrapper run --block-net --isolate net,loopback codex -- features list
 ```
 
+This retains native host-support and conflicting-grant checks. An online Codex
+profile's browser callback ports conflict with isolation; the online preparation
+described below remains necessary. No host-network fallback is added.
+
 Start with an offline experiment. Save this as
 `~/.config/nono/profiles/codex-loopback.jsonc` (under `XDG_CONFIG_HOME` if set):
 
@@ -841,7 +845,11 @@ aliases into protected launch inputs are refused.
 An empty/unset `TMPDIR` defaults to the XDG private temp root. Explicit `TMPDIR`
 values are preserved but do not automatically receive socket capabilities: use
 an approved root for multiprocessing, or explicitly configure a narrow native
-socket rule for another location. Exact read-only user overrides remove the
+socket rule for another location. Nor do they gain file access: Codex can
+write only system temporary locations, so with `TMPDIR` elsewhere, compilers
+and Git fail to create temporary files in Codex sessions. Unset it for the
+session, or grant that directory with `nono-wrapper config codex allow DIR`.
+Exact read-only user overrides remove the
 corresponding bind capability as well as its implied filesystem writes. These
 are shared same-user directories, not separate IPC namespaces; avoid placing
 unrelated sensitive services in them.

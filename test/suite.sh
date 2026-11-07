@@ -46,10 +46,10 @@ real_opencode=$(command -v opencode)
 
 project=$work/project
 mkdir -p "$TMPDIR" "$work/bin" "$home/extra" "$home/user-writable" "$home/fs-parent/child" "$project/.git" \
-  "$home/.ssh" "$home/.cargo" \
+  "$home/.ssh" "$home/.cargo/bin" \
   "$XDG_CONFIG_HOME/nono/profiles" "$XDG_CONFIG_HOME/nono/profile-drafts" "$XDG_CONFIG_HOME/opencode" "$XDG_DATA_HOME/opencode" \
   "$XDG_STATE_HOME/opencode" "$XDG_CACHE_HOME/opencode" "$CODEX_HOME"
-echo tool >"$home/.cargo/marker"
+echo tool >"$home/.cargo/bin/marker"
 echo secret >"$home/.ssh/key"
 echo private >"$home/private"
 echo extra >"$home/extra/marker"
@@ -165,7 +165,7 @@ fi
 if cat "$HOME/private" >/dev/null 2>&1; then echo READ-ESCAPED; fi
 if touch "$HOME/escaped" 2>/dev/null; then echo WRITE-ESCAPED; fi
 if curl -s -m 5 -o /dev/null https://example.com; then echo NET-ESCAPED; fi
-if cat "$HOME/.cargo/marker" >/dev/null 2>&1; then echo TOOLCHAIN-READ; fi
+if cat "$HOME/.cargo/bin/marker" >/dev/null 2>&1; then echo TOOLCHAIN-READ; fi
 if cat "$HOME/.gitconfig" >/dev/null 2>&1; then echo GIT-READ; fi
 if cat "$HOME/extra/marker" >/dev/null 2>&1; then echo EXTRA-READ; fi
 if (printf 'updated\n' >"$HOME/extra/written") 2>/dev/null; then echo EXTRA-WRITE; fi
@@ -237,8 +237,8 @@ for agent in opencode codex; do
   offline=$agent-offline
   official=$agent
   expect FAILS "the SSH credential fixture cannot be read" in_nono "$offline" 'cat "$HOME/.ssh/key"'
-  expect WORKS "the official runtime grants are inherited" in_nono "$offline" 'cat "$HOME/.cargo/marker"'
-  expect FAILS "the inherited Rust runtime grant is read-only" in_nono "$offline" 'touch "$HOME/.cargo/written"'
+  expect WORKS "installed Cargo tools are readable" in_nono "$offline" 'cat "$HOME/.cargo/bin/marker"'
+  expect FAILS "installed Cargo tools stay read-only" in_nono "$offline" 'touch "$HOME/.cargo/bin/written"'
   expect WORKS "the official Git configuration grant is inherited" in_nono "$offline" 'cat "$HOME/.gitconfig"'
   expect WORKS "nono filters the environment even without the launcher" env SUITE_SECRET=leak \
     nono run --silent --profile "$agent-offline" --allow-cwd -- /bin/sh -c 'test -z "${SUITE_SECRET:-}"'
@@ -319,7 +319,7 @@ for agent in opencode codex; do
   status=0
   out=$(SUITE_SECRET=leak nono-wrapper "$agent" 2>&1) || status=$?
   expect WORKS "the user host override starts successfully" test "$status" -eq 0
-  expect WORKS "the user host rule replaces the bundled endpoint rule" said USER-HOST-OVERRIDE
+  expect WORKS "the user host rule retains whole-host access" said USER-HOST-OVERRIDE
   expect WORKS "other bundled endpoint rules are preserved" said AUTH-RULE-KEPT
   expect WORKS "host overrides preserve environment filtering" said 'secret=absent'
   expect WORKS "the generated policy write probes actually ran" said GENERATED-RULE-CHECKED
@@ -525,9 +525,10 @@ if [ "${AGENT_TEST_NETWORK:-}" = 1 ]; then
     esac
   done <<'REQUESTS'
 opencode-chatgpt WORKS POST https://chatgpt.com/backend-api/codex/responses
-opencode-chatgpt FAILS GET https://chatgpt.com/
-opencode-chatgpt FAILS GET https://chatgpt.com/backend-api/codex/responses
-opencode-chatgpt FAILS POST https://chatgpt.com/backend-api/files
+opencode-chatgpt WORKS GET https://chatgpt.com/
+opencode-chatgpt WORKS GET https://chatgpt.com/backend-api/codex/responses
+opencode-chatgpt WORKS POST https://chatgpt.com/backend-api/files
+opencode-chatgpt WORKS GET https://opencode.ai/
 opencode-chatgpt FAILS GET https://auth.openai.com/oauth/authorize
 opencode-chatgpt WORKS GET https://models.opencode.ai/api.json
 codex-chatgpt WORKS GET https://chatgpt.com/

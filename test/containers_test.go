@@ -26,6 +26,9 @@ func TestContainerRunnerNeverPrepares(t *testing.T) {
 		{"missing image network enabled", "missing", "1", 1},
 		{"stale image offline", "stale", "0", 1},
 		{"stale image network enabled", "stale", "1", 1},
+		{"foreign image", "foreign-image", "0", 1},
+		{"foreign engine", "foreign-engine", "0", 1},
+		{"rootful engine", "rootful", "0", 1},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			f := newTaskFixture(t)
@@ -35,6 +38,11 @@ func TestContainerRunnerNeverPrepares(t *testing.T) {
 				t.Fatal(err)
 			}
 			writeLauncherFixture(t, filepath.Join(f.root, "test/require-linux.sh"), string(guard))
+			podmanGuard, err := os.ReadFile(filepath.Join(testRepository(t), "test/require-podman.sh"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeLauncherFixture(t, filepath.Join(f.root, "test/require-podman.sh"), string(podmanGuard))
 			content, err := os.ReadFile(filepath.Join(testRepository(t), "test/containers.sh"))
 			if err != nil {
 				t.Fatal(err)
@@ -52,9 +60,24 @@ func TestContainerRunnerNeverPrepares(t *testing.T) {
 				}
 			}
 			writeLauncherFixture(t, filepath.Join(f.tools, "podman"), `#!/bin/sh
+[ "$1" = --remote=false ] || exit 99
+shift
 printf '%s\n' "$*" >> "$TASK_PODMAN_LOG"
 case "$1" in
-image) [ "$RUNNER_MODE" != missing ] ;;
+info)
+  case "$RUNNER_MODE" in
+    foreign-engine) printf 'linux/arm64 true\n' ;;
+    rootful) printf 'linux/amd64 false\n' ;;
+    *) printf 'linux/amd64 true\n' ;;
+  esac
+  ;;
+image)
+  if [ "$2" = inspect ]; then
+    if [ "$RUNNER_MODE" = foreign-image ]; then printf 'linux/arm64\n'; else printf 'linux/amd64\n'; fi
+  else
+    [ "$RUNNER_MODE" != missing ]
+  fi
+  ;;
 run)
   record=
   for arg do
@@ -98,7 +121,11 @@ esac
 			if err != nil {
 				t.Fatal(err)
 			}
-			if test.mode == "missing" {
+			if test.mode == "foreign-image" || test.mode == "foreign-engine" || test.mode == "rootful" {
+				if strings.Contains(string(log), "run ") || !strings.Contains(string(output), "linux/amd64") {
+					t.Fatalf("invalid engine/image was run or lacked a diagnostic: log=%s, output=%s", log, output)
+				}
+			} else if test.mode == "missing" {
 				if strings.Contains(string(log), "run ") || !strings.Contains(string(output), "just test-prepare") {
 					t.Fatalf("missing image was run or had no preparation hint: log=%s, output=%s", log, output)
 				}
@@ -120,7 +147,7 @@ func TestContainerRunnerStopsOnInterrupt(t *testing.T) {
 		t.Run(test.signal.String(), func(t *testing.T) {
 			f := newTaskFixture(t)
 			fakeLinuxController(t, f)
-			for _, name := range []string{"containers.sh", "require-linux.sh"} {
+			for _, name := range []string{"containers.sh", "require-linux.sh", "require-podman.sh"} {
 				data, err := os.ReadFile(filepath.Join(testRepository(t), "test", name))
 				if err != nil {
 					t.Fatal(err)
@@ -139,6 +166,8 @@ func TestContainerRunnerStopsOnInterrupt(t *testing.T) {
 			}
 			// The stand-in container runs until its "container" is removed.
 			writeLauncherFixture(t, filepath.Join(f.tools, "podman"), `#!/bin/sh
+[ "$1" = --remote=false ] || exit 99
+shift
 printf '%s\n' "$*" >> "$TASK_PODMAN_LOG"
 record=
 previous=
@@ -147,7 +176,8 @@ for arg do
   previous=$arg
 done
 case "$1" in
-image) exit 0 ;;
+info) printf 'linux/amd64 true\n' ;;
+image) if [ "$2" = inspect ]; then printf 'linux/amd64\n'; fi ;;
 run) printf '%s\n' "$$" > "$record"; exec sleep 60 ;;
 rm) kill "$(cat "$record")" ;;
 *) exit 99 ;;

@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -33,13 +34,21 @@ func TestNativeIntegration(t *testing.T) {
 		}
 	}
 
-	// macOS grants system access under /private/var, which cannot also contain
-	// protected nono state. Keep the isolated home on the user's filesystem.
-	hostHome, err := os.UserHomeDir()
+	// System temporary locations have broad inherited reads that conflict with
+	// protected state or mask missing grants. Use the ignored checkout cache,
+	// outside the sandbox workspace, without granting the cache or scratch root.
+	cache := filepath.Join(testRepository(t), ".cache")
+	if err := os.MkdirAll(cache, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cache, err := filepath.EvalSymlinks(cache)
 	if err != nil {
 		t.Fatal(err)
 	}
-	root, err := os.MkdirTemp(hostHome, ".nono-wrapper-test-")
+	if err := checkNativeSmokeCache(cache, runtime.GOOS); err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.MkdirTemp(cache, "native-smoke-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,9 +68,10 @@ func TestNativeIntegration(t *testing.T) {
 	configHome, dataHome := filepath.Join(root, "xdg config"), filepath.Join(root, "xdg data")
 	stateHome, cacheHome := filepath.Join(root, "xdg state"), filepath.Join(root, "xdg cache")
 	codexHome := filepath.Join(root, "custom codex")
-	// The official macOS Codex profile grants OS temporary locations, not
-	// arbitrary directories chosen as TMPDIR. Keep temporary files there.
-	temp := canonicalTempDir(t)
+	// The official Codex profiles grant OS temporary locations, not arbitrary
+	// directories chosen as TMPDIR. Keep temporary files there, whatever
+	// TMPDIR this test process inherited.
+	temp := osTempDir(t)
 	for _, path := range []string{home, project} {
 		if err := os.MkdirAll(path, 0o700); err != nil {
 			t.Fatal(err)
@@ -187,6 +197,44 @@ func TestNativeIntegration(t *testing.T) {
 		}
 	}
 	run(project, nil, wrapper, "doctor")
+	t.Run("OpenCode model catalog", func(t *testing.T) {
+		for _, spec := range []struct{ path, status string }{
+			{"/api.json", "allowed"},
+			{"/experimental/v2.0/api.json?type=chat,decision,image", "allowed"},
+			{"/unrelated", "denied"},
+		} {
+			cmd := exec.CommandContext(t.Context(), "nono", "why", "--profile", "opencode-chatgpt", "--host", "https://models.opencode.ai"+spec.path, "--json")
+			cmd.Dir, cmd.Env, cmd.WaitDelay = project, env, time.Second
+			data, err := cmd.Output()
+			if err != nil {
+				t.Fatalf("catalog policy query: %v\n%s", err, data)
+			}
+			output := string(data)
+			var result struct{ Status string }
+			if err := json.Unmarshal([]byte(output), &result); err != nil || result.Status != spec.status {
+				t.Fatalf("catalog %s: want %s, got %s (%v)", spec.path, spec.status, output, err)
+			}
+		}
+	})
+	// Resolve reference-host policy without contacting any destination.
+	t.Run("developer reference hosts", func(t *testing.T) {
+		for _, agent := range []string{"opencode", "codex"} {
+			for _, spec := range []struct{ suffix, status string }{{"-chatgpt", "allowed"}, {"-offline", "denied"}} {
+				for _, host := range requiredDeveloperReferenceHosts {
+					cmd := exec.CommandContext(t.Context(), "nono", "why", "--profile", agent+spec.suffix, "--host", host, "--json")
+					cmd.Dir, cmd.Env, cmd.WaitDelay = project, env, time.Second
+					data, err := cmd.Output()
+					if err != nil {
+						t.Fatalf("reference-host policy query: %v\n%s", err, data)
+					}
+					var result struct{ Status string }
+					if err := json.Unmarshal(data, &result); err != nil || result.Status != spec.status {
+						t.Fatalf("%s%s host %s: want %s, got %s (%v)", agent, spec.suffix, host, spec.status, data, err)
+					}
+				}
+			}
+		}
+	})
 	// Validate saved rules with real nono, without contacting any destination.
 	// Keep a baseline domain so removing a test rule never means open networking.
 	for _, agent := range []string{"opencode", "codex"} {
@@ -222,6 +270,36 @@ func TestNativeIntegration(t *testing.T) {
 	t.Run("TCP grants are not loopback-only", func(t *testing.T) {
 		testNativeTCPGrant(t, project, wrapper, env)
 	})
+	t.Run("Just script recipes", func(t *testing.T) {
+		testNativeJustRecipes(t, root, project, wrapper, env)
+	})
+	t.Run("rootless Podman socket", func(t *testing.T) {
+		testNativePodman(t, root, project, wrapper, env)
+	})
+	t.Run("DevBase developer defaults", func(t *testing.T) {
+		testNativeDevBaseDefaults(t, root, project, wrapper, env)
+	})
+	t.Run("Mise trust records stay read-only", func(t *testing.T) {
+		testNativeMiseTrust(t, root, project, wrapper, env)
+	})
+	t.Run("Go caches stay scoped", func(t *testing.T) {
+		testNativeGoCaches(t, root, project, wrapper, env)
+	})
+	t.Run("Cargo dependency build", func(t *testing.T) {
+		testNativeCargo(t, root, project, wrapper, env)
+	})
+	t.Run("Tool caches stay scoped", func(t *testing.T) {
+		testNativeToolCaches(t, root, project, wrapper, env)
+	})
+	t.Run("Public keys permit agent-backed Git signing", func(t *testing.T) {
+		testNativePublicKeySigning(t, root, project, wrapper, env)
+	})
+	t.Run("Python and Gradle fixtures", func(t *testing.T) {
+		testNativePythonAndGradle(t, root, project, wrapper, env)
+	})
+	t.Run("private multiprocessing sockets", func(t *testing.T) {
+		testNativeTemporarySockets(t, root, project, wrapper, env)
+	})
 	if !t.Run("runtime state respects explicit read-only overrides", func(t *testing.T) {
 		testNativeRuntimeOverrides(t, root, project, wrapper, filepath.Join(dataHome, "opencode"), codexHome, env)
 	}) {
@@ -248,6 +326,79 @@ func TestNativeIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log("passed: real Codex command execution and confinement")
+}
+
+// osTempDir makes a session temporary directory in the system location the
+// agent profiles grant: /tmp on Linux, where a caller's TMPDIR may point to
+// any directory, and the per-user temporary directory on macOS.
+func osTempDir(t *testing.T) string {
+	t.Helper()
+	base := "/tmp"
+	if runtime.GOOS == "darwin" {
+		base = os.TempDir()
+	}
+	temp, err := os.MkdirTemp(base, "nono-native-tmp-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(temp) })
+	temp, err = filepath.EvalSymlinks(temp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return temp
+}
+
+// cache must be canonical so a checkout or .cache symlink cannot hide a
+// broadly granted temporary parent. Do this before installing test tools.
+func checkNativeSmokeCache(cache, platform string) error {
+	parents := []string{"/tmp"}
+	if platform == "darwin" {
+		parents = append(parents, "/private/tmp", "/private/var", "/var")
+	}
+	for _, parent := range parents {
+		if cache == parent || strings.HasPrefix(cache, parent+string(filepath.Separator)) {
+			return fmt.Errorf("native smoke cache %q is under broadly granted temporary path %q; move the checkout and its .cache outside system temporary locations before running test-native", cache, parent)
+		}
+	}
+	return nil
+}
+
+func TestNativeSmokeCacheLocation(t *testing.T) {
+	for _, test := range []struct {
+		path, platform string
+		reject         bool
+	}{
+		{"/home/developer/project/.cache", "linux", false},
+		{"/tmp-adjacent/project/.cache", "linux", false},
+		{"/tmp", "linux", true},
+		{"/tmp/project/.cache", "linux", true},
+		{"/Users/developer/project/.cache", "darwin", false},
+		{"/private/tmp/project/.cache", "darwin", true},
+		{"/private/var/folders/project/.cache", "darwin", true},
+		{"/var/project/.cache", "darwin", true},
+	} {
+		t.Run(test.platform+test.path, func(t *testing.T) {
+			err := checkNativeSmokeCache(test.path, test.platform)
+			if (err != nil) != test.reject {
+				t.Fatalf("cache location: %v, want rejection=%t", err, test.reject)
+			}
+		})
+	}
+	t.Run("symlink to temporary storage", func(t *testing.T) {
+		root := t.TempDir()
+		link := filepath.Join(root, "cache-link")
+		if err := os.Symlink("/tmp", link); err != nil {
+			t.Fatal(err)
+		}
+		cache, err := filepath.EvalSymlinks(link)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := checkNativeSmokeCache(cache, runtime.GOOS); err == nil {
+			t.Fatal("accepted cache symlink into temporary storage")
+		}
+	})
 }
 
 func testNativeRuntimeOverrides(t *testing.T, root, project, wrapper, opencodeData, codexHome string, env []string) {
@@ -278,6 +429,16 @@ func testNativeRuntimeOverrides(t *testing.T, root, project, wrapper, opencodeDa
 	for _, spec := range []struct{ agent, path, target string }{
 		{"opencode", opencodeData, `"$XDG_DATA_HOME/opencode/runtime-probe"`},
 		{"codex", codexHome, `"$CODEX_HOME/runtime-probe"`},
+		{"opencode", filepath.Join(root, "xdg cache/mise"), `"$MISE_CACHE_DIR/runtime-probe"`},
+		{"codex", filepath.Join(root, "xdg cache/mise"), `"$MISE_CACHE_DIR/runtime-probe"`},
+		{"opencode", filepath.Join(root, "xdg data/man"), `"$XDG_DATA_HOME/man/runtime-probe"`},
+		{"codex", filepath.Join(root, "xdg data/man"), `"$XDG_DATA_HOME/man/runtime-probe"`},
+		{"opencode", filepath.Join(root, "xdg data/whdkit"), `"$XDG_DATA_HOME/whdkit/runtime-probe"`},
+		{"codex", filepath.Join(root, "xdg data/whdkit"), `"$XDG_DATA_HOME/whdkit/runtime-probe"`},
+		{"opencode", filepath.Join(root, "xdg state/whdkit"), `"$XDG_STATE_HOME/whdkit/runtime-probe"`},
+		{"codex", filepath.Join(root, "xdg state/whdkit"), `"$XDG_STATE_HOME/whdkit/runtime-probe"`},
+		{"opencode", filepath.Join(root, "xdg cache/itiquette-test-vm"), `"$XDG_CACHE_HOME/itiquette-test-vm/runtime-probe"`},
+		{"codex", filepath.Join(root, "xdg cache/itiquette-test-vm"), `"$XDG_CACHE_HOME/itiquette-test-vm/runtime-probe"`},
 	} {
 		body := "#!/bin/sh\nif printf probe > " + spec.target + "; then printf 'STATE_WRITABLE\\n'; else printf 'STATE_READ_ONLY\\n'; fi\n"
 		if spec.agent == "opencode" {
@@ -298,6 +459,17 @@ func testNativeRuntimeOverrides(t *testing.T, root, project, wrapper, opencodeDa
 			}
 		}
 	}
+	// OpenCode's upstream cache grant covers this child. Reject an impossible
+	// read-only override rather than claiming that stripping its bind is enough.
+	temp := filepath.Join(root, "xdg cache/opencode/tmp")
+	invoke(nil, "config", "opencode", "add-dir", temp)
+	cmd := exec.CommandContext(t.Context(), wrapper, "opencode")
+	cmd.Dir, cmd.Env, cmd.WaitDelay = project, append(append([]string{}, probeEnv...), "NONO_PROFILE=opencode-offline"), time.Second
+	output, err := cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "cannot enforce read-only user access") {
+		t.Fatalf("overlapping cache permission did not fail closed: %v\n%s", err, output)
+	}
+	invoke(nil, "config", "opencode", "remove-dir", temp)
 }
 
 func testNativeTCPGrant(t *testing.T, project, wrapper string, env []string) {

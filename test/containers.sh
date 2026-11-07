@@ -19,6 +19,8 @@ set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
 # shellcheck source=test/require-linux.sh
 . "$root/test/require-linux.sh"
+# shellcheck source=test/require-podman.sh
+. "$root/test/require-podman.sh"
 failed=""
 
 network=--network=none
@@ -56,7 +58,7 @@ in_image() {
   rm -f -- "$scratch/container"
   # Wait in the shell, not in podman: sh runs a trap only between commands.
   # shellcheck disable=SC2086 # Empty when the network is on.
-  podman run --rm --cidfile "$scratch/container" --pull=never $network --cap-drop=ALL \
+  podman run --rm --platform linux/amd64 --cidfile "$scratch/container" --pull=never $network --cap-drop=ALL \
     --security-opt no-new-privileges --security-opt label=disable \
     --add-host local-service.nono.test:127.0.0.2 \
     --add-host blocked.local-service.nono.test:127.0.0.3 \
@@ -81,6 +83,10 @@ for name in $names; do
     continue
   }
 
+  require_native_image "localhost/nono-wrapper:$name" || {
+    failed="$failed $name"
+    continue
+  }
   in_image "$name" || failed="$failed $name"
 done
 

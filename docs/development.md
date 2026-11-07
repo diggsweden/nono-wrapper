@@ -316,6 +316,13 @@ paths, while write probes verify that read-only user overrides take precedence
 and that removing an override restores the runtime default. This prevents
 inherited home or temporary-directory grants from masking missing permissions.
 
+The disposable fixture lives under the checkout's ignored `.cache`, not the
+real HOME. Before installation, the suite resolves symlinks and rejects cache
+locations under `/tmp` (also `/private/tmp`, `/private/var` and `/var` on macOS).
+Move the checkout and its cache outside those broadly granted system locations;
+the test does not weaken the shipped policy to accommodate them. Native probes
+also require unrelated scratch-root state to remain unreadable and unwritable.
+
 To validate the DevBase integration after selecting its AI pack, keep the
 generated delegates and limit the test's tools to OpenCode, Codex and nono:
 
@@ -505,11 +512,30 @@ using fake curl.
 
 ### Results and limits
 
+The native Go cache fixture uses a local file module proxy, compiles a new
+dependency, repeats the test warm, and checks that installed tools stay
+protected. On Linux it also runs an `httptest` server and refuses a controlled
+host-localhost listener. The Cargo fixture builds a local Git dependency cold
+and warm while refusing a dedicated credential file. Neither needs registry
+credentials or external downloads during execution.
+
+The Gradle fixture normally checks startup with `--version`. To run the actual
+offline task probe, use `NONO_TEST_GRADLE_BUILD=1 just test-native`. This still
+fails with nono 0.81.0's wildcard-IP/FileLockContentionHandler socket limitation,
+even with private loopback and writable caches; it is not a passing build claim.
+
+Container preparation and execution explicitly use the local rootless engine
+and Linux amd64 images, rejecting a foreign architecture before execution.
+Preparation continues other distributions after a failed pull/build and exits
+nonzero with the failed names. Tumbleweed now pins the available 20261103 image;
+registry labels identify the openSUSE build and inspection confirms linux/amd64.
+
 The network-enabled routine suite passed with nono 0.81.0, OpenCode 2.2.5,
 the OpenCode 0.4.2 pack, Codex 0.163.0 and the Codex 0.2.3 pack on Ubuntu
 26.04 and openSUSE Leap 16. openSUSE uses nono's upstream certificate grant;
-the wrapper's duplicate grant has been removed. The remaining four
-release-matrix distributions have not been rerun.
+the wrapper's duplicate grant has been removed. The updated Tumbleweed 20261103
+image also passes the network-enabled suite after the preparation/architecture
+changes. Debian, Fedora and Arch have not been rerun for this change.
 
 OpenCode 2 starts its own standalone server in private loopback, in
 online and offline modes, without host-port grants. Controlled host localhost

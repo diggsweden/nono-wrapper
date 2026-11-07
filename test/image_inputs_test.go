@@ -16,7 +16,7 @@ import (
 
 var imageInputFiles = []string{
 	".mise.toml", "test/Containerfile", "test/install-deps.sh", "test/install-packs.sh",
-	"test/prepare.sh", "test/image-inputs.sh", "test/require-linux.sh",
+	"test/prepare.sh", "test/image-inputs.sh", "test/require-linux.sh", "test/require-podman.sh",
 }
 
 func newImageInputsFixture(t *testing.T) string {

@@ -9,7 +9,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set positional-arguments
 
-scripts := "test/suite.sh test/http-check.sh test/image-inputs.sh test/prepare.sh test/containers.sh test/container-suite.sh test/install-deps.sh test/install-packs.sh test/require-container.sh test/require-linux.sh test/verify-reproducible.sh test/apparmor-setup.sh"
+scripts := "test/suite.sh test/http-check.sh test/image-inputs.sh test/prepare.sh test/containers.sh test/container-suite.sh test/install-deps.sh test/install-packs.sh test/require-container.sh test/require-linux.sh test/require-podman.sh test/verify-reproducible.sh test/apparmor-setup.sh"
 routine := "ubuntu-26.04 opensuse-leap-16"
 image_tag_format := "{{.Repository}}:{{.Tag}}"
 
@@ -68,7 +68,7 @@ verify-reproducible:
     @bash test/verify-reproducible.sh
 
 # Build and install the wrapper, signed official packs and our profiles.
-# INSTALL_DIR / XDG_BIN_HOME follow the sibling projects' bin convention.
+# Binary destination: INSTALL_DIR, then XDG_BIN_HOME, then ~/.local/bin.
 [doc('Install user; network')]
 [group('install')]
 install-local: build generate-manpage

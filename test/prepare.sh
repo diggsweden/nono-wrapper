@@ -35,6 +35,8 @@ for target in "$@"; do
     exit 2
   fi
 done
+# shellcheck source=test/require-podman.sh
+. "$root/test/require-podman.sh"
 cache=$root/.cache/tools
 if [ -L "$root/.cache" ] || [ -L "$cache" ]; then
   echo "prepare: refusing symlinked cache directories" >&2
@@ -109,15 +111,30 @@ grep -v -e '^#' -e '^$' "$root/test/tools" | while read -r name tag sum; do
   install -p -m 0755 "$binary" "$tools/$name"
 done
 
-grep -v -e '^#' -e '^$' "$root/test/images" | while IFS='=' read -r name reference; do
+prepare_image() {
+  distro=$1
+  sh "$root/test/image-inputs.sh" "$distro" >"$tools/image.inputs" || return 1
+  # Use the recorded reference for FROM as well as the later freshness check.
+  IFS= read -r reference <"$tools/image.inputs" || return 1
+  echo "== $distro ($reference)"
+  podman pull --quiet --platform linux/amd64 "$reference" >/dev/null || return 1
+  require_native_image "$reference" || return 1
+  podman build --quiet --platform linux/amd64 --pull=never --build-arg "BASE_IMAGE=$reference" --build-context "tools=$tools" \
+    --tag "localhost/nono-wrapper:$distro" --file "$root/test/Containerfile" "$root/test" >/dev/null || return 1
+  require_native_image "localhost/nono-wrapper:$distro"
+}
+
+failed=""
+while IFS='=' read -r name reference; do
+  case $name in '' | \#*) continue ;; esac
   if [ $# -gt 0 ]; then
     case " $* " in *" $name "*) ;; *) continue ;; esac
   fi
 
-  sh "$root/test/image-inputs.sh" "$name" >"$tools/image.inputs"
-  # Use the recorded reference for FROM as well as the later freshness check.
-  IFS= read -r reference <"$tools/image.inputs"
-  echo "== $name ($reference)"
-  podman build --quiet --build-arg "BASE_IMAGE=$reference" --build-context "tools=$tools" \
-    --tag "localhost/nono-wrapper:$name" --file "$root/test/Containerfile" "$root/test" >/dev/null
-done
+  prepare_image "$name" || failed="$failed $name"
+done <"$root/test/images"
+
+if [ -n "$failed" ]; then
+  echo "Preparation FAILED:$failed" >&2
+  exit 1
+fi

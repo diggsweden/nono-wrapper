@@ -43,7 +43,7 @@ func newPrepareFixture(t *testing.T, archive []byte) taskFixture {
 	t.Helper()
 	f := newTaskFixture(t)
 	fakeLinuxController(t, f)
-	for _, file := range []string{"prepare.sh", "probe.go", "image-inputs.sh", "require-linux.sh", "Containerfile", "install-deps.sh", "install-packs.sh"} {
+	for _, file := range []string{"prepare.sh", "probe.go", "image-inputs.sh", "require-linux.sh", "require-podman.sh", "Containerfile", "install-deps.sh", "install-packs.sh"} {
 		content, err := os.ReadFile(filepath.Join(testRepository(t), "test", file))
 		if err != nil {
 			t.Fatal(err)
@@ -88,6 +88,13 @@ done
 cp "$PREPARE_ARCHIVE" "$output"
 `)
 	writeLauncherFixture(t, filepath.Join(f.tools, "podman"), `#!/bin/sh
+[ "$1" = --remote=false ] || exit 99
+shift
+case "$1" in
+info) printf 'linux/amd64 true\n'; exit 0 ;;
+image) printf 'linux/amd64\n'; exit 0 ;;
+pull) exit 0 ;;
+esac
 [ "$1" = build ] || exit 99
 tools= base=
 while [ "$#" -gt 0 ]; do
@@ -143,11 +150,14 @@ func TestPrepareRecordsImageInputs(t *testing.T) {
 	}
 }
 
-func runPrepare(t *testing.T, f taskFixture) (string, int) {
+func runPrepare(t *testing.T, f taskFixture, targets ...string) (string, int) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, filepath.Join(f.tools, "sh"), filepath.Join(f.root, "test/prepare.sh"), "fixture")
+	if len(targets) == 0 {
+		targets = []string{"fixture"}
+	}
+	cmd := exec.CommandContext(ctx, filepath.Join(f.tools, "sh"), append([]string{filepath.Join(f.root, "test/prepare.sh")}, targets...)...)
 	cmd.Dir = f.home
 	cmd.Env = prepareEnv(f)
 	cmd.WaitDelay = time.Second
@@ -161,6 +171,48 @@ func runPrepare(t *testing.T, f taskFixture) (string, int) {
 		t.Fatalf("preparation left temporary files: %v (%v)", entries, err)
 	}
 	return string(output), cmd.ProcessState.ExitCode()
+}
+
+func TestPrepareContinuesAfterFailedDistribution(t *testing.T) {
+	for _, failure := range []string{"pull", "build", "foreign-base", "foreign-result"} {
+		t.Run(failure, func(t *testing.T) {
+			f := newPrepareFixture(t, toolArchive(t, "trusted executable\n"))
+			writeLauncherFixture(t, filepath.Join(f.root, "test/images"), "broken=invalid.example/broken\narch=invalid.example/arch\n")
+			writeLauncherFixture(t, filepath.Join(f.tools, "podman"), `#!/bin/sh
+[ "$1" = --remote=false ] || exit 99
+shift
+printf '%s\n' "$*" >> "$TASK_PODMAN_LOG"
+case "$1" in
+info) printf 'linux/amd64 true\n' ;;
+pull)
+  case "$*" in *broken*) [ '`+failure+`' != pull ] ;; *) exit 0 ;; esac
+  ;;
+image)
+  case "$*" in
+    *invalid.example/broken) if [ '`+failure+`' = foreign-base ]; then printf 'linux/arm64\n'; exit 0; fi ;;
+    *localhost/nono-wrapper:broken) if [ '`+failure+`' = foreign-result ]; then printf 'linux/arm64\n'; exit 0; fi ;;
+  esac
+  printf 'linux/amd64\n'
+  ;;
+build)
+  case "$*" in *broken*) [ '`+failure+`' != build ] ;; *) exit 0 ;; esac
+  ;;
+*) exit 99 ;;
+esac
+`)
+			output, status := runPrepare(t, f, "all")
+			if status != 1 || !strings.Contains(output, "Preparation FAILED: broken") || !strings.Contains(output, "== arch (") {
+				t.Fatalf("matrix did not continue and report failure: status=%d\n%s", status, output)
+			}
+			log, err := os.ReadFile(f.log)
+			if err != nil || !strings.Contains(string(log), "--tag localhost/nono-wrapper:arch") {
+				t.Fatalf("later distribution was not built: %v\n%s", err, log)
+			}
+			if (failure == "pull" || failure == "foreign-base") && strings.Contains(string(log), "--tag localhost/nono-wrapper:broken") {
+				t.Fatalf("build proceeded with invalid base: %s", log)
+			}
+		})
+	}
 }
 
 func TestPrepareRecipeDefaultTargets(t *testing.T) {

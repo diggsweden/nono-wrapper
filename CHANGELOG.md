@@ -19,6 +19,19 @@ profiles.
 
 ### Fixed
 
+- Permit Go module extraction, Cargo dependency caches and exact lock/database
+  files, and Gradle cache/daemon writes by default, including relocated roots.
+  Keep installed tools, ordinary configuration and dedicated credentials protected.
+- Continue independent container preparation lanes after a failure and report
+  aggregate failure. Require local rootless Linux amd64 engine/image agreement.
+- Replace the unavailable Tumbleweed input with the verified 20261103 digest.
+- Permit Gradle wrapper distribution locks within `wrapper/dists`, including
+  relocated Gradle homes; retain read-only ordinary configuration and document
+  the accepted executable-cache risk.
+- Read Linux dpkg's exact configuration file/snippets and allow exact vulnerability, Gradle
+  distribution and documentation hosts, without broad filesystem or network grants.
+- Keep network I/O failures visible without misleading host-grant suggestions.
+
 ### Added
 
 - Report the wrapper executable/version/hash, nono path, resolved offline-profile
