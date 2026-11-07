@@ -89,7 +89,7 @@ func doctor(ctx context.Context, agents []string, output io.Writer) error {
 			// namespace advice would point the wrong way.
 			failed = true
 			fmt.Fprintf(output, "  FAIL  profile %s cannot be loaded\n%s", profile, diagnostic)
-			fmt.Fprintf(output, "  Install the bundled profiles with 'just install-local' from a nono-wrapper checkout; see %s.\n", installDoc)
+			fmt.Fprintf(output, "  Install the bundled profiles with 'nono-wrapper install-profiles'; see %s.\n", installDoc)
 			continue
 		}
 		fmt.Fprintf(output, "  profile SHA-256: %x (installed, resolved)\n", sha256.Sum256(shown))
@@ -225,6 +225,9 @@ func checkSetup(ctx context.Context, nono string, agents []string, output io.Wri
 			continue
 		}
 		fmt.Fprintf(output, "  ok    %s found at %s\n", agent, resolved.path)
+	}
+	if changed := changedProfiles(); len(changed) > 0 {
+		fmt.Fprintf(output, "  note  installed profiles differ from this nono-wrapper's (%s); run 'nono-wrapper install-profiles'\n", strings.Join(changed, ", "))
 	}
 	root, _, err := projectRoot()
 	if err == nil {

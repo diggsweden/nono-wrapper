@@ -26,7 +26,7 @@ func TestInstallDocsSelectThePinnedNono(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		uses := regexp.MustCompile(`mise use -g nono@([0-9][^\s]*)`).FindAllSubmatch(data, -1)
+		uses := regexp.MustCompile(`mise use -g nono@([0-9][0-9A-Za-z.+-]*[0-9A-Za-z])`).FindAllSubmatch(data, -1)
 		if len(uses) == 0 {
 			t.Fatalf("%s no longer shows 'mise use -g nono@VERSION'", doc)
 		}

@@ -26,6 +26,10 @@ profiles.
 - Doctor names the nono executable a mise shim resolves to, which AppArmor
   rules must match, and says that only offline Codex sessions need private
   loopback. The session-report docs list the routine denials.
+- `install-profiles` ends with the next step, `nono-wrapper doctor`, also
+  for a release binary. The development guide installs `just` before using
+  it, lists the launch, login, install and runtime-defaults files, and
+  describes how to submit a change.
 - Report missing bundled profiles in doctor with the install step, instead of
   failing every sandbox check with namespace advice. Name documents by their
   GitHub URL, not a checkout path, and link OpenCode's sign-in steps instead of
@@ -64,6 +68,9 @@ profiles.
   temporary explicit server with a generated password inside one sandbox
   session, with session-only port grants, replacing the manual two-terminal
   setup and its edits to `opencode-user.jsonc`.
+- `nono-wrapper install-profiles` installs the bundled profiles and pinned
+  packs from the binary, so a release binary needs no checkout.
+  `just install-local` uses it, and doctor notes installed profiles that differ.
 - Report the wrapper executable/version/hash, nono path, resolved offline-profile
   hashes and Podman transport selection in doctor output.
 - Use private loopback automatically for Linux Codex offline sessions. Preserve

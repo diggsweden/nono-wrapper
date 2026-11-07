@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-# Official registry packs shared by local installation and test images.
+# Official registry packs installed by install-profiles and the test images.
 # nono installs the packs and verifies their signatures.
 # Keep these paired with test/tools. Only OpenCode 2 is supported.
 # One `namespace/name version` per line.

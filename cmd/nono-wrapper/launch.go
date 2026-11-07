@@ -110,7 +110,7 @@ func launchWithOptions(ctx context.Context, agent string, args []string, stderr 
 		if chosen && !bundledProfile(profile) {
 			return fmt.Errorf("cannot load selected profile %q.\nCheck NONO_PROFILE and inspect that name or path with 'nono profile show'. If it comes from a pack, check that the pack is installed", profile)
 		}
-		return fmt.Errorf("cannot load profile %q.\nRun 'just install-local' from a nono-wrapper checkout to install the bundled profiles and the pinned nolabs-ai/%s pack.\nSee %s", profile, agent, installDoc)
+		return fmt.Errorf("cannot load profile %q.\nRun 'nono-wrapper install-profiles' to install the bundled profiles and the pinned nolabs-ai/%s pack.\nSee %s", profile, agent, installDoc)
 	}
 	block, err := profileBlocksNetwork(shown, profile)
 	if err != nil {

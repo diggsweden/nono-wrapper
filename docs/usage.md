@@ -122,6 +122,7 @@ shell. Its commands are:
 | `nono-wrapper config opencode\|codex open-port\|remove-open-port PORT` | manage host-independent TCP connect/listen allowances |
 | `nono-wrapper config opencode\|codex add-dir\|remove-dir PATH` | manage user directory allowances, read-only unless `--read-write` |
 | `nono-wrapper config opencode\|codex add-file\|remove-file PATH` | manage user file allowances |
+| `nono-wrapper install-profiles` | install the bundled profiles and pinned official packs; run again after an update |
 | `nono-wrapper doctor [opencode\|codex ...]` | check tools, project root and offline profiles; defaults to both agents |
 | `nono-wrapper changes MARKER [DIRECTORY]` | list selected project files changed since a marker |
 | `nono-wrapper man` | print the manual, as `man nono-wrapper` shows it |

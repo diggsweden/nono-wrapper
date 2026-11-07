@@ -21,7 +21,8 @@ test/              CLI/installation tests, container probes and version pins
 | `.mise.toml` | explicit host sandbox/build-tool versions; host-tool lockfiles are disabled |
 | `justfile` | setup, local installation and test recipes |
 | `go.mod`, `go.sum` | pinned Go dependency versions and checksums |
-| `test/packs` | official pack pins shared by user installation and test images |
+| `profiles/packs` | official pack pins, built into the binary and used by the test images |
+| `profiles/profiles.go` | embeds the bundled profiles and pack pins for `install-profiles` |
 | `profiles/agent-policy.jsonc` | shared environment/socket overrides and certificate compatibility |
 | `profiles/developer-network.jsonc` | shared online forge, reference and vulnerability-data hosts |
 | `profiles/opencode-base.jsonc` | composes the official OpenCode pack with the shared policy |
@@ -29,6 +30,11 @@ test/              CLI/installation tests, container probes and version pins
 | `profiles/*-chatgpt.jsonc`, `profiles/*-offline.jsonc` | make the network choice |
 | `cmd/nono-wrapper/main.go` | urfave/cli v3 command definitions |
 | `cmd/nono-wrapper/launch.go` | profile resolution and nono launch arguments |
+| `cmd/nono-wrapper/run.go` | the `run` command's one-session grants |
+| `cmd/nono-wrapper/login.go` | `login` and the saved sign-in check |
+| `cmd/nono-wrapper/install_profiles.go` | installs the bundled profiles and pinned packs |
+| `cmd/nono-wrapper/startroot.go` | where an agent may start |
+| `cmd/nono-wrapper/runtime-defaults.jsonc` | grants for relocatable tool roots such as `GOPATH` and `XDG_CACHE_HOME`; standard paths stay in `profiles/agent-policy.jsonc` |
 | `cmd/nono-wrapper/config.go` | persistent user allowance commands and atomic JSONC editing |
 | `cmd/nono-wrapper/policy.go` | user precedence over matching bundled profile rules |
 | `cmd/nono-wrapper/filesystem_policy.go` | canonical path matching and effective access-mode checks |
@@ -45,10 +51,13 @@ How the profiles fit together is described in
 
 ## Everyday commands
 
-Install the tools first as described in [Install](install.md). Run
-development commands from the `nono-wrapper` checkout:
+Run development commands from the `nono-wrapper` checkout. `just` itself
+comes from mise, so install it with the other pinned tools first
+([Install](install.md#1-install-the-tools) explains these steps):
 
 ```sh
+mise trust               # after reviewing .mise.toml
+mise install nono go just
 just install-dev-tools   # prepare pinned tools and Go dependencies
 just                     # list available recipes
 just build               # build .cache/bin/nono-wrapper
@@ -73,6 +82,15 @@ installation is not required. From zsh or another shell without mise
 activation, use `mise exec -- just verify`. The macOS sandbox/runtime
 validation limits in
 [What has been validated](policy.md#what-has-been-validated) still apply.
+
+### Submitting a change
+
+Open a pull request against `main`. Keep each commit to one topic, written as
+a [Conventional Commit](https://www.conventionalcommits.org/) such as
+`fix(policy): allow the exact Debian archive host`, and sign it off with
+`git commit -s`. Add a line under `[Unreleased]` in `CHANGELOG.md` for a
+change users notice. Run `just verify` first, and `just test-native` when
+you change profiles or the launcher.
 
 ### Host, artifact and execution platforms
 
@@ -127,7 +145,7 @@ bash test/verify-reproducible.sh --compare /absolute/first/checkout /absolute/se
 Update `.mise.toml` when changing sandbox/build-tool versions.
 DevBase owns host OpenCode and Codex versions. Container-test agent
 archives in `test/tools` are independently pinned for reproducibility.
-Review official pack compatibility in `test/packs` when updating the sandbox
+Review official pack compatibility in `profiles/packs` when updating the sandbox
 runtime. Host-tool lockfiles are currently disabled.
 Commit `go.mod` and `go.sum` together when updating the Go dependencies.
 Upgrade CLI and pack pins together when compatibility changes.
@@ -142,7 +160,7 @@ machine-local mise overrides (`.mise.local.toml`, `mise.local.toml`,
 | --- | --- | --- |
 | `just install-dev-tools` | install the pinned host tools through mise | yes |
 | `just build` | build the host wrapper in `.cache/bin/` | only if Go dependencies are missing |
-| `just install-local` | build/install the wrapper, pin official packs, install and check our profiles | yes |
+| `just install-local` | build/install the wrapper and manual, then run its `install-profiles` | yes |
 | `just verify` | lint and unit tests | no |
 | `just fmt` | format Go source and tests with gofmt | no |
 | `just lint` | ShellCheck, Go formatting and go vet | no |
@@ -250,9 +268,9 @@ signed release commit and final tag, generate the changelog, and publish
 standalone Linux/macOS amd64/arm64 binaries with checksums, Sigstore signatures
 and SBOMs. `.forge-ci/artifacts.yml` selects the Go CLI build; its build-stage
 tests are skipped because the preceding checks already ran them with Just.
-Profiles are available in the tagged source; the existing `just install-local`
-recipe installs profiles, the manual and signed upstream packs from that
-checkout. A binary download alone does not install those dependencies.
+The binary embeds the profiles and pack pins: `nono-wrapper install-profiles`
+installs them and the signed upstream packs without a checkout, and
+`nono-wrapper man` prints the manual.
 
 The workflow uses the organization's existing `RELEASE_TOKEN` and
 `RELEASE_SSH_SIGNING_KEY` secrets and `RELEASE_BOT_NAME`/`RELEASE_BOT_EMAIL`

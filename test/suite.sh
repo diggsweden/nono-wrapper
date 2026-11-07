@@ -459,7 +459,7 @@ PROFILE
   status=0
   out=$(XDG_CONFIG_HOME="$work/packs-only" nono-wrapper "$agent" 2>&1) || status=$?
   expect WORKS "missing wrapper profiles stop instead of changing the policy" test "$status" -ne 0
-  expect WORKS "missing wrapper profiles identify installation" said 'just install-local'
+  expect WORKS "missing wrapper profiles identify installation" said 'nono-wrapper install-profiles'
   expect FAILS "an official pack alone cannot start the agent" said STANDIN-RAN
 
   mkdir -p "$work/none/.config" "$work/no-packs/nono/profiles"

@@ -62,7 +62,7 @@ command -v go >/dev/null 2>&1 || {
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOENV=off GOFLAGS='' GOTOOLCHAIN=local \
   go -C "$root" build -mod=readonly -trimpath -buildvcs=false -ldflags '-s -w -buildid=' \
   -o "$tools/nono-wrapper" ./cmd/nono-wrapper
-(cd "$root" && sha256 go.mod go.sum cmd/nono-wrapper/*.go docs/manpages/*.go docs/manpages/*.md) >"$tools/nono-wrapper.sources"
+(cd "$root" && sha256 go.mod go.sum cmd/nono-wrapper/*.go docs/manpages/*.go docs/manpages/*.md profiles/*.go profiles/*.jsonc profiles/packs) >"$tools/nono-wrapper.sources"
 
 probe_sha=$(sha256 "$root/test/probe.go")
 probe_sha=${probe_sha%% *}
@@ -119,7 +119,7 @@ prepare_image() {
   echo "== $distro ($reference)"
   podman pull --quiet --platform linux/amd64 "$reference" >/dev/null || return 1
   require_native_image "$reference" || return 1
-  podman build --quiet --platform linux/amd64 --pull=never --build-arg "BASE_IMAGE=$reference" --build-context "tools=$tools" \
+  podman build --quiet --platform linux/amd64 --pull=never --build-arg "BASE_IMAGE=$reference" --build-context "tools=$tools" --build-context "profiles=$root/profiles" \
     --tag "localhost/nono-wrapper:$distro" --file "$root/test/Containerfile" "$root/test" >/dev/null || return 1
   require_native_image "localhost/nono-wrapper:$distro"
 }

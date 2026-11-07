@@ -13,7 +13,7 @@ RUN sh /tmp/install-deps.sh && rm -f /tmp/install-deps.sh
 
 COPY --from=tools nono codex opencode /usr/local/bin/
 COPY tools /usr/local/share/nono-wrapper/tools
-COPY packs /usr/local/share/nono-wrapper/packs
+COPY --from=profiles packs /usr/local/share/nono-wrapper/packs
 COPY install-packs.sh /tmp/install-packs.sh
 
 ENV HOME=/home/tester

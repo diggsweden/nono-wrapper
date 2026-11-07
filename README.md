@@ -45,6 +45,9 @@ just install-local
 nono-wrapper doctor codex
 ```
 
+With a release binary instead of a checkout, run `nono-wrapper install-profiles`
+in place of the first three steps; see [Install](docs/install.md#install-from-a-release-binary).
+
 Use `doctor opencode` if that is your agent, or `doctor` to check both.
 It checks prerequisites and offline confinement, not login or a full agent
 launch. On Linux, OpenCode and offline Codex sessions run in nono's private

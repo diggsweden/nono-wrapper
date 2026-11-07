@@ -62,7 +62,7 @@ func TestLauncherUserProfile(t *testing.T) {
 				env = append(env, "LAUNCHER_PROFILE_LOG="+log)
 				stdout, stderr, status := runLauncher(t, f, spec.agent, []string{"--model", "test"}, env)
 				if mode == "missing bundled profile" {
-					if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, "just install-local") {
+					if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, "nono-wrapper install-profiles") {
 						t.Fatalf("missing baseline was bypassed with a user profile: status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
 					}
 					return

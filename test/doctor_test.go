@@ -113,7 +113,7 @@ func TestDoctorNamesMissingProfilesAndTheirInstall(t *testing.T) {
 	})
 	out := string(stdout)
 	if status != 1 || !strings.Contains(out, "profile codex-offline cannot be loaded") ||
-		!strings.Contains(out, "Profile not found") || !strings.Contains(out, "just install-local") ||
+		!strings.Contains(out, "Profile not found") || !strings.Contains(out, "nono-wrapper install-profiles") ||
 		!strings.Contains(out, "/docs/install.md") || strings.Contains(out, "private loopback") {
 		t.Fatalf("missing profile was not reported as such: status=%d\n%s", status, out)
 	}

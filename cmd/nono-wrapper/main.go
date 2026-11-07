@@ -191,6 +191,7 @@ func command() *cli.Command {
 		Commands: []*cli.Command{
 			runCommand(),
 			loginCommand(),
+			installProfilesCommand(),
 			agentCommand("opencode", "OpenCode"),
 			agentCommand("codex", "Codex"),
 			configCommand(),

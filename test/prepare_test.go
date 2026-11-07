@@ -98,7 +98,7 @@ esac
 [ "$1" = build ] || exit 99
 tools= base=
 while [ "$#" -gt 0 ]; do
-  if [ "$1" = --build-context ]; then shift; tools=${1#tools=}; fi
+  if [ "$1" = --build-context ]; then shift; case "$1" in tools=*) tools=${1#tools=} ;; esac; fi
   if [ "$1" = --build-arg ]; then shift; base=${1#BASE_IMAGE=}; fi
   shift
 done

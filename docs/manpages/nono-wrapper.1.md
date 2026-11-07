@@ -14,6 +14,8 @@ nono-wrapper - run OpenCode and Codex with nono's sandbox profiles
 
 **nono-wrapper** **config** **opencode**|**codex** *subcommand* [*argument*]
 
+**nono-wrapper** **install-profiles**
+
 **nono-wrapper** **doctor** [**opencode**|**codex**...]
 
 **nono-wrapper** **changes** *MARKER* [*DIRECTORY*]
@@ -96,6 +98,12 @@ access, not a confined container interface.
     browser-callback listener; the port grant also permits outbound TCP on that
     port number. Nothing is saved to the user configuration. For Codex, run
     **codex login** with the given arguments, such as **--device-auth**.
+
+**install-profiles**
+:   Pull and pin the official packs this binary was built with, then write its
+    bundled profiles to the nono profiles directory. nono verifies the packs'
+    signatures. User allowance files are kept. Run it again after updating
+    nono-wrapper; **doctor** notes installed profiles that differ.
 
 **run** [*sandbox-option*...] **opencode**|**codex** [**--**] [*agent-argument*...]
 :   Run with temporary, additive nono-style permissions. Put all sandbox options

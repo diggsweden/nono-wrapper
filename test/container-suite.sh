@@ -21,7 +21,7 @@ installed_manifest=$(sha256sum /usr/local/share/nono-wrapper/tools)
   echo "container: tool pins changed; rebuild with just test-prepare" >&2
   exit 1
 }
-expected_packs=$(sha256sum "$root/test/packs")
+expected_packs=$(sha256sum "$root/profiles/packs")
 installed_packs=$(sha256sum /usr/local/share/nono-wrapper/packs)
 [ "${expected_packs%% *}" = "${installed_packs%% *}" ] || {
   echo "container: official pack pins changed; rebuild with just test-prepare" >&2
@@ -48,7 +48,7 @@ command -v nono-wrapper >/dev/null 2>&1 || {
   echo "container: wrapper missing; rebuild with just test-prepare" >&2
   exit 1
 }
-expected_wrapper=$(cd "$root" && sha256sum go.mod go.sum cmd/nono-wrapper/*.go docs/manpages/*.go docs/manpages/*.md)
+expected_wrapper=$(cd "$root" && sha256sum go.mod go.sum cmd/nono-wrapper/*.go docs/manpages/*.go docs/manpages/*.md profiles/*.go profiles/*.jsonc profiles/packs)
 installed_wrapper=$(cat /usr/local/share/nono-wrapper/nono-wrapper.sources)
 [ "$expected_wrapper" = "$installed_wrapper" ] || {
   echo "container: wrapper source or dependencies changed; rebuild with just test-prepare" >&2
@@ -64,7 +64,7 @@ installed_probe=$(agent-probe source-sha256)
   echo "container: probe source changed; rebuild with just test-prepare" >&2
   exit 1
 }
-agent-probe packs "$root/test/packs" "$HOME/.config/nono/packages/lockfile.json"
+agent-probe packs "$root/profiles/packs" "$HOME/.config/nono/packages/lockfile.json"
 
 [ "${1:-}" != check ] || exit 0
 sh "$root/test/suite.sh"

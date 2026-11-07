@@ -754,7 +754,7 @@ func TestLauncherProfileSetupHints(t *testing.T) {
 			t.Run(spec.agent+"/"+test.name, func(t *testing.T) {
 				f := newLauncherFixture(t, spec.agent)
 				stdout, stderr, status := runLauncher(t, f, spec.agent, nil, []string{"LAUNCHER_TEST_PROFILE_ERROR=" + test.diagnostic})
-				if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, test.diagnostic) || !strings.Contains(stderr, "just install-local") ||
+				if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, test.diagnostic) || !strings.Contains(stderr, "nono-wrapper install-profiles") ||
 					!strings.Contains(stderr, "docs/install.md") || !strings.Contains(stderr, "the pinned nolabs-ai/"+spec.official+" pack") {
 					t.Fatalf("status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
 				}
@@ -803,7 +803,7 @@ func TestLauncherRequiresItsSelectedProfiles(t *testing.T) {
 		t.Run(spec.agent+"/default profile missing", func(t *testing.T) {
 			f := newLauncherFixture(t, spec.agent)
 			stdout, stderr, status := runLauncher(t, f, spec.agent, nil, []string{"LAUNCHER_TEST_MISSING_PROFILE=" + spec.profile})
-			if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, "just install-local") {
+			if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, "nono-wrapper install-profiles") {
 				t.Fatalf("status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
 			}
 		})
@@ -811,7 +811,7 @@ func TestLauncherRequiresItsSelectedProfiles(t *testing.T) {
 			f := newLauncherFixture(t, spec.agent)
 			stdout, stderr, status := runLauncher(t, f, spec.agent, nil, []string{"NONO_PROFILE=custom", "LAUNCHER_TEST_MISSING_PROFILE=custom"})
 			if status != 125 || len(stdout) != 0 || !strings.Contains(stderr, `cannot load selected profile "custom"`) ||
-				!strings.Contains(stderr, "Check NONO_PROFILE") || strings.Contains(stderr, "Run 'just install-local'") {
+				!strings.Contains(stderr, "Check NONO_PROFILE") || strings.Contains(stderr, "Run 'nono-wrapper install-profiles'") {
 				t.Fatalf("status=%d, stdout=%q, stderr=%q", status, stdout, stderr)
 			}
 		})

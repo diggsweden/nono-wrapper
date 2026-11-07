@@ -27,7 +27,7 @@ import (
 func configCommand() *cli.Command {
 	command := &cli.Command{
 		Name: "config", Usage: "Manage persistent user allowances",
-		Description:  "Run edits from your normal terminal outside nono. User files survive install-local. Changes apply to new sessions. Removing a user grant does not remove inherited access.\n\nExamples:\n  nono-wrapper config opencode show\n  nono-wrapper config opencode allow-domain api.github.com\n  nono-wrapper config codex open-port 3000\n  nono-wrapper config codex add-dir --read-write /path/to/shared-project",
+		Description:  "Run edits from your normal terminal outside nono. User files survive install-profiles. Changes apply to new sessions. Removing a user grant does not remove inherited access.\n\nExamples:\n  nono-wrapper config opencode show\n  nono-wrapper config opencode allow-domain api.github.com\n  nono-wrapper config codex open-port 3000\n  nono-wrapper config codex add-dir --read-write /path/to/shared-project",
 		OnUsageError: usageError,
 		Action:       helpOrUnknown,
 	}

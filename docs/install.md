@@ -25,7 +25,32 @@ SPDX-License-Identifier: CC0-1.0
 Minimum supported releases: Ubuntu 26.04, and WSL 2.7.7 when running under
 WSL2. The wrapper does not check either; older releases are simply untested.
 
-Run these steps as your normal user. Get the checkout first:
+Run these steps as your normal user.
+
+## Install from a release binary
+
+A release binary carries its profiles and pack pins, so no checkout is
+needed. Release assets are signed with Sigstore.
+
+1. Select nono for every directory: `mise use -g nono@0.81.0`.
+2. Download the `nono-wrapper` asset for your platform from the
+   [releases page](https://github.com/diggsweden/nono-wrapper/releases) and
+   install it on `PATH`, for example
+   `install -m 0755 nono-wrapper-ASSET ~/.local/bin/nono-wrapper`.
+3. Install the profiles and packs, then check the installation:
+
+   ```sh
+   nono-wrapper install-profiles
+   nono-wrapper doctor
+   ```
+
+`nono-wrapper man` prints the manual. Run `install-profiles` again after
+updating the binary; `doctor` notes profiles that differ from it.
+
+## Install from a checkout
+
+Use a checkout to build an unreleased version or to work on nono-wrapper.
+Get the checkout first:
 
 ```sh
 git clone https://github.com/diggsweden/nono-wrapper.git
@@ -71,8 +96,9 @@ On Linux, the default v2 launch requires permitted user/network namespaces.
 Installation does not change AppArmor or system namespace settings. For
 macOS and WSL2, see the [platform notes](#platform-notes).
 
-This builds the wrapper, installs the signed official packs, bundled
-profiles and the manual, and checks the profiles' inheritance. Default
+This builds the wrapper, installs it and the manual, and runs its
+`install-profiles`, which installs the signed official packs and bundled
+profiles and checks the profiles' inheritance. Default
 installation paths:
 
 ```text
@@ -108,8 +134,8 @@ Rerun `just install-local` after changing the Go code or bundled profiles.
 | --- | --- | --- |
 | Host OpenCode/Codex | DevBase or your installer | Run `doctor AGENT`, then launch that agent and check login and project operations. |
 | nono | This checkout's `.mise.toml` | Rerun `mise use -g nono@VERSION` with the version from `.mise.toml`, then `doctor` for the agents you use, and validate real agent integration. |
-| Official packs | This checkout's `test/packs` | Reinstall with `just install-local`, then validate agent integration. |
-| Bundled profiles | This repository | Reinstall, restart sessions and check the affected access rules. |
+| Official packs | `profiles/packs`, built into the binary | Run `nono-wrapper install-profiles`, then validate agent integration. |
+| Bundled profiles | This repository, built into the binary | Run `nono-wrapper install-profiles`, restart sessions and check the affected access rules. |
 | User allowances | You or your platform configuration | Restart the affected agent and verify the intended access. |
 
 The commands above are user checks. Maintainers should also run the

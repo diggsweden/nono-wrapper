@@ -54,7 +54,7 @@ func newTaskFixture(t *testing.T) taskFixture {
 			t.Fatal(err)
 		}
 	}
-	files := []string{"justfile", "test/tools", "test/packs", "go.mod", "go.sum"}
+	files := []string{"justfile", "test/tools", "go.mod", "go.sum"}
 	for _, directory := range []string{"cmd/nono-wrapper", "docs/manpages", "profiles"} {
 		entries, err := os.ReadDir(filepath.Join(testRepository(t), directory))
 		if err != nil {
@@ -79,7 +79,7 @@ func newTaskFixture(t *testing.T) taskFixture {
 		writeLauncherFixture(t, path, string(contents))
 	}
 	// Distinct fixture versions prove setup reads the shared manifest.
-	writeLauncherFixture(t, filepath.Join(f.root, "test/packs"), "# fixture pins\n\nnolabs-ai/opencode 1.2.3\nnolabs-ai/codex 4.5.6\n")
+	writeLauncherFixture(t, filepath.Join(f.root, "profiles/packs"), "# fixture pins\n\nnolabs-ai/opencode 1.2.3\nnolabs-ai/codex 4.5.6\n")
 	// Only these utilities and fake nono/podman are exposed to the recipes.
 	for _, tool := range []string{"just", "go", "bash", "uname", "mkdir", "install", "rm", "rmdir"} {
 		path, err := exec.LookPath(tool)
@@ -260,6 +260,9 @@ func TestInstallLocal(t *testing.T) {
 						t.Fatal(err)
 					}
 					for _, entry := range entries {
+						if source.directory == "profiles" && !strings.HasSuffix(entry.Name(), ".jsonc") {
+							continue
+						}
 						want, err := os.ReadFile(filepath.Join(f.root, source.directory, entry.Name()))
 						if err != nil {
 							t.Fatal(err)

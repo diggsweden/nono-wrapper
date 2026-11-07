@@ -67,7 +67,7 @@ generate-manpage:
 verify-reproducible:
     @bash test/verify-reproducible.sh
 
-# Build and install the wrapper, signed official packs and our profiles.
+# Build and install the wrapper and manual; the binary installs the packs and profiles.
 # Binary destination: INSTALL_DIR, then XDG_BIN_HOME, then ~/.local/bin.
 [doc('Install user; network')]
 [group('install')]
@@ -89,38 +89,18 @@ install-local: build generate-manpage
         printf 'nono is required; run just install-dev-tools from this checkout.\n' >&2
         exit 127
     }
-    # nono canonicalizes XDG_CONFIG_HOME and otherwise falls back to HOME.
-    # Create it before pulling packs so a fresh custom location is respected.
-    mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}"
-    # Retire the old pack before installing v2: their plugin wiring overlaps.
-    installed=$'\n'$(nono list --installed)
-    if [[ $installed == *$'\n'nolabs-ai/opencode-v1[[:space:]]* ]]; then
-        nono remove nolabs-ai/opencode-v1
-        printf 'Removed the retired OpenCode 1 pack; review custom profiles that extend it.\n'
-    fi
-    while read -r name version; do
-        case "$name" in '' | \#*) continue ;; esac
-        nono pull "$name@$version"
-        nono pin "$name"
-    done < "$root/test/packs"
-    mkdir -p "$bin_dir" "$profile_dir" "$man_dir"
+    # Packs and profiles first: a failed pack leaves the installed binary as it was.
+    "$root/.cache/bin/nono-wrapper" install-profiles
+    mkdir -p "$bin_dir" "$man_dir"
     install -m 0755 "$root/.cache/bin/nono-wrapper" "$bin_dir/nono-wrapper"
     # The manual 'nono-wrapper man' prints, rendered for man(1).
     install -m 0644 "$root/.cache/man/nono-wrapper.1" "$man_dir/nono-wrapper.1"
-    # User additions (opencode-user.jsonc and codex-user.jsonc) are not bundled.
-    # Copy only the shipped profiles, preserving these optional user files.
-    install -m 0644 "$root"/profiles/*.jsonc "$profile_dir/"
-    for profile in opencode-chatgpt codex-chatgpt; do
-        nono profile show "$profile" >/dev/null
-    done
-    printf 'Commands: %s\nProfiles: %s\nManual: %s\n' "$bin_dir" "$profile_dir" "$man_dir/nono-wrapper.1"
-    printf 'Default profiles verified: opencode-chatgpt, codex-chatgpt\n'
-    printf 'OpenCode 2 is required on PATH. See docs/opencode.md for namespace and login setup.\n'
+    printf 'Commands: %s\nManual: %s\n' "$bin_dir" "$man_dir/nono-wrapper.1"
+    printf 'OpenCode 2 is required on PATH. See docs/opencode.md for namespace setup.\n'
     case ":$PATH:" in
         *":$bin_dir:"*) ;;
         *) printf 'Add %s to your PATH to run nono-wrapper.\n' "$bin_dir" ;;
     esac
-    printf 'Next: nono-wrapper doctor\n'
 
 # Everyday local checks; no containers or network required.
 [doc('Run native lint and tests')]
