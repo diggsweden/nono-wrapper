@@ -41,19 +41,19 @@ const (
 	helpLinks   = "Docs:   " + docsURL + "\nIssues: " + issuesURL + "\nManual: nono-wrapper man"
 	profilesDir = "$XDG_CONFIG_HOME/nono/profiles, normally ~/.config/nono/profiles"
 	// Output names documents by URL: a binary-only installation has no checkout.
-	installDoc       = docsURL + "/blob/main/docs/install.md"
-	openCodeDoc      = docsURL + "/blob/main/docs/opencode.md"
-	openCodeLoginDoc = openCodeDoc + "#modern-chatgpt-browser-token-sharing-login"
-	appArmorDoc      = docsURL + "/blob/main/README.md#ubuntu-apparmor-setup"
+	installDoc  = docsURL + "/blob/main/docs/install.md"
+	openCodeDoc = docsURL + "/blob/main/docs/opencode.md"
+	appArmorDoc = docsURL + "/blob/main/README.md#ubuntu-apparmor-setup"
 )
 
 // conciseHelp is what a bare invocation prints, on stderr, before exiting 64.
 const conciseHelp = `Run OpenCode and Codex with nono's sandbox profiles.
 
 Examples:
-  nono-wrapper opencode    start OpenCode in this directory
-  nono-wrapper codex       start Codex in this directory
-  nono-wrapper doctor      check the installation
+  nono-wrapper doctor           check the installation
+  nono-wrapper login opencode   sign in once
+  nono-wrapper opencode         start OpenCode in this directory
+  nono-wrapper codex            start Codex in this directory
 
 OpenCode 2 uses private loopback on Linux; see 'nono-wrapper help opencode'.
 
@@ -62,6 +62,7 @@ Run 'nono-wrapper --help' for all commands and options.
 ` + helpLinks + "\n"
 
 const rootDescription = `Examples:
+  nono-wrapper login codex                           sign in once
   nono-wrapper opencode                              start OpenCode in this directory
   nono-wrapper codex                                 start Codex in this directory
   nono-wrapper run --read /path/to/reference codex    temporary read-only grant
@@ -189,6 +190,7 @@ func command() *cli.Command {
 		Action:         helpOrUnknown,
 		Commands: []*cli.Command{
 			runCommand(),
+			loginCommand(),
 			agentCommand("opencode", "OpenCode"),
 			agentCommand("codex", "Codex"),
 			configCommand(),
@@ -356,20 +358,10 @@ func manCommand() *cli.Command {
 	}
 }
 
-// agentLogin is the sign-in subcommand of an agent, named by the agent help and
-// by doctor.
-func agentLogin(agent string) string {
-	if agent == "opencode" {
-		return "auth login"
-	}
-	return "login"
-}
-
 func agentCommand(agent, name string) *cli.Command {
-	login := agentLogin(agent)
-	examples := fmt.Sprintf("Examples:\n  %-34s sign in once\n  %-34s start %s in this directory", "nono-wrapper "+agent+" "+login, "nono-wrapper "+agent, name)
+	examples := fmt.Sprintf("Examples:\n  %-34s sign in once\n  %-34s start %s in this directory", "nono-wrapper login "+agent, "nono-wrapper "+agent, name)
 	if agent == "opencode" {
-		examples = "OpenCode 2 (Linux):\n  nono-wrapper opencode\n  NONO_PROFILE=opencode-offline nono-wrapper opencode session list\n\nThe installed CLI's --version is checked inside the sandbox before the requested command. Only major 2 is accepted; other or unrecognized versions are refused with an instruction to use OpenCode 2.\n\nThe wrapper adds --standalone and nono --isolate net,loopback. OpenCode owns the private server and stops it with the client. User/network namespaces must be permitted; doctor checks startup. No automatic fallback opens host ports. WSL2 support needs native validation.\n\nFor login, host requirements and macOS limits, see " + openCodeDoc + "."
+		examples = "Sign in once with 'nono-wrapper login opencode'.\n\nOpenCode 2 (Linux):\n  nono-wrapper opencode\n  NONO_PROFILE=opencode-offline nono-wrapper opencode session list\n\nThe installed CLI's --version is checked inside the sandbox before the requested command. Only major 2 is accepted; other or unrecognized versions are refused with an instruction to use OpenCode 2.\n\nThe wrapper adds --standalone and nono --isolate net,loopback. OpenCode owns the private server and stops it with the client. User/network namespaces must be permitted; doctor checks startup. No automatic fallback opens host ports. WSL2 support needs native validation.\n\nFor host requirements, explicit servers and macOS limits, see " + openCodeDoc + "."
 	}
 	return &cli.Command{
 		Name: agent, Usage: "Run " + name + " under nono", ArgsUsage: "[agent arguments...]",

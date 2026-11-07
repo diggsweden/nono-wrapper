@@ -8,6 +8,8 @@ nono-wrapper - run OpenCode and Codex with nono's sandbox profiles
 
 **nono-wrapper** **opencode**|**codex** [*agent-argument*...]
 
+**nono-wrapper** **login** **opencode**|**codex** [*codex-login-argument*...]
+
 **nono-wrapper** **run** [*sandbox-option*...] **opencode**|**codex** [**--**] [*agent-argument*...]
 
 **nono-wrapper** **config** **opencode**|**codex** *subcommand* [*argument*]
@@ -50,7 +52,7 @@ its own dynamic-port server in the same sandbox. The host must permit
 user/network namespaces; **doctor opencode** checks startup. Unsupported
 hosts fail closed, without opening host ports. Native WSL2 is unverified.
 Explicit **serve** and **--server** retain ordinary host networking instead.
-Modern ChatGPT token-sharing browser login needs the explicit-server setup.
+Sign in with **login opencode**, which uses a temporary explicit server.
 See <https://github.com/diggsweden/nono-wrapper/blob/main/docs/opencode.md>
 for host requirements and macOS limits.
 Host browser callbacks cannot enter private loopback.
@@ -86,6 +88,14 @@ service or grant its parent directory, rootful sockets or container storage.
 **The rootless API can mount host paths and run programs outside nono as your
 user, including outside its network filter.** This is intentional host-user
 access, not a confined container interface.
+
+**login** **opencode**|**codex** [*codex-login-argument*...]
+:   Sign in once with your ChatGPT account. For OpenCode, start a temporary
+    server on a free loopback port inside one sandbox session, sign in through
+    the browser and stop the server. Only that session gets the port and a
+    browser-callback listener; the port grant also permits outbound TCP on that
+    port number. Nothing is saved to the user configuration. For Codex, run
+    **codex login** with the given arguments, such as **--device-auth**.
 
 **run** [*sandbox-option*...] **opencode**|**codex** [**--**] [*agent-argument*...]
 :   Run with temporary, additive nono-style permissions. Put all sandbox options

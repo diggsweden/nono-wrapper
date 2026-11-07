@@ -20,6 +20,8 @@ type launchOptions struct {
 	blockNet          bool
 	silent            bool
 	nativeDiagnostics bool
+	// loginPort selects OpenCode's temporary sign-in server instead of a session.
+	loginPort string
 }
 
 func runCommand() *cli.Command {

@@ -19,6 +19,13 @@ profiles.
 
 ### Fixed
 
+- Say before an online session starts when the agent has no saved sign-in,
+  and name `nono-wrapper login AGENT`, instead of leaving only the agent's
+  `401 Unauthorized` retries. The wrapper checks the agent's login file; it
+  does not run the agent on the host.
+- Doctor names the nono executable a mise shim resolves to, which AppArmor
+  rules must match, and says that only offline Codex sessions need private
+  loopback. The session-report docs list the routine denials.
 - Report missing bundled profiles in doctor with the install step, instead of
   failing every sandbox check with namespace advice. Name documents by their
   GitHub URL, not a checkout path, and link OpenCode's sign-in steps instead of
@@ -53,6 +60,10 @@ profiles.
 
 ### Added
 
+- Sign in with `nono-wrapper login opencode|codex`. For OpenCode it runs a
+  temporary explicit server with a generated password inside one sandbox
+  session, with session-only port grants, replacing the manual two-terminal
+  setup and its edits to `opencode-user.jsonc`.
 - Report the wrapper executable/version/hash, nono path, resolved offline-profile
   hashes and Podman transport selection in doctor output.
 - Use private loopback automatically for Linux Codex offline sessions. Preserve

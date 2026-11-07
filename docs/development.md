@@ -562,7 +562,7 @@ browser callback. Codex 0.164.0 command execution/confinement also passed in
 those isolated native fixtures. The native v2 suite requires namespace
 support and does not bypass a host restriction. Its ordinary
 [explicit-server workflow](opencode.md) remains available for
-modern browser login and deliberate host networking.
+deliberate host networking; `login opencode` uses a temporary one.
 
 Native Linux Git SSH tests also passed with nono 0.81.0, including its new
 `why --self --unix-socket` diagnostics with the agent grant on and off.

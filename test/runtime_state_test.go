@@ -84,6 +84,10 @@ func TestAgentStateRejectsLinkedPolicyAndRelativeRoots(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// Replace the fixture's signed-in state directory with the link.
+	if err := os.RemoveAll(filepath.Join(data, "opencode")); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Symlink(policy, filepath.Join(data, "opencode")); err != nil {
 		t.Fatal(err)
 	}

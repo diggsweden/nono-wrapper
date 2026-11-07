@@ -47,9 +47,9 @@ nono-wrapper doctor codex
 
 Use `doctor opencode` if that is your agent, or `doctor` to check both.
 It checks prerequisites and offline confinement, not login or a full agent
-launch. On Linux, OpenCode runs in nono's private loopback, which needs
-user/network namespaces; if `doctor opencode` reports an AppArmor
-restriction, follow the [AppArmor setup](#ubuntu-apparmor-setup).
+launch. On Linux, OpenCode and offline Codex sessions run in nono's private
+loopback, which needs user/network namespaces; if `doctor` reports an
+AppArmor restriction, follow the [AppArmor setup](#ubuntu-apparmor-setup).
 [OpenCode setup](docs/opencode.md) covers its host requirements, macOS
 limits and WSL2 status.
 
@@ -61,13 +61,11 @@ Then open a terminal in the project the agent should work on, sign in once,
 and start it:
 
 ```sh
-nono-wrapper codex login
+nono-wrapper login codex
 nono-wrapper codex
 ```
 
-For OpenCode, the first ChatGPT sign-in uses a temporary explicit server;
-follow [OpenCode sign-in](docs/opencode.md#modern-chatgpt-browser-token-sharing-login),
-then start it with `nono-wrapper opencode`.
+For OpenCode, use `nono-wrapper login opencode`, then `nono-wrapper opencode`.
 
 The current directory is the agent's writable workspace. By default, start
 below `~/development`; an explicit `NONO_WRAPPER_ROOT` allows starting in that
@@ -239,9 +237,8 @@ project directory:
 nono-wrapper opencode
 ```
 
-This resolves the namespace startup restriction. First-time modern ChatGPT
-browser login still needs the separate
-[token-sharing login setup](docs/opencode.md#modern-chatgpt-browser-token-sharing-login).
+This resolves the namespace startup restriction. Sign in once with
+`nono-wrapper login opencode`; it does not need private loopback.
 
 With an exact path, update and reload the profile whenever an upgrade changes
 the executable path. With the version wildcard, ordinary Mise version

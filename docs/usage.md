@@ -115,6 +115,7 @@ shell. Its commands are:
 | --- | --- |
 | `nono-wrapper opencode [arguments...]` | launch OpenCode under nono |
 | `nono-wrapper codex [arguments...]` | launch Codex under nono |
+| `nono-wrapper login opencode\|codex` | sign in once with your ChatGPT account; see [First-time ChatGPT login](#first-time-chatgpt-login) |
 | `nono-wrapper run [sandbox options...] opencode\|codex [arguments...]` | launch with extra grants for one session; see [Temporary sandbox options](#temporary-sandbox-options) |
 | `nono-wrapper config opencode\|codex show` | list user-added allowances |
 | `nono-wrapper config opencode\|codex allow-domain\|remove-domain DOMAIN\|HTTPS_URL` | manage user domain and HTTPS endpoint allowances |
@@ -258,6 +259,12 @@ connection reset, are transport failures rather than evidence of missing host
 permission; the report does not suggest widening access for them. The original
 decisions and reasons remain visible.
 
+Some denials are routine and need no allowance. OpenCode probes common local
+model servers, so its sessions record denied loopback connects to ports such
+as 1234, 8000 and 11434. On a host without nscd, libc's connect to
+`/var/run/nscd/socket` is recorded as denied although the profile allows it:
+nono grants only sockets that exist.
+
 Native diagnostic footers and profile-save prompts are suppressed
 by default: their suggestions expose the internal launcher and generated session
 policy rather than a reusable wrapper command. Auditing and this report remain
@@ -308,26 +315,19 @@ profile.
 Login commands start the agent like any other session, so run them in an
 [allowed workspace](#where-an-agent-may-start).
 
-For OpenCode 2's **Sign in with ChatGPT** browser/token-sharing flow, start the
-sandboxed foreground server and configure its client password as described
-in [local-server setup](opencode.md). Use the explicit endpoint:
+Sign in with:
 
 ```sh
-nono-wrapper opencode --server http://127.0.0.1:4096 \
-  auth login openai --method chatgpt-token-sharing
+nono-wrapper login opencode
+nono-wrapper login codex
 ```
 
-After login, stop that server and remove its temporary TCP/listen grants as
-described in the guide. Normal Linux sessions then use just
-`nono-wrapper opencode`: OpenCode owns its server in private loopback.
-The host browser cannot reach callbacks inside that private network.
-The v2 instructions use modern token sharing, not the older Codex login methods.
-
-For Codex, choose **Sign in with ChatGPT** when prompted, or run:
-
-```sh
-nono-wrapper codex login
-```
+For OpenCode, `login` starts a temporary OpenCode server inside one sandbox
+session, signs in with ChatGPT token sharing and stops the server. That
+session alone gets the server port and a browser-callback listener; nothing
+is saved to your user configuration. A host browser cannot reach callbacks
+inside private loopback, so sign-in runs without it. For Codex, `login` runs
+`codex login`; `nono-wrapper codex login` does the same.
 
 Follow the browser instructions. If a browser does not open automatically,
 open the printed authorization URL yourself. Complete one login before
@@ -340,15 +340,14 @@ The ChatGPT profiles allow `chatgpt.com` and `auth.openai.com`, limited to
 the requests listed under [Network profiles](configuration.md#network-profiles).
 Codex browser callbacks use TCP port 1455, with 1457 as a fallback. These are
 listen-only grants, not general outbound port access. OpenCode 2.2.5 chooses
-a dynamic callback port; its online server needs the explicit
-`listen_port: [0]` setup described in the guide. No private namespace or
-AppArmor change is needed for these explicit-server browser-login flows.
+a dynamic callback port, which `login opencode` grants for its session only.
+No private namespace or AppArmor change is needed to sign in.
 
 For Codex on a terminal without a local browser callback, use device-code
 login, completed in a browser:
 
 ```sh
-nono-wrapper codex login --device-auth
+nono-wrapper login codex --device-auth
 ```
 
 ## Offline mode

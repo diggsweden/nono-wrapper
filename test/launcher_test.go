@@ -118,10 +118,15 @@ func newLauncherFixture(t *testing.T, agent string) launcherFixture {
 		target:  filepath.Join(root, "agent installation", agent),
 	}
 	// HOME is the fixture root; the project root below it must not contain HOME.
-	for _, path := range []string{f.bin, f.project, filepath.Dir(f.target)} {
+	codexHome, openCodeData := filepath.Join(root, ".codex"), filepath.Join(root, ".local/share/opencode")
+	for _, path := range []string{f.bin, f.project, filepath.Dir(f.target), codexHome, openCodeData} {
 		if err := os.MkdirAll(path, 0o700); err != nil {
 			t.Fatal(err)
 		}
+	}
+	// A signed-in user: both agents' default login files exist.
+	for _, directory := range []string{codexHome, openCodeData} {
+		writeLauncherFixture(t, filepath.Join(directory, "auth.json"), "{}\n")
 	}
 	if err := os.Symlink(wrapperBinary, filepath.Join(f.bin, "nono-wrapper")); err != nil {
 		t.Fatal(err)
@@ -436,6 +441,33 @@ func TestAgentCompletionDoesNotLaunchASession(t *testing.T) {
 				[]string{"NONO_WRAPPER_ROOT=" + filepath.Join(f.project, "missing")})
 			if status != 0 || stderr != "" || bytes.ContainsRune(stdout, 0) {
 				t.Fatalf("completion tried to launch the agent: status=%d stdout=%q stderr=%q", status, stdout, stderr)
+			}
+		})
+	}
+}
+
+func TestLauncherNamesLoginWhenNoSignInIsSaved(t *testing.T) {
+	for _, agent := range []string{"opencode", "codex"} {
+		t.Run(agent, func(t *testing.T) {
+			f := newLauncherFixture(t, agent)
+			login := filepath.Join(filepath.Dir(f.bin), ".codex/auth.json")
+			if agent == "opencode" {
+				login = filepath.Join(filepath.Dir(f.bin), ".local/share/opencode/auth.json")
+			}
+			if err := os.Remove(login); err != nil {
+				t.Fatal(err)
+			}
+			hint := "run 'nono-wrapper login " + agent + "' first"
+			if _, stderr, status := runLauncher(t, f, agent, nil, nil); status != 0 || !strings.Contains(stderr, hint) {
+				t.Fatalf("online session without a sign-in gave no hint: status=%d stderr=%q", status, stderr)
+			}
+			if _, stderr, _ := runLauncher(t, f, agent, nil, []string{"NONO_PROFILE=" + agent + "-offline"}); strings.Contains(stderr, hint) {
+				t.Fatalf("offline session asked for a sign-in: %q", stderr)
+			}
+			if agent == "codex" {
+				if _, stderr, _ := runLauncher(t, f, "login", []string{"codex"}, nil); strings.Contains(stderr, hint) {
+					t.Fatalf("login asked for a sign-in: %q", stderr)
+				}
 			}
 		})
 	}

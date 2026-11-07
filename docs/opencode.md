@@ -96,23 +96,33 @@ profile. Use explicit-server mode when you deliberately need host networking.
 
 ### Modern ChatGPT browser token-sharing login
 
-A host browser cannot reach a callback listener in private loopback. For
-browser login, follow the explicit sandboxed server/client steps in the next
-section. After login, stop that server, remove its temporary port grants,
-and start normal sessions with `nono-wrapper opencode`. Saved account state
-is shared by both modes; authenticated token refresh/model use still needs
-account-backed validation. Starting this browser login inside private
-loopback does not make its callback reachable from the host.
+Sign in once, from a directory where agents may start:
+
+```sh
+nono-wrapper login opencode
+```
+
+A host browser cannot reach a callback listener in private loopback, so
+`login` uses a temporary explicit server instead. Inside one sandbox session
+it generates a server password, starts `opencode serve` on a free loopback
+port, runs `auth login openai --method chatgpt-token-sharing` against it and
+stops the server. Only that session gets the server port and a listener for
+the dynamic callback port; the port grant also permits outbound TCP on that
+port number. Nothing is saved to `opencode-user.jsonc`. Afterwards, start
+normal sessions with `nono-wrapper opencode`; both modes share the saved
+account state. Authenticated token refresh and model use still need
+account-backed validation.
 
 The v2 [provider guide][v2-auth] also lists older Codex sign-in methods. The
 bundled v2 policy and instructions use modern `chatgpt-token-sharing`; they
 do not add legacy device-code endpoints or select an older method to avoid
 the callback requirement.
 
-## Explicit server and browser login without private namespaces
+## Explicit server without private namespaces
 
-V2 can use ordinary host loopback, without changing AppArmor or enabling a
-network namespace. Start an explicit foreground server inside one wrapper
+For a lasting `serve` setup, V2 can use ordinary host loopback, without
+changing AppArmor or enabling a network namespace. Sign-in does not need
+this; use `login` above. Start an explicit foreground server inside one wrapper
 session and connect a client in another wrapper session. Keep both in the
 same project and use the same selected profiles and password.
 
@@ -124,21 +134,18 @@ nono-wrapper config opencode open-port 4096
 
 That command saved the port in your user file,
 `~/.config/nono/profiles/opencode-user.jsonc` (under `$XDG_CONFIG_HOME` if
-you set it). Open it in an editor and add two entries. With no other user
-allowances, the file then reads:
+you set it). Open it in an editor and add the `environment` entry. With no other
+user allowances, the file then reads:
 
 ```json
 {
   "environment": { "allow_vars": ["OPENCODE_PASSWORD"] },
-  "network": { "open_port": [4096], "listen_port": [0] }
+  "network": { "open_port": [4096] }
 }
 ```
 
-If the file holds other allowances, keep them and add `listen_port` inside the
-existing `network` object: a second `network` key is refused. The environment
-entry lets the client authenticate to your server. The listen-only port 0
-entry is needed for v2's automatically assigned browser callback port when
-signing in.
+Keep any other allowances; a second `network` or `environment` key is
+refused. The environment entry lets the client authenticate to your server.
 
 In terminal A, start the server on a loopback address. With the password
 variables unset, OpenCode generates a fresh password and prints it:
@@ -161,8 +168,6 @@ Then connect explicitly:
 ```sh
 nono-wrapper opencode --server http://127.0.0.1:4096
 nono-wrapper opencode --server http://127.0.0.1:4096 session list
-nono-wrapper opencode --server http://127.0.0.1:4096 \
-  auth login openai --method chatgpt-token-sharing
 ```
 
 Keep terminal A running while the client uses it. Stop it with Ctrl-C when
@@ -176,26 +181,19 @@ This is shared host localhost, not private loopback. TCP port grants are not
 generally destination-address restrictions on Linux, and listen grants are
 not interface-scoped. See the [network allowance matrix](configuration.md#network-allowance-matrix).
 Bind the server to `127.0.0.1` and keep its password out of profiles and argv.
-The `listen_port: [0]` setting is a native nono profile field, not an
-`open-port 0` command. It authorizes an ephemeral listener, not outbound
-access to every ephemeral port. Browser login uses the online profile;
-offline mode is for local operations and saved state, not token exchange.
 
-### Return to normal sessions after login
+### Return to normal sessions
 
-Stop the explicit server with Ctrl-C, then remove the temporary host-port
-grant:
+Stop the explicit server with Ctrl-C, then remove the host-port grant:
 
 ```sh
 nono-wrapper config opencode remove-open-port 4096
 ```
 
-In `opencode-user.jsonc`, remove `"listen_port": [0]` and, unless you keep
-using the explicit server, the `environment` entry; keep any other
-allowances. Unset `OPENCODE_PASSWORD` in the client terminal. Normal Linux
-sessions can now use `nono-wrapper opencode`; OpenCode generates a fresh private
-server password itself. Keep the explicit setup only if you intend to keep
-using `serve`/`--server` rather than the standalone workflow.
+Remove the `environment` entry from `opencode-user.jsonc`, keeping any other
+allowances, and unset `OPENCODE_PASSWORD` in the client terminal. Normal Linux
+sessions can now use `nono-wrapper opencode`; OpenCode generates a fresh
+private server password itself.
 
 ## Why not just configure the shared service?
 

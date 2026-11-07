@@ -254,8 +254,12 @@ func TestDoctorReportsNamespaceFailureForBundledAgents(t *testing.T) {
 			f, log := newDoctorFixture(t)
 			env := []string{"VERIFY_LOG=" + log, "VERIFY_MODE=namespace-denied"}
 			stdout, stderr, status := runLauncher(t, f, "doctor", []string{agent}, env)
+			advice := "namespace requirements"
+			if agent == "codex" {
+				advice = "Offline Codex sessions on Linux require private loopback; online sessions do not."
+			}
 			if status != 1 || !strings.Contains(string(stdout), "user namespace denied") ||
-				!strings.Contains(string(stdout), "namespace requirements") ||
+				!strings.Contains(string(stdout), advice) ||
 				!strings.Contains(string(stdout), "README.md#ubuntu-apparmor-setup") || strings.Contains(probeOutput(stdout), "  ok    ") {
 				t.Fatalf("unsupported namespace produced successful checks: %d %s %s", status, stdout, stderr)
 			}

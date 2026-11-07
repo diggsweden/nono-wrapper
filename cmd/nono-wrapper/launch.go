@@ -246,7 +246,7 @@ func launchWithOptions(ctx context.Context, agent string, args []string, stderr 
 		nonoArgs = append(nonoArgs, "--no-diagnostics")
 	}
 	nonoArgs = append(nonoArgs, options.nonoArgs...)
-	standalone := agent == "opencode" && openCodeStandalone(args)
+	standalone := agent == "opencode" && options.loginPort == "" && openCodeStandalone(args)
 	if runtime.GOOS == "linux" && (standalone || (agent == "codex" && profile == "codex-offline")) {
 		// Agents and build tools need dynamic local listeners. Give bundled
 		// offline sessions private loopback, never arbitrary host ports.
@@ -257,7 +257,9 @@ func launchWithOptions(ctx context.Context, agent string, args []string, stderr 
 	nonoArgs = append(nonoArgs, sshAgentArgs()...)
 	nonoArgs = append(nonoArgs, proxyArgs...)
 	nonoArgs = append(nonoArgs, "--name", name, "--")
-	if agent == "opencode" {
+	if agent == "opencode" && options.loginPort != "" {
+		nonoArgs = append(nonoArgs, "/bin/sh", "-c", openCodeLogin, "nono-wrapper-opencode", program, options.loginPort)
+	} else if agent == "opencode" {
 		// Probe and exec the same resolved executable inside this session.
 		// Never execute the agent on the host just to discover its version.
 		nonoArgs = append(nonoArgs, "/bin/sh", "-c", openCodeVersionGuard, "nono-wrapper-opencode", program)
@@ -278,13 +280,18 @@ func launchWithOptions(ctx context.Context, agent string, args []string, stderr 
 	if options.silent {
 		stderr = io.Discard
 	}
+	if !block && profile == agent+"-chatgpt" && options.loginPort == "" && !accountCommand(args) {
+		if path, ok := savedLogin(agent); !ok {
+			fmt.Fprintf(stderr, "nono-wrapper: no saved %s sign-in at %s; run 'nono-wrapper login %s' first if the agent reports 401 Unauthorized\n", agent, path, agent)
+		}
+	}
 	return runSession(ctx, nono, nonoArgs, agent, name, stderr, environment)
 }
 
 // Arguments are positional shell parameters, never interpolated into code.
 // OpenCode has printed both bare versions and "opencode vVERSION". Require
 // major 2, with numeric minor/patch prefixes, but impose no minor-version floor.
-const openCodeVersionGuard = `
+const openCodeVersionCheck = `
 refuse_version() {
     printf '%s\n' 'nono-wrapper: OpenCode 2.x.x is required. Install or select OpenCode 2; refusing to start this version.' >&2
     exit 125
@@ -302,7 +309,36 @@ case "$version" in
     2.[0-9]*.[0-9]*) ;;
     *) refuse_version ;;
 esac
-exec "$@"
+`
+
+const openCodeVersionGuard = openCodeVersionCheck + `exec "$@"
+`
+
+// openCodeLogin signs in through a temporary explicit server: a host browser
+// cannot reach a callback inside private loopback. The password is created
+// inside the sandbox and passed only in the environment. $1 is OpenCode and
+// $2 the server port; the session's port grants end with it.
+const openCodeLogin = openCodeVersionCheck + `
+program=$1
+url=http://127.0.0.1:$2
+OPENCODE_PASSWORD=$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')
+[ -n "$OPENCODE_PASSWORD" ] || { printf '%s\n' 'nono-wrapper: cannot create a server password' >&2; exit 125; }
+export OPENCODE_PASSWORD
+"$program" serve --hostname 127.0.0.1 --port "$2" >/dev/null &
+server=$!
+trap 'kill "$server" 2>/dev/null' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+tries=0
+until "$program" --server "$url" session list >/dev/null 2>&1; do
+    tries=$((tries + 1))
+    if [ "$tries" -ge 30 ] || ! kill -0 "$server" 2>/dev/null; then
+        printf '%s\n' "nono-wrapper: the temporary OpenCode server did not start on $url" >&2
+        exit 125
+    fi
+    sleep 1
+done
+"$program" --server "$url" auth login openai --method chatgpt-token-sharing
 `
 
 // An explicit server is the user's delegation choice. The serve command owns

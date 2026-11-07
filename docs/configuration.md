@@ -584,7 +584,7 @@ session, but you can smoke-test wrapper startup with
 
 For an online experiment, first sign in with the normal bundled profile.
 The example below uses Codex. OpenCode 2 uses private loopback by default
-on Linux and has a separate explicit-server workflow for browser login.
+on Linux and signs in with `nono-wrapper login opencode`.
 Copy the installed `codex-chatgpt.jsonc` to a separately named profile,
 change `meta.name`, remove its `network.listen_port` callback grants, and
 add the `linux.isolate` block above. Copying retains its current host rules

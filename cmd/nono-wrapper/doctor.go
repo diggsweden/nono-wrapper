@@ -145,8 +145,12 @@ func doctor(ctx context.Context, agents []string, output io.Writer) error {
 				}
 				// Refusals are meaningful only after the positive controls succeed.
 				if check.works {
-					if privateLoopback {
-						fmt.Fprintf(output, "  Bundled Linux sessions require private loopback. For Ubuntu AppArmor setup, see %s.\n", appArmorDoc)
+					if privateLoopback && agent == "codex" {
+						// Mirrors launch: only offline Codex sessions request private loopback.
+						fmt.Fprintln(output, "  Offline Codex sessions on Linux require private loopback; online sessions do not.")
+						fmt.Fprintf(output, "  For Ubuntu AppArmor setup, see %s.\n", appArmorDoc)
+					} else if privateLoopback {
+						fmt.Fprintf(output, "  OpenCode sessions on Linux require private loopback. For Ubuntu AppArmor setup, see %s.\n", appArmorDoc)
 						fmt.Fprintf(output, "  For other namespace requirements and explicit-server setup, see %s.\n", openCodeDoc)
 					}
 					break
@@ -163,12 +167,7 @@ func doctor(ctx context.Context, agents []string, output io.Writer) error {
 	if root, _, err := projectRoot(); err == nil {
 		fmt.Fprintln(output, "Next: sign in once, then start the agent in a project below "+root+" (NONO_WRAPPER_ROOT changes it).")
 		for _, agent := range agents {
-			if agent == "opencode" {
-				// ChatGPT sign-in needs a temporary explicit server; one command cannot show it.
-				fmt.Fprintf(output, "  OpenCode: sign in with the explicit-server steps in %s,\n            then start 'nono-wrapper opencode'.\n", openCodeLoginDoc)
-				continue
-			}
-			fmt.Fprintf(output, "  Codex: 'nono-wrapper codex %s', then 'nono-wrapper codex'.\n", agentLogin(agent))
+			fmt.Fprintf(output, "  'nono-wrapper login %s', then 'nono-wrapper %s'.\n", agent, agent)
 		}
 	}
 	return nil
@@ -179,7 +178,14 @@ func doctor(ctx context.Context, agents []string, output io.Writer) error {
 // Agents run only under nono, so their paths are resolved but not executed here.
 func checkSetup(ctx context.Context, nono string, agents []string, output io.Writer) bool {
 	fmt.Fprintln(output, "Setup:")
-	fmt.Fprintf(output, "  wrapper: %s\n  nono executable: %s\n", buildVersion(), nono)
+	fmt.Fprintf(output, "  wrapper: %s\n", buildVersion())
+	// Name the executable a launch confines, which host rules such as
+	// AppArmor must match; a mise shim is only the way to it.
+	if resolved, err := resolveExecutable(ctx, "nono", nono); err == nil && resolved.path != nono {
+		fmt.Fprintf(output, "  nono executable: %s (through %s)\n", resolved.path, nono)
+	} else {
+		fmt.Fprintf(output, "  nono executable: %s\n", nono)
+	}
 	ok := true
 	if path, err := os.Executable(); err == nil {
 		if file, err := os.Open(path); err == nil {
