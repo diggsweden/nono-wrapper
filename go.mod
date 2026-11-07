@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: The nono-wrapper Authors
 // SPDX-License-Identifier: CC0-1.0
 
-module codefloe.com/itiquette/nono-wrapper
+module github.com/diggsweden/nono-wrapper
 
 go 1.27.2
 

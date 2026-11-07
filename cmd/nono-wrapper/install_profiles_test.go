@@ -9,7 +9,7 @@ import (
 	"slices"
 	"testing"
 
-	"codefloe.com/itiquette/nono-wrapper/profiles"
+	"github.com/diggsweden/nono-wrapper/profiles"
 )
 
 func TestChangedProfilesNamesMissingAndEditedCopies(t *testing.T) {

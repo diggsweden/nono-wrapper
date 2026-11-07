@@ -10,18 +10,21 @@ All notable changes to nono-wrapper are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-The policy choices originated in
-[occwrap](https://codefloe.com/itiquette/occwrap). This repository extends the
-official nono agent packs rather than maintaining replacement filesystem
-profiles.
+This repository extends the official nono agent packs rather than
+maintaining replacement filesystem profiles.
 
 ## [Unreleased]
 
+### Changed
+
+- The Go module path is now `github.com/diggsweden/nono-wrapper`, where the
+  repository lives.
+
 ### Removed
 
-- Drop the Whdkit configuration, data and state grants and the
-  `itiquette-test-vm` cache from the bundled profile. They served one
-  developer's tools; grant such directories with `config AGENT add-dir`.
+- Drop the bundled grants for one developer's own tools: an application's
+  configuration, data and state, and a VM media cache. Grant such
+  directories with `config AGENT add-dir`.
 
 ### Fixed
 

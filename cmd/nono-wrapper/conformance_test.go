@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"testing"
 
-	"codefloe.com/itiquette/nono-wrapper/docs/manpages"
+	"github.com/diggsweden/nono-wrapper/docs/manpages"
 	"github.com/urfave/cli/v3"
 )
 

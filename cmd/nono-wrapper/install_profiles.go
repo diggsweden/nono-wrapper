@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"codefloe.com/itiquette/nono-wrapper/profiles"
+	"github.com/diggsweden/nono-wrapper/profiles"
 	"github.com/urfave/cli/v3"
 )
 

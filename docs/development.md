@@ -258,7 +258,7 @@ credential-free diagnostics. macOS/WSL2 Git SSH integration remains untested.
 `main`. It calls Digg Sweden's Forge CI v0.91.13 and runs the isolated unit
 suite, `just lint` and native build with the checkout's selected tools. The general
 lint phase is temporarily disabled with `lint-engine: none` while waiting for
-the next nanolinter release on Codefloe; its lint/security checks are not
+the next nanolinter release; its lint/security checks are not
 running. ShellCheck, Go formatting and vet still run through `just lint`.
 Re-enable that input when the new linter is available. Local
 `just verify` remains the full lint and unit check.
