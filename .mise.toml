@@ -7,14 +7,21 @@
 # pinned independently in test/tools for reproducibility.
 
 [settings]
+# Supply-chain quarantine: refuse tool releases younger than 7 days.
+minimum_release_age = "7d"
 # Keep explicit versions below without generating a host-tool lockfile.
 lockfile = false
 
 [tools]
+# Runtimes
+go = "1.27.3"
+# Sandbox runtime the wrapper drives.
 nono = "0.81.0"
 
-go = "1.27.3"
+# Recipe runner
 just = "1.59.0"
+
+# Lint
 "aqua:koalaman/shellcheck" = "0.11.0"
 
 [hooks]
