@@ -27,7 +27,7 @@ import (
 func configCommand() *cli.Command {
 	command := &cli.Command{
 		Name: "config", Usage: "Manage persistent user allowances",
-		Description:  "Run edits from your normal terminal outside nono. User files survive install-local. Changes apply to new sessions. Removing a user grant does not remove inherited access.\n\nExamples:\n  nono-wrapper config opencode show\n  nono-wrapper config opencode allow-domain api.github.com\n  nono-wrapper config codex open-port 3000\n  nono-wrapper config codex allow /path/to/shared-project",
+		Description:  "Run edits from your normal terminal outside nono. User files survive install-local. Changes apply to new sessions. Removing a user grant does not remove inherited access.\n\nExamples:\n  nono-wrapper config opencode show\n  nono-wrapper config opencode allow-domain api.github.com\n  nono-wrapper config codex open-port 3000\n  nono-wrapper config codex add-dir --read-write /path/to/shared-project",
 		OnUsageError: usageError,
 		Action:       helpOrUnknown,
 	}
@@ -136,7 +136,7 @@ Examples:
 	case "port":
 		command.Description = "Lets the agent and its programs connect to and listen on one TCP port, from 1 to 65535. This is a host-independent grant: it can permit direct connections to non-loopback addresses on that port, outside domain filtering, even with an offline profile. It is not restricted to localhost and does not force a server's bind address. No ranges or UDP. Run outside nono; changes apply to new sessions."
 		if agent == "opencode" {
-			command.Description += " OpenCode 2 standalone on Linux uses private loopback and rejects host TCP-port grants. Use this only for deliberate serve/--server host networking, and remove it before returning to standalone. Domain and HTTPS endpoint allowances remain supported in standalone; see docs/opencode-2-evaluation.md."
+			command.Description += " OpenCode 2 standalone on Linux uses private loopback and rejects host TCP-port grants. Use this only for deliberate serve/--server host networking, and remove it before returning to standalone. Domain and HTTPS endpoint allowances remain supported in standalone; see " + openCodeDoc + "."
 		}
 	}
 	if add && (resource == "dir" || resource == "file") {
@@ -362,7 +362,7 @@ func parseHostAllowance(value, method string, add bool) (allowance, error) {
 		return rule, fmt.Errorf("IP addresses are not domains.\n%s", usage)
 	}
 	if add && strings.Contains(value, ":") {
-		return rule, errors.New("domain allowances apply to every port; an explicit domain port cannot be enforced. Omit the port to allow the domain on all ports. allow-tcp-port is a separate host-independent grant, not a domain-port restriction")
+		return rule, errors.New("domain allowances apply to every port; an explicit domain port cannot be enforced. Omit the port to allow the domain on all ports. open-port is a separate host-independent grant, not a domain-port restriction")
 	}
 	value = hostKey(value)
 	if add && !validDomain(value) {

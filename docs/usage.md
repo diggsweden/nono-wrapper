@@ -58,6 +58,13 @@ cd ~/agent-workspace
 env NONO_WRAPPER_ROOT="$HOME/agent-workspace" nono-wrapper codex
 ```
 
+To use that root in every session, set it in your shell's startup file:
+
+```sh
+export NONO_WRAPPER_ROOT="$HOME/agent-workspace"     # Bash: ~/.bashrc
+set -gx NONO_WRAPPER_ROOT "$HOME/agent-workspace"    # Fish: ~/.config/fish/config.fish
+```
+
 The whole start directory is writable, including both projects. Starting in
 `project-a` instead shares that directory as the workspace. Other profile
 grants still apply. The root must be absolute and must not be, or contain,
@@ -102,17 +109,17 @@ the current directory, the wrapper stops and shows mise's message.
 ## Commands
 
 `nono-wrapper` is a native executable and works from Fish, Bash or another
-shell. Its command interface uses [urfave/cli v3](https://cli.urfave.org/v3/).
-Its commands are:
+shell. Its commands are:
 
 | Command | Purpose |
 | --- | --- |
 | `nono-wrapper opencode [arguments...]` | launch OpenCode under nono |
 | `nono-wrapper codex [arguments...]` | launch Codex under nono |
+| `nono-wrapper run [sandbox options...] opencode\|codex [arguments...]` | launch with extra grants for one session; see [Temporary sandbox options](#temporary-sandbox-options) |
 | `nono-wrapper config opencode\|codex show` | list user-added allowances |
 | `nono-wrapper config opencode\|codex allow-domain\|remove-domain DOMAIN\|HTTPS_URL` | manage user domain and HTTPS endpoint allowances |
-| `nono-wrapper config opencode\|codex allow-tcp-port\|remove-tcp-port PORT` | manage host-independent TCP connect/listen allowances |
-| `nono-wrapper config opencode\|codex add-dir\|remove-dir PATH` | manage user directory allowances |
+| `nono-wrapper config opencode\|codex open-port\|remove-open-port PORT` | manage host-independent TCP connect/listen allowances |
+| `nono-wrapper config opencode\|codex add-dir\|remove-dir PATH` | manage user directory allowances, read-only unless `--read-write` |
 | `nono-wrapper config opencode\|codex add-file\|remove-file PATH` | manage user file allowances |
 | `nono-wrapper doctor [opencode\|codex ...]` | check tools, project root and offline profiles; defaults to both agents |
 | `nono-wrapper changes MARKER [DIRECTORY]` | list selected project files changed since a marker |
@@ -125,23 +132,6 @@ Its commands are:
 Agent arguments are forwarded exactly: `nono-wrapper codex --help` displays
 Codex's help under nono. Use `nono-wrapper help codex` for the wrapper's
 description of that subcommand.
-
-Before resolving policy, the wrapper creates the agent's standard state and
-cache directories, with owner-only permissions for new directories. This
-prevents a cold first launch from losing declared grants because the paths
-do not exist yet. It requires an absolute home/state location and refuses
-paths that would expose active nono policy files. For bundled profiles, its
-protected session profile also grants the exact non-default state paths;
-explicit user path restrictions take precedence. External profiles selected
-with `NONO_PROFILE` keep their own permission policy.
-
-Before starting the agent, the wrapper inspects the effective filesystem
-manifest, including inherited grants and launch-time additions. Writable
-access to the agent, nono, the wrapper, its resolved Mise executable, or a
-known Mise control/data tree is refused. This includes state symlinks,
-workspace grants and `NONO_ALLOW`; read-only access is permitted.
-Install managed binaries outside the writable workspace, including local
-builds of the wrapper itself.
 
 Release binaries embed the release version and source commit. Checkout builds
 identify themselves as `devel`, with module/VCS metadata when available; help
@@ -199,11 +189,12 @@ rules and wrapper safety checks still apply; an added read-only grant does not
 revoke inherited writes. `--open-port` permits TCP connect and listen, including
 non-loopback destinations, and conflicts with OpenCode's private-loopback mode.
 
-For persistent access, use `config AGENT allow PATH` (read/write), `read PATH`
-(read-only), or their `allow-file`/`read-file` variants. `open-port` and
-`remove-open-port` are preferred over the compatible `allow-tcp-port` and
-`remove-tcp-port` aliases. Existing `add-dir`/`add-file` commands remain read-only
-unless `--read-write` is supplied.
+For persistent access, use `config AGENT add-dir PATH` (read-only) or
+`add-dir --read-write PATH`, and `add-file` for single files; see
+[Configuration](configuration.md#manage-allowances-from-the-cli). `allow`,
+`read`, `allow-file` and `read-file` are short forms using nono's access-mode
+names. `allow-tcp-port` and `remove-tcp-port`, the beta names of `open-port`
+and `remove-open-port`, still work.
 
 `run --silent` suppresses nono output and the wrapper report, but not the agent's
 output. `-V` and the compatible `-v` both show the wrapper version.
@@ -219,9 +210,8 @@ output. `-V` and the compatible `-v` both show the wrapper version.
 | `run --open-port` | Native bidirectional TCP exception | Not a localhost-only or domain-scoped grant |
 | `run --silent/-s` | Native silent output plus no wrapper report | Agent stdout/stderr still pass through |
 | `run --no-diagnostics=false` | Restore native diagnostics and save prompts | Wrapper suppresses these by default; audit remains on |
-| `config AGENT allow`, `read` | Save `filesystem.allow`, `filesystem.read` | Persistent; native access-mode names |
-| `config AGENT open-port` | Save `network.open_port` | `allow-tcp-port` remains an alias |
-| `config AGENT add-dir`, `add-file` | Legacy read-only path editors | Unchanged; use `--read-write` to widen |
+| `config AGENT add-dir`, `add-file` | Save a read-only path, or read/write with `--read-write` | Persistent; `read`, `allow` and their `-file` forms are short forms |
+| `config AGENT open-port` | Save `network.open_port` | Persistent; `allow-tcp-port` still works |
 | `--version/-V` | Version, as in nono | Old wrapper `-v` remains a version alias |
 
 Each repeated path/domain/port flag takes one literal value: commas in a path or
@@ -320,7 +310,7 @@ Login commands start the agent like any other session, so run them in an
 
 For OpenCode 2's **Sign in with ChatGPT** browser/token-sharing flow, start the
 sandboxed foreground server and configure its client password as described
-in [local-server setup](opencode-2-evaluation.md). Use the explicit endpoint:
+in [local-server setup](opencode.md). Use the explicit endpoint:
 
 ```sh
 nono-wrapper opencode --server http://127.0.0.1:4096 \
@@ -411,3 +401,22 @@ where the required
 nono's grants. We do not use `--dangerously-bypass-approvals-and-sandbox`,
 which would also bypass the approval flow. These are launch options; the
 wrapper does not rewrite the user's Codex configuration.
+
+## What a launch prepares and refuses
+
+Before resolving policy, the wrapper creates the agent's standard state and
+cache directories, with owner-only permissions for new directories. This
+prevents a cold first launch from losing declared grants because the paths
+do not exist yet. It requires an absolute home/state location and refuses
+paths that would expose active nono policy files. For bundled profiles, its
+protected session profile also grants the exact non-default state paths;
+explicit user path restrictions take precedence. External profiles selected
+with `NONO_PROFILE` keep their own permission policy.
+
+Before starting the agent, the wrapper inspects the effective filesystem
+manifest, including inherited grants and launch-time additions. Writable
+access to the agent, nono, the wrapper, its resolved Mise executable, or a
+known Mise control/data tree is refused. This includes state symlinks,
+workspace grants and `NONO_ALLOW`; read-only access is permitted.
+Install managed binaries outside the writable workspace, including local
+builds of the wrapper itself.

@@ -90,7 +90,7 @@ the body `{"error":"Forbidden"}`.
 OpenCode 2.2.5's token-sharing flow uses `api.openai.com` for model traffic.
 The `chatgpt.com` host also remains available for ChatGPT model traffic. Only OpenCode
 2 is supported; its policy does not include legacy Codex login endpoints.
-See [OpenCode versions and server setup](opencode-2-evaluation.md).
+See [OpenCode versions and server setup](opencode.md).
 
 OpenCode may refresh its model catalogue using the bundled GET rule below.
 A slow reply can delay startup; the executable also contains a catalogue:
@@ -153,7 +153,7 @@ terminal outside nono.
 
 OpenCode 2 standalone on Linux still uses these domain/endpoint allowances
 through nono's proxy. Its private loopback changes local TCP access, not the
-domain filter. `allow-tcp-port` is for deliberate host-network modes instead;
+domain filter. `open-port` is for deliberate host-network modes instead;
 it conflicts with standalone's namespace isolation. See the mode distinction
 below before adding a host-port grant.
 
@@ -199,7 +199,7 @@ They are separate grants.
 For **OpenCode 2 standalone on Linux**, exact domains, wildcard domains,
 HTTPS method/path rules and user overrides work through the same proxy as
 before. Host TCP-port grants are incompatible with its private network:
-`allow-tcp-port` may be saved for explicit `serve`/`--server` mode, but that
+`open-port` may be saved for explicit `serve`/`--server` mode, but that
 grant must be removed before returning to standalone. Private-loopback
 listeners need no host-port grants and are unreachable from the host.
 AppArmor's `userns` authorization permits namespace creation; it does not
@@ -219,12 +219,12 @@ add domain or internet access. Offline mode still blocks remote networking.
 | `allow-domain '*'` or `'api.*.example.com'` | Rejected: only a leading `*.` wildcard is supported. |
 | `allow-domain 'https://*.example.com/api/**'` | Rejected: endpoint rules require an exact hostname. Use wildcard domains only for whole-domain access. |
 | An `http://` URL, or a URL with credentials, query, or fragment | Rejected: these do not express supported endpoint restrictions. |
-| `allow-tcp-port 3000` | TCP connect/listen on this port, including non-loopback addresses on Linux; can bypass domain filtering even with an offline profile. |
-| `allow-tcp-port 0`, `65536`, `3000-3010`, or `3000/udp` | Rejected: one decimal TCP port from 1 to 65535 is required. |
+| `open-port 3000` | TCP connect/listen on this port, including non-loopback addresses on Linux; can bypass domain filtering even with an offline profile. |
+| `open-port 0`, `65536`, `3000-3010`, or `3000/udp` | Rejected: one decimal TCP port from 1 to 65535 is required. |
 | `remove-domain example.com` | Remove that exact user host entry, including all its endpoint rules. Does not remove `'*.example.com'`. |
 | `remove-domain --method GET 'https://example.com/api/**'` | Remove only that method/path rule; removing the last endpoint removes the user host entry. |
 | `remove-domain 192.0.2.1`, `buildserver`, or `'*'` | Remove that exact stored key, even though it cannot be newly allowed. Wildcards are not expanded to remove other entries. |
-| `remove-tcp-port 3000` | Remove the user-added TCP port. |
+| `remove-open-port 3000` | Remove the user-added TCP port. |
 
 The only network flag is `--method`, for a URL with a non-root path. Its
 default is `*` (any method); method names are normalized to uppercase.
@@ -258,7 +258,7 @@ server-side permissions or a token scoped to the intended project. Codex streams
 over WebSockets, which nono refuses on hosts with URL rules, so keep
 `chatgpt.com` as a whole host.
 
-`allow-tcp-port PORT` writes nono's `network.open_port`. On Linux the exception
+`open-port PORT` writes nono's `network.open_port`. On Linux the exception
 permits TCP connect/listen by port, not by host: direct connections to
 non-loopback addresses can succeed outside the domain-filtering proxy, even
 with an offline profile. It is not a way to allow only `example.com:3000` or
@@ -271,7 +271,7 @@ Remove allowances with:
 ```sh
 nono-wrapper config opencode remove-domain api.github.com
 nono-wrapper config opencode remove-domain --method GET 'https://gitlab.example.com/api/v4/projects/123/**'
-nono-wrapper config opencode remove-tcp-port 8081
+nono-wrapper config opencode remove-open-port 8081
 nono-wrapper config opencode remove-dir /path/to/reference
 nono-wrapper config opencode remove-file /path/to/settings.toml
 ```
@@ -535,7 +535,7 @@ nono 0.81.0 can give a sandbox its own network namespace and TCP loopback.
 This is useful for tests and development servers that communicate inside
 one sandbox. It does not publish their ports to the host.
 OpenCode 2's normal wrapper launch uses this feature automatically with
-`--standalone`; see [OpenCode setup](opencode-2-evaluation.md) for required
+`--standalone`; see [OpenCode setup](opencode.md) for required
 host support, conflicting grants and first-time browser login. The example
 below is an optional experiment for Codex.
 
@@ -767,8 +767,9 @@ configuration remains read-only; the wrapper parent
 is not writable. `wrapper/dists` must be writable because Gradle creates ZIP lock
 files beside its distributions. This also permits changing cached executable
 distributions, an accepted shared-cache risk like the Maven repository exception.
-Use a dedicated `GRADLE_USER_HOME` for untrusted work. Downloads still require
-network access and artifact verification; these grants do not establish full builds.
+Use a dedicated `GRADLE_USER_HOME` for untrusted work. These grants do not make
+Gradle builds start inside the sandbox; see
+[Known limitations](../README.md#known-limitations).
 
 Go can download and extract dependencies under
 `$HOME/go/pkg/mod` and write its build/fuzz cache under
@@ -875,9 +876,8 @@ seven days only when unset, leaving explicit stricter values intact. These
 environment settings are not protection against project code changing its own
 environment, nor do they grant registry access.
 
-See the [evaluation and follow-up validation](devbase-core-evaluation.md) for
-what was tested and what remains unsupported. Nested sandbox execution, package
-downloads and full Gradle builds are not established by startup/default grants.
+Nested sandbox execution, package downloads and full Gradle builds are not
+established by startup/default grants.
 
 ### Name-service cache on Linux
 

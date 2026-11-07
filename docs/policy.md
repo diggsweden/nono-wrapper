@@ -89,10 +89,10 @@ holds for individually writable caches and, for OpenCode, `~/.npm`. Treat these
 caches like the project itself: review what a session changed, or clear them
 after an untrusted session.
 
-The last Gradle check, with nono 0.80, failed with network filtering or
-`--block-net`:
-it lists the machine's network interfaces at startup, and nono refuses the
-socket Java opens for that. It also needs write access to `~/.gradle`.
+Gradle builds still do not start inside the sandbox (last checked with nono
+0.81.0 and Gradle 9.8.2): Gradle lists the machine's network interfaces at
+startup, nono refuses the socket Java opens for that, and Gradle stops with
+"Could not determine a usable wildcard IP for this machine".
 
 It also grants `~/.config/git`, `~/.config/delta` and
 `~/.config/ssh/allowed_signers` read-only, because Git stops with an error
@@ -204,10 +204,6 @@ After updating, reinstall the bundled profiles with `just install-local` and
 restart running agent sessions. Existing sessions keep their original policy.
 
 ## Background
-
-For application-specific default-access recommendations, installed-tool evidence
-and compatibility gaps, see the [DevBase-core evaluation](devbase-core-evaluation.md).
-The evaluation proposes follow-ups; it does not change the bundled policy.
 
 The policy choices originated in an earlier wrapper project. This repository
 extends the official nono agent packs rather than maintaining replacement

@@ -46,14 +46,14 @@ a sandbox denial.
 | Symptom | First check and next step |
 | --- | --- |
 | The agent does not start | Read the wrapper error. Check the named executable on `PATH`, the selected profile, or the [start directory](usage.md#where-an-agent-may-start), as indicated. For a Mise shim, run `mise which codex` or `mise which opencode` from that project. |
-| `doctor` passes but launch fails | Doctor uses offline shell probes, not the full agent launch. Check the launch error for agent resolution, state-directory or [protected-path](usage.md#commands) failures. |
+| `doctor` passes but launch fails | Doctor uses offline shell probes, not the full agent launch. Check the launch error for agent resolution, state-directory or [protected-path](usage.md#what-a-launch-prepares-and-refuses) failures. |
 | A writable grant overlaps a protected launch location | Read both paths in the error. Check the workspace, `NONO_ALLOW`, user path grants and relocated state. Move the executable/state or narrow the grant; adding write access cannot fix this refusal. |
 | Login fails or a service is unreachable | Check the session report for a matching network refusal. If there is none, check the agent's login/provider and the service response. A 403 alone does not identify who refused the request. See [login](usage.md#first-time-chatgpt-login) and [network allowances](configuration.md#network-allowance-matrix). |
 | A file cannot be read or written | Establish the exact path and operation. Check whether it is in the workspace or covered by a user or inherited grant. Start with read-only access when reading is all that is needed; see [user configuration](configuration.md#user-configuration). |
 | A linked `AGENTS.md` cannot be read | The target may be outside the granted directory. Use `config AGENT add-file PATH` to save a read-only grant for the resolved file, then restart. See [linked instruction files](configuration.md#linked-instruction-files). |
 | An SSH agent or other Unix socket is refused | Inside the session, use `nono why --self --unix-socket /absolute/path/to/socket`. It checks socket connection access; `--path` checks filesystem access instead. A named base profile does not include the wrapper's SSH-agent grant. |
-| An OpenCode 2 client cannot connect or authenticate | Start `serve` under the wrapper, allow its chosen TCP port, and pass the same server password through `OPENCODE_PASSWORD` in the client's allowed environment. Restart the server after policy changes; see [local-server setup](opencode-2-evaluation.md). |
-| Normal OpenCode 2 startup fails with a namespace error | Run `doctor opencode`; the Linux standalone workflow requires permitted user/network namespaces. Resolve the reported AppArmor/kernel/container restriction or use deliberate explicit-server mode. There is no weaker automatic fallback. See [host requirements](opencode-2-evaluation.md#host-requirements). |
+| An OpenCode 2 client cannot connect or authenticate | Start `serve` under the wrapper, allow its chosen TCP port, and pass the same server password through `OPENCODE_PASSWORD` in the client's allowed environment. Restart the server after policy changes; see [local-server setup](opencode.md). |
+| Normal OpenCode 2 startup fails with a namespace error | Run `doctor opencode`; the Linux standalone workflow requires permitted user/network namespaces. Resolve the reported AppArmor/kernel/container restriction or use deliberate explicit-server mode. There is no weaker automatic fallback. See [host requirements](opencode.md#host-requirements). |
 | OpenCode 2 private networking rejects port grants | Remove old `open_port`, `connect_port`, `listen_port` and `no_proxy` rules from the effective base/user policy, including temporary browser-login grants. Host networking and private loopback are separate modes. |
 | An allowance change has no effect | Confirm the agent named in `config`, inspect its user additions with `config AGENT show`, and restart the session. Broader grants or deny rules may still determine access. |
 | The session report is unavailable | Use the printed `nono audit list` command to locate the recorded session. A reporting failure does not change the agent's exit status. |
@@ -94,11 +94,12 @@ launches Codex's help under the sandbox. Native nono flags belong to
 ## Review a session
 
 Use nono's [session audit](https://nono.sh/docs/cli/features/audit) for
-recorded activity and its
-[rollback features](https://nono.sh/docs/cli/features/atomic-rollbacks) for
-snapshot-based change review and restoration. Enable snapshots through
-`nono run --rollback ...`; `.git` is excluded by default, and
-`--rollback-include .git` explicitly includes it.
+recorded activity. nono's
+[rollback snapshots](https://nono.sh/docs/cli/features/atomic-rollbacks) are
+not available through the wrapper: `nono-wrapper run` does not accept
+`--rollback`, and a plain `nono run` session lacks the wrapper's profiles,
+start-directory guard and report. Review project changes with Git and
+[`nono-wrapper changes`](#selected-file-change-review) instead.
 
 The wrapper's own post-exit report is described under
 [Automatic session report](usage.md#automatic-session-report).

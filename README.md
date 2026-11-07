@@ -23,27 +23,23 @@ and macOS.
 
 ## Quick Start
 
-OpenCode **2.2.5** is the tested baseline; only OpenCode 2 is supported.
-Before running an OpenCode command, the wrapper checks `--version` inside
-the same sandbox. Any `2.x.x` is accepted by this major-version guard;
-other or unrecognized versions are refused with an instruction to use v2.
-On Linux, start it with `nono-wrapper opencode`:
-OpenCode manages its own server inside nono's private loopback. The host
-must permit user/network namespaces; `doctor opencode` checks startup.
-If Ubuntu blocks that check, follow the [AppArmor setup](#ubuntu-apparmor-setup).
-See [OpenCode setup](docs/opencode-2-evaluation.md) for host requirements,
-first-time browser login, macOS limits and WSL2 validation status.
+You need:
 
-Install OpenCode and/or Codex through DevBase or your preferred installer.
-The agent must be on `PATH`; this checkout installs the wrapper, not the
-agents. You also need [mise](https://mise.jdx.dev/getting-started.html)
-activated in your shell and `~/.local/bin` on `PATH`.
+- Linux; see the [platform notes](docs/install.md#platform-notes) for macOS
+  and WSL2.
+- [mise](https://mise.jdx.dev/getting-started.html) activated in your shell,
+  and `~/.local/bin` on `PATH`.
+- OpenCode 2 and/or Codex on `PATH`. Any installer works; DevBase, Digg's
+  developer-machine setup, provides them but is not required. This checkout
+  installs the wrapper, not the agents. OpenCode **2.2.5** is the tested
+  baseline, and the wrapper refuses other major versions.
 
-Follow [Install](docs/install.md) for the prerequisites and installation
-steps. From the checkout, the short version is:
+Follow [Install](docs/install.md) for the details. From the checkout, the
+short version is:
 
 ```sh
-mise install nono go just aqua:koalaman/shellcheck
+mise trust
+mise install nono go just
 mise use -g nono@0.81.0
 just install-local
 nono-wrapper doctor codex
@@ -51,7 +47,11 @@ nono-wrapper doctor codex
 
 Use `doctor opencode` if that is your agent, or `doctor` to check both.
 It checks prerequisites and offline confinement, not login or a full agent
-launch. [Install](docs/install.md) covers custom paths and platform notes.
+launch. On Linux, OpenCode runs in nono's private loopback, which needs
+user/network namespaces; if `doctor opencode` reports an AppArmor
+restriction, follow the [AppArmor setup](#ubuntu-apparmor-setup).
+[OpenCode setup](docs/opencode.md) covers its host requirements, macOS
+limits and WSL2 status.
 
 Setup selects nono globally, installs profiles and official packs, and may
 update the pack's marked block in
@@ -65,14 +65,14 @@ nono-wrapper codex login
 nono-wrapper codex
 ```
 
-Start OpenCode with `nono-wrapper opencode`. OpenCode 2
-on Linux requires the [namespace setup](docs/opencode-2-evaluation.md).
-The current directory is the
-agent's writable workspace. By default, start below `~/development`; an
-explicit `NONO_WRAPPER_ROOT` allows starting in that root or below it
-([Where an agent may start](docs/usage.md#where-an-agent-may-start)).
-[Usage](docs/usage.md) covers OpenCode's sign-in, offline mode and the
-session report.
+For OpenCode, the first ChatGPT sign-in uses a temporary explicit server;
+follow [OpenCode sign-in](docs/opencode.md#modern-chatgpt-browser-token-sharing-login),
+then start it with `nono-wrapper opencode`.
+
+The current directory is the agent's writable workspace. By default, start
+below `~/development`; an explicit `NONO_WRAPPER_ROOT` allows starting in that
+root or below it ([Where an agent may start](docs/usage.md#where-an-agent-may-start)).
+[Usage](docs/usage.md) covers offline mode and the session report.
 
 ### Ubuntu AppArmor setup
 
@@ -241,7 +241,7 @@ nono-wrapper opencode
 
 This resolves the namespace startup restriction. First-time modern ChatGPT
 browser login still needs the separate
-[token-sharing login setup](docs/opencode-2-evaluation.md#modern-chatgpt-browser-token-sharing-login).
+[token-sharing login setup](docs/opencode.md#modern-chatgpt-browser-token-sharing-login).
 
 With an exact path, update and reload the profile whenever an upgrade changes
 the executable path. With the version wildcard, ordinary Mise version
@@ -251,7 +251,7 @@ The rule permits namespace creation for matching executables; nono still
 enforces filesystem restrictions and domain/HTTPS endpoint filtering.
 On WSL2, apply this only if its startup check reports the same AppArmor
 restriction; the requirement depends on the active kernel and distribution
-policy. See [OpenCode setup](docs/opencode-2-evaluation.md#host-requirements)
+policy. See [OpenCode setup](docs/opencode.md#host-requirements)
 for WSL2 validation status and other startup restrictions.
 
 **Why OpenCode 1 worked without this:** its former direct workflow did not
@@ -292,7 +292,7 @@ For example, to use a web server running on your host's `127.0.0.1:3000`:
 
 The name is resolved by the proxy on the host. Clients must honor nono's
 `HTTP_PROXY`/`HTTPS_PROXY`; `--noproxy ''` explicitly keeps curl on that proxy.
-Do not add `allow-tcp-port` or `network.no_proxy` for this workflow: those
+Do not add `open-port` or `network.no_proxy` for this workflow: those
 are direct-network settings and conflict with private loopback.
 
 **Scope:** `allow-domain` grants that hostname on **all paths and ports**,
@@ -356,6 +356,7 @@ refuse host allowances; remove these rules before selecting offline mode.
 
 - **How-to** • [Install](docs/install.md) ·
   [Usage](docs/usage.md): starting agents, ChatGPT login and offline mode ·
+  [OpenCode](docs/opencode.md): private loopback and sign-in ·
   [Configuration](docs/configuration.md): extra hosts,
   [HTTPS paths and MCP endpoints](docs/configuration.md#https-paths-and-mcp-endpoints),
   directories and files,

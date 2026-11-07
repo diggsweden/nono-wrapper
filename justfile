@@ -115,7 +115,7 @@ install-local: build generate-manpage
     done
     printf 'Commands: %s\nProfiles: %s\nManual: %s\n' "$bin_dir" "$profile_dir" "$man_dir/nono-wrapper.1"
     printf 'Default profiles verified: opencode-chatgpt, codex-chatgpt\n'
-    printf 'OpenCode 2 is required on PATH. See docs/opencode-2-evaluation.md for namespace and login setup.\n'
+    printf 'OpenCode 2 is required on PATH. See docs/opencode.md for namespace and login setup.\n'
     case ":$PATH:" in
         *":$bin_dir:"*) ;;
         *) printf 'Add %s to your PATH to run nono-wrapper.\n' "$bin_dir" ;;

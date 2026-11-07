@@ -97,32 +97,17 @@ profile. Use explicit-server mode when you deliberately need host networking.
 ### Modern ChatGPT browser token-sharing login
 
 A host browser cannot reach a callback listener in private loopback. For
-browser login, use the explicit sandboxed server/client setup below. After
-login, stop that server, remove its temporary port grants, and start normal
-sessions with `nono-wrapper opencode`. Saved account state is shared by both
-modes; authenticated token refresh/model use still needs account-backed
-validation. Starting this browser login inside private loopback does not make its
-callback reachable from the host.
+browser login, follow the explicit sandboxed server/client steps in the next
+section. After login, stop that server, remove its temporary port grants,
+and start normal sessions with `nono-wrapper opencode`. Saved account state
+is shared by both modes; authenticated token refresh/model use still needs
+account-backed validation. Starting this browser login inside private
+loopback does not make its callback reachable from the host.
 
 The v2 [provider guide][v2-auth] also lists older Codex sign-in methods. The
 bundled v2 policy and instructions use modern `chatgpt-token-sharing`; they
 do not add legacy device-code endpoints or select an older method to avoid
 the callback requirement.
-
-### Why not just configure the shared service?
-
-The v2 [CLI guide][v2-cli] offers `opencode service set disabled true` as
-another way to select private servers. In 2.2.5 that selects the same
-standalone implementation, which starts `serve --stdio --port 0`. It does
-not fix the sandbox's dynamic-port requirement. Persisting a service port or
-proxy environment configures the shared service, not standalone servers;
-the [network guide][v2-network] makes this distinction explicit. The wrapper
-therefore uses the per-invocation `--standalone` flag and nono isolation,
-without changing global OpenCode service settings. `NO_PROXY` alone changes
-proxy routing; it does not grant a denied socket operation.
-
-The older `/docs/` pages describe different flags and configuration. Use the
-`/v2/docs/` pages and the pinned source when checking these workflows.
 
 ## Explicit server and browser login without private namespaces
 
@@ -134,21 +119,26 @@ same project and use the same selected profiles and password.
 First allow one server port:
 
 ```sh
-nono-wrapper config opencode allow-tcp-port 4096
+nono-wrapper config opencode open-port 4096
 ```
 
-Merge the following into `opencode-user.jsonc`, preserving existing settings.
-The environment entry lets the client authenticate to your server. The
-listen-only port 0 entry is needed for v2's automatically assigned browser
-callback port when signing in; remove it and restart the server after login
-if you no longer need callbacks.
+That command saved the port in your user file,
+`~/.config/nono/profiles/opencode-user.jsonc` (under `$XDG_CONFIG_HOME` if
+you set it). Open it in an editor and add two entries. With no other user
+allowances, the file then reads:
 
 ```json
 {
   "environment": { "allow_vars": ["OPENCODE_PASSWORD"] },
-  "network": { "listen_port": [0] }
+  "network": { "open_port": [4096], "listen_port": [0] }
 }
 ```
+
+If the file holds other allowances, keep them and add `listen_port` inside the
+existing `network` object: a second `network` key is refused. The environment
+entry lets the client authenticate to your server. The listen-only port 0
+entry is needed for v2's automatically assigned browser callback port when
+signing in.
 
 In terminal A, start the server on a loopback address. With the password
 variables unset, OpenCode generates a fresh password and prints it:
@@ -158,8 +148,15 @@ env -u OPENCODE_PASSWORD -u OPENCODE_SERVER_PASSWORD \
   nono-wrapper opencode serve --hostname 127.0.0.1 --port 4096
 ```
 
-In terminal B, set `OPENCODE_PASSWORD` to that password using your normal
-secret-handling method, then connect explicitly:
+In terminal B, set `OPENCODE_PASSWORD` to that password. Reading it keeps
+it out of your shell history and the process list; paste it and press Enter:
+
+```sh
+read -rs OPENCODE_PASSWORD && export OPENCODE_PASSWORD  # Bash
+read --silent --export OPENCODE_PASSWORD                # Fish
+```
+
+Then connect explicitly:
 
 ```sh
 nono-wrapper opencode --server http://127.0.0.1:4096
@@ -180,7 +177,7 @@ generally destination-address restrictions on Linux, and listen grants are
 not interface-scoped. See the [network allowance matrix](configuration.md#network-allowance-matrix).
 Bind the server to `127.0.0.1` and keep its password out of profiles and argv.
 The `listen_port: [0]` setting is a native nono profile field, not an
-`allow-tcp-port 0` command. It authorizes an ephemeral listener, not outbound
+`open-port 0` command. It authorizes an ephemeral listener, not outbound
 access to every ephemeral port. Browser login uses the online profile;
 offline mode is for local operations and saved state, not token exchange.
 
@@ -190,15 +187,30 @@ Stop the explicit server with Ctrl-C, then remove the temporary host-port
 grant:
 
 ```sh
-nono-wrapper config opencode remove-tcp-port 4096
+nono-wrapper config opencode remove-open-port 4096
 ```
 
-Remove the `network.listen_port: [0]` entry you added to
-`opencode-user.jsonc`, preserving other settings. Unset `OPENCODE_PASSWORD`
-in the client terminal when it is no longer needed. Normal Linux sessions
-can now use `nono-wrapper opencode`; OpenCode generates a fresh private
+In `opencode-user.jsonc`, remove `"listen_port": [0]` and, unless you keep
+using the explicit server, the `environment` entry; keep any other
+allowances. Unset `OPENCODE_PASSWORD` in the client terminal. Normal Linux
+sessions can now use `nono-wrapper opencode`; OpenCode generates a fresh private
 server password itself. Keep the explicit setup only if you intend to keep
 using `serve`/`--server` rather than the standalone workflow.
+
+## Why not just configure the shared service?
+
+The v2 [CLI guide][v2-cli] offers `opencode service set disabled true` as
+another way to select private servers. In 2.2.5 that selects the same
+standalone implementation, which starts `serve --stdio --port 0`. It does
+not fix the sandbox's dynamic-port requirement. Persisting a service port or
+proxy environment configures the shared service, not standalone servers;
+the [network guide][v2-network] makes this distinction explicit. The wrapper
+therefore uses the per-invocation `--standalone` flag and nono isolation,
+without changing global OpenCode service settings. `NO_PROXY` alone changes
+proxy routing; it does not grant a denied socket operation.
+
+The older `/docs/` pages describe different flags and configuration. Use the
+`/v2/docs/` pages and the pinned source when checking these workflows.
 
 ## Validation scope
 

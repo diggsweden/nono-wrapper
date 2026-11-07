@@ -5,7 +5,7 @@
 // OpenAI / ChatGPT account login and token refresh. The pinned OpenCode
 // 2.2.5 uses ChatGPT token sharing and a dynamic browser callback port.
 // The launcher supplies private loopback on Linux. Host browser callbacks
-// need the explicit login setup in docs/opencode-2-evaluation.md.
+// need the explicit login setup in docs/opencode.md.
 // Endpoint rules make nono intercept TLS and refuse other methods and paths
 // over HTTPS. Plain HTTP to a listed host is not covered by them.
 {

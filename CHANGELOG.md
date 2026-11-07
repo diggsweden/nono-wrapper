@@ -27,6 +27,16 @@ profiles.
 - Word doctor's refusal checks as what the sandbox does, show a Podman line
   only when a socket is selected, and point help to `nono-wrapper man`, which
   works without an installed manual page.
+- Lead the README Quick Start with what you need, say that DevBase is
+  optional, and drop ShellCheck from the user install. Docs use `add-dir` and
+  `open-port` throughout, rename the OpenCode guide to `docs/opencode.md`, show
+  how to set the server password without echoing it, and remove the dated
+  DevBase investigation reports. Correct the Gradle limitation for nono 0.81.0.
+- Show OpenCode's complete sign-in user file instead of a fragment that
+  produced a duplicate key, and put the sign-in steps under their heading.
+  Document uninstalling, a persistent `NONO_WRAPPER_ROOT` and `mise trust`
+  before installation, and say that nono rollback is not available through
+  the wrapper. A test keeps the install commands on the pinned nono version.
 - Permit Go module extraction, Cargo dependency caches and exact lock/database
   files, and Gradle cache/daemon writes by default, including relocated roots.
   Keep installed tools, ordinary configuration and dedicated credentials protected.
@@ -36,8 +46,9 @@ profiles.
 - Permit Gradle wrapper distribution locks within `wrapper/dists`, including
   relocated Gradle homes; retain read-only ordinary configuration and document
   the accepted executable-cache risk.
-- Read Linux dpkg's exact configuration file/snippets and allow exact vulnerability, Gradle
-  distribution and documentation hosts, without broad filesystem or network grants.
+- Read Linux dpkg's exact configuration file/snippets and allow exact
+  vulnerability, Gradle distribution and documentation hosts, without broad
+  filesystem or network grants.
 - Keep network I/O failures visible without misleading host-grant suggestions.
 
 ### Added

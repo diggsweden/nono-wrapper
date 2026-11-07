@@ -328,9 +328,7 @@ generated delegates and limit the test's tools to OpenCode, Codex and nono:
 
 This requires a DevBase revision or overlay that supplies the AI pack and
 delegates. The upstream snapshot reviewed on 2026-11-04 does not contain them;
-see the [DevBase compatibility evaluation](devbase-core-evaluation.md) and
-[manifest-to-PATH inventory](devbase-core-inventory.md) before applying these
-instructions to another revision.
+check that your revision does before applying these instructions.
 
 ```sh
 devbase=/absolute/devbase-core
@@ -563,7 +561,7 @@ private loopback, explicit server/password checks and a cancelled modern
 browser callback. Codex 0.164.0 command execution/confinement also passed in
 those isolated native fixtures. The native v2 suite requires namespace
 support and does not bypass a host restriction. Its ordinary
-[explicit-server workflow](opencode-2-evaluation.md) remains available for
+[explicit-server workflow](opencode.md) remains available for
 modern browser login and deliberate host networking.
 
 Native Linux Git SSH tests also passed with nono 0.81.0, including its new

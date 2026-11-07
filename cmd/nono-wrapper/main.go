@@ -42,7 +42,7 @@ const (
 	profilesDir = "$XDG_CONFIG_HOME/nono/profiles, normally ~/.config/nono/profiles"
 	// Output names documents by URL: a binary-only installation has no checkout.
 	installDoc       = docsURL + "/blob/main/docs/install.md"
-	openCodeDoc      = docsURL + "/blob/main/docs/opencode-2-evaluation.md"
+	openCodeDoc      = docsURL + "/blob/main/docs/opencode.md"
 	openCodeLoginDoc = openCodeDoc + "#modern-chatgpt-browser-token-sharing-login"
 	appArmorDoc      = docsURL + "/blob/main/README.md#ubuntu-apparmor-setup"
 )

@@ -51,7 +51,8 @@ user/network namespaces; **doctor opencode** checks startup. Unsupported
 hosts fail closed, without opening host ports. Native WSL2 is unverified.
 Explicit **serve** and **--server** retain ordinary host networking instead.
 Modern ChatGPT token-sharing browser login needs the explicit-server setup.
-See docs/opencode-2-evaluation.md for host requirements and macOS limits.
+See <https://github.com/diggsweden/nono-wrapper/blob/main/docs/opencode.md>
+for host requirements and macOS limits.
 Host browser callbacks cannot enter private loopback.
 
 Online profiles inherit the common forge, reference and vulnerability-data
@@ -143,21 +144,20 @@ access, not a confined container interface.
     MCP calls may share an endpoint such as /mcp; URL rules do not restrict
     tools or projects named in request bodies. Use server-side permissions.
 
-**config** **opencode**|**codex** **allow-tcp-port**|**remove-tcp-port** *PORT*
+**config** **opencode**|**codex** **open-port**|**remove-open-port** *PORT*
 :   Let the agent and its programs connect to and listen on one TCP port.
     This is host-independent: on Linux it can permit direct connections to
     non-loopback addresses, bypassing domain filtering even with an offline
     profile. It is not limited to localhost or one remote domain. Binding a
     server to 127.0.0.1 does not restrict the agent's outbound destinations.
     Accepts one decimal port from 1 to 65535, not ranges or UDP.
-    The preferred spellings are **open-port** and **remove-open-port**;
-    the old names remain aliases.
+    The beta names **allow-tcp-port** and **remove-tcp-port** still work.
 
 **config** **opencode**|**codex** **allow**|**read** *PATH*
 :   Persist read/write (**allow**) or read-only (**read**) directory access.
     **allow-file** and **read-file** do the same for individual files.
-    These use nono's access-mode names. The older **add-dir** and **add-file**
-    commands retain their read-only default for compatibility.
+    These are short forms of **add-dir** and **add-file**, using nono's
+    access-mode names.
 
 **config** **opencode**|**codex** **add-dir** [**--read-write**] *PATH*,
 **remove-dir** *PATH*

@@ -12,11 +12,12 @@ SPDX-License-Identifier: CC0-1.0
   its built-in Bash, `/bin/sh`, curl and file utilities for native checks.
 - [mise](https://mise.jdx.dev/getting-started.html) installed and activated in
   your shell, for example with `eval "$(mise activate bash)"` in `~/.bashrc`.
-  DevBase machines already have this. mise installs the sandbox and build
-  tools, including Go and just; a system Go may be too old.
-- OpenCode and/or Codex installed through DevBase's AI tool configuration,
-  or an equivalent installation on `PATH`. This checkout does not pin or
-  install host agent versions.
+  DevBase machines (Digg's developer-machine setup) already have this; DevBase
+  is optional. mise installs the sandbox and build tools, including Go and
+  just; a system Go may be too old.
+- OpenCode and/or Codex on `PATH`, from DevBase's AI tool configuration or
+  any other installer. This checkout does not pin or install host agent
+  versions.
 - Your user command directory (`~/.local/bin` by default) on `PATH`.
 - An internet connection for setup and a ChatGPT account with access to the
   agent you want to use.
@@ -24,18 +25,26 @@ SPDX-License-Identifier: CC0-1.0
 Minimum supported releases: Ubuntu 26.04, and WSL 2.7.7 when running under
 WSL2. The wrapper does not check either; older releases are simply untested.
 
-Run these steps as your normal user from this repository's checkout.
+Run these steps as your normal user. Get the checkout first:
+
+```sh
+git clone https://github.com/diggsweden/nono-wrapper.git
+cd nono-wrapper
+```
 
 ## 1. Install the tools
 
+mise reads a checkout's `.mise.toml` only after you trust it. Review that
+file, then trust it and install:
+
 ```sh
-mise install nono go just aqua:koalaman/shellcheck
+mise trust
+mise install nono go just
 ```
 
 This installs the versions selected in `.mise.toml` and prepares Go
 dependencies. Host-tool lockfiles are currently disabled. Naming the tools
-keeps installation scoped to this checkout's sandbox/build tools. If mise
-asks for trust, review `.mise.toml` and run `mise trust` before retrying.
+keeps installation scoped to this checkout's sandbox/build tools.
 
 Check that your shell uses these tools: `go version` in this checkout must
 print the Go version from `.mise.toml`. If it prints another one, mise is not
@@ -56,12 +65,11 @@ just install-local
 
 This installs OpenCode 2 profiles. Install the OpenCode 2 CLI through
 DevBase/Mise first; the installer does not install or guess agent versions.
-See [OpenCode versions and server setup](opencode-2-evaluation.md).
+See [OpenCode versions and server setup](opencode.md).
 On Linux, the default v2 launch requires permitted user/network namespaces.
 `doctor opencode` exercises that startup and reports host restrictions.
-Installation does not change AppArmor or system namespace settings. WSL2's
-namespace workflow still needs native validation; macOS needs explicit-server
-setup because nono's private loopback is Linux-only.
+Installation does not change AppArmor or system namespace settings. For
+macOS and WSL2, see the [platform notes](#platform-notes).
 
 This builds the wrapper, installs the signed official packs, bundled
 profiles and the manual, and checks the profiles' inheritance. Default
@@ -99,7 +107,7 @@ Rerun `just install-local` after changing the Go code or bundled profiles.
 | Component | Selected by | Check after an update |
 | --- | --- | --- |
 | Host OpenCode/Codex | DevBase or your installer | Run `doctor AGENT`, then launch that agent and check login and project operations. |
-| nono | This checkout's `.mise.toml` | Run `doctor` for the agents you use and validate real agent integration. |
+| nono | This checkout's `.mise.toml` | Rerun `mise use -g nono@VERSION` with the version from `.mise.toml`, then `doctor` for the agents you use, and validate real agent integration. |
 | Official packs | This checkout's `test/packs` | Reinstall with `just install-local`, then validate agent integration. |
 | Bundled profiles | This repository | Reinstall, restart sessions and check the affected access rules. |
 | User allowances | You or your platform configuration | Restart the affected agent and verify the intended access. |
@@ -107,6 +115,33 @@ Rerun `just install-local` after changing the Go code or bundled profiles.
 The commands above are user checks. Maintainers should also run the
 [development checks](development.md#everyday-commands) and the relevant
 [integration tests](development.md#recipes) when changing compatibility.
+
+## Uninstall
+
+Run these from your normal terminal, outside an agent session. Remove the
+packs first, while nono is still installed; nono also reverses their agent
+wiring, such as the marked block in `~/.codex/config.toml`:
+
+```sh
+nono remove nolabs-ai/opencode
+nono remove nolabs-ai/codex
+```
+
+Then remove the wrapper, the manual and the bundled profiles. These are the
+default paths; adjust them if you set `INSTALL_DIR` or the XDG variables:
+
+```sh
+rm -f ~/.local/bin/nono-wrapper ~/.local/share/man/man1/nono-wrapper.1
+cd ~/.config/nono/profiles
+rm -f agent-policy.jsonc developer-network.jsonc \
+  opencode-base.jsonc opencode-chatgpt.jsonc opencode-offline.jsonc \
+  codex-base.jsonc codex-chatgpt.jsonc codex-offline.jsonc
+```
+
+`opencode-user.jsonc` and `codex-user.jsonc` in the same directory hold your
+own allowances; delete them too if you no longer need them. Finally, drop the
+global nono selection with `mise unuse -g nono`. Agent logins and other agent
+data stay in the agents' own directories.
 
 ## Sandbox and test versions
 
