@@ -104,6 +104,13 @@ access, not a confined container interface.
     blocked or proxied network policy without direct TCP grants. Nono validates
     namespace names and conflicts; failures never fall back to host networking.
 
+    On Linux, bundled Codex offline sessions also select private loopback
+    automatically. Online Codex retains host networking for browser callbacks.
+    **--silent** suppresses nono output and the wrapper report, not agent output.
+    Native failure footers and profile-save prompts are suppressed by default;
+    **--no-diagnostics=false** restores them. Auditing stays enabled.
+    These options do not edit persistent user configuration.
+
 **opencode** [*agent-argument*...], **codex** [*agent-argument*...]
 :   Start the agent under nono. Every argument, including **--help**, goes to
     the agent. If the agent on **PATH** is a mise shim, the wrapper asks

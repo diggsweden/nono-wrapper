@@ -26,6 +26,7 @@ developer-network ────────────────────�
 | Network | ChatGPT login plus developer hosts from `developer-network.jsonc`; explicit offline profiles |
 | Git SSH | online sessions can use the domain-filtered CONNECT proxy, existing SSH agent and a read-only public host-key snapshot |
 | Browser login | Codex callbacks on 1455/1457; OpenCode 2 browser login uses explicit-server mode with an ephemeral listen grant, separate from normal private-loopback sessions |
+| Linux local tests | OpenCode standalone and bundled Codex offline sessions use private loopback; dynamic local listeners cannot reach host localhost. Online Codex retains its browser-callback networking. |
 | Agent environment | nono's `environment.allow_vars` keeps the core, editor and toolchain-location variables and excludes unrelated credentials |
 | Linux pathname Unix sockets | mediation enabled; sockets require explicit grants, and the wrapper grants the SSH agent's. Not on WSL2: see [WSL2](#wsl2) |
 | macOS app automation | Apple Events and access to their Mach broker are denied in the bundled profiles |

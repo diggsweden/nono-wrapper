@@ -247,9 +247,10 @@ func launchWithOptions(ctx context.Context, agent string, args []string, stderr 
 	}
 	nonoArgs = append(nonoArgs, options.nonoArgs...)
 	standalone := agent == "opencode" && openCodeStandalone(args)
-	if standalone && runtime.GOOS == "linux" {
-		// OpenCode owns its dynamic-port server and its lifetime. Give both
-		// processes private loopback, never access to arbitrary host ports.
+	if runtime.GOOS == "linux" && (standalone || (agent == "codex" && profile == "codex-offline")) {
+		// Agents and build tools need dynamic local listeners. Give bundled
+		// offline sessions private loopback, never arbitrary host ports.
+		// Online Codex retains host networking for its browser-login callbacks.
 		nonoArgs = append(nonoArgs, "--isolate", "net,loopback")
 	}
 	nonoArgs = append(nonoArgs, "--allow-cwd", "--read-file", program)

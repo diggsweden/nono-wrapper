@@ -378,6 +378,12 @@ combining `network.block` with host allowances, so remove user-added hosts
 before using an offline profile, for example
 `nono-wrapper config opencode remove-domain api.github.com`.
 
+On Linux, both bundled offline sessions use private loopback automatically.
+Local test servers can bind dynamic TCP ports, but cannot reach host localhost.
+User/network namespaces must be available; `doctor` checks this and fails
+without falling back to host networking. Online Codex retains its browser-login
+callback ports instead.
+
 ## Codex: one sandbox, approvals retained
 
 Codex uses nono as its OS sandbox, keeps on-request approvals, and does not

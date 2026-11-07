@@ -339,6 +339,15 @@ refuse host allowances; remove these rules before selecting offline mode.
 
 ## Known limitations
 
+- **Private loopback on Linux:** OpenCode standalone and Codex offline sessions
+  can run local TCP test servers without exposing host ports. They require
+  working user/network namespaces. Online Codex keeps host browser callbacks;
+  its networking is not changed automatically.
+- **Private rootless container engines:** ordinary Podman commands use an
+  existing user-owned API socket automatically. A harness that explicitly starts
+  a separate local engine still needs namespace/UID-mapping support; granting
+  cache paths does not fix `newuidmap`. The socket delegates host-user container
+  access, including host mounts. See [Podman setup](docs/configuration.md#rootless-podman-on-linux).
 - **Gradle does not run inside the sandbox.** At startup it lists the
   machine's network interfaces, and nono refuses the socket Java opens for
   that. Run Gradle builds outside the agent; Maven builds work.
