@@ -7,8 +7,8 @@
 {
   "meta": {
     "name": "agent-policy",
-    "version": "0.6.0",
-    "description": "Official-pack overrides: filtered agent environment, Linux socket mediation, macOS Apple Events isolation, toolchain and temporary-file access"
+    "version": "0.15.0",
+    "description": "Shared developer defaults: read-only tools/config, scoped build state, socket mediation, macOS Apple Events isolation and rootless Podman host-user delegation"
   },
   // The pinned official packs do not filter the agent's environment.
   // This filters the agent's environment, not nono's own configuration.
@@ -18,14 +18,57 @@
     "allow_vars": [
       "HOME", "PATH", "USER", "LOGNAME", "SHELL", "TMPDIR", "SSH_AUTH_SOCK",
       "EDITOR", "VISUAL", "PAGER",
-      "GOPATH", "GOROOT", "JAVA_HOME", "CARGO_HOME", "RUSTUP_HOME",
+      "GOPATH", "GOROOT", "JAVA_HOME", "GRADLE_USER_HOME", "CARGO_HOME", "RUSTUP_HOME",
+      "GOTOOLCHAIN", "NPM_CONFIG_MIN_RELEASE_AGE", "PIPX_HOME", "PIPX_COOLDOWN",
+      "MISE_STATE_DIR", "GOMODCACHE", "GOCACHE",
+      "MISE_CACHE_DIR", "GOLANGCI_LINT_CACHE", "STATICCHECK_CACHE", "TRIVY_CACHE_DIR",
+      "RIPGREP_CONFIG_PATH", "NODE_USE_SYSTEM_CA", "NODE_EXTRA_CA_CERTS",
       "TERM", "TERM_PROGRAM", "TERM_PROGRAM_VERSION", "COLORTERM", "NO_COLOR", "CLICOLOR", "CLICOLOR_FORCE",
       "LANG", "LANGUAGE", "TZ", "LC_*",
-      "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR"
-    ]
+      "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_RUNTIME_DIR",
+      "CONTAINER_HOST", "CONTAINER_CONNECTION", "DOCKER_HOST"
+    ],
+    // Installed shared helpers are read-only; bootstrap and updates belong on
+    // the host. Keep Go on the selected, already-installed toolchain.
+    "set_vars": { "DEVBASE_CHECK_SKIP_UPDATES": "1", "GOTOOLCHAIN": "local" }
   },
   // Opt in explicitly; the pinned upstream defaults do not enable mediation.
   "linux": { "af_unix_mediation": "pathname" },
+  "platform_overrides": {
+    "linux": {
+      "filesystem": {
+        // Trusted compiler helpers and headers, not writable toolchains.
+        "read": [
+          "/usr/libexec/gcc", "/usr/include", "/usr/local/include",
+          "/var/lib/binfmts", "/usr/local/share/ca-certificates",
+          // dpkg's default origin is commonly a symlink to another vendor file.
+          // Public distro metadata and dpkg's configuration snippets, not all of /etc/dpkg.
+          "/etc/dpkg/origins", "/etc/dpkg/dpkg.cfg.d"
+        ],
+        // Public subordinate-ID mappings used by rootless container clients.
+        "read_file": ["/etc/debian_version", "/etc/subuid", "/etc/subgid", "/etc/dpkg/dpkg.cfg"],
+        // /dev/ptmx is a separate pathname from the /dev/pts directory grant.
+        "allow_file": ["/dev/ptmx"],
+        // Just creates and executes temporary recipe scripts here. Do not grant
+        // the parent runtime directory: it also contains sensitive sockets.
+        // /dev/shm is deliberately host-shared for multiprocessing semaphores.
+        "allow": ["/run/user/$UID/just", "/dev/shm"],
+        // Python multiprocessing creates nested, randomly named Unix sockets.
+        // Permit only the agent-private temp roots, never all of /tmp.
+        "unix_socket_subtree_bind": [
+          "$HOME/.cache/opencode/tmp", "$XDG_CACHE_HOME/opencode/tmp"
+        ],
+        // Intentional host-user capability: Podman's API can mount host paths.
+        // Connect only; do not grant the socket's parent or container storage.
+        "unix_socket": [
+          "/run/user/$UID/podman/podman.sock",
+          // libc name-service cache lookup; exact connect-only paths, including
+          // the conventional /var/run alias. No nscd files or parent grants.
+          "/run/nscd/socket", "/var/run/nscd/socket"
+        ]
+      }
+    }
+  },
   // A running terminal can launch an unsandboxed agent on our behalf. Denying
   // appleevent-send alone does not stop native AESendMessage calls addressed
   // directly to Ghostty's PID; deny the Apple Events broker as well. These
@@ -38,24 +81,85 @@
   // nono's own groups: readable temporary files on Linux, and read-only mise,
   // Go and Java tool locations. Toolchain variables above point into these.
   "groups": {
-    // The broad HOME cache grant also covers Mise's code-loading cache.
-    // Agent and toolchain caches are granted individually instead.
-    "exclude": ["user_caches_linux"],
+    // Grant reviewed application caches individually, never all of ~/.cache.
+    // Whole Cargo/uv data reads also expose their dedicated login stores.
+    // Reproduce runtime access below using narrower, read-only subtrees.
+    "exclude": ["user_caches_linux", "rust_runtime", "python_runtime"],
     "include": ["linux_temp_read", "mise_manager", "go_runtime", "go_runtime_linux", "java_runtime"]
   },
   "filesystem": {
+    // Log files are prepared without truncation; account/settings siblings stay out.
+    "allow_file": [
+      "$HOME/.opengrep/semgrep.log", "$XDG_CONFIG_HOME/.opengrep/semgrep.log",
+      "$HOME/.cargo/.package-cache", "$HOME/.cargo/.package-cache-mutate", "$HOME/.cargo/.global-cache"
+    ],
+    // Validated SSH public-key read-file grants/exceptions are generated from
+    // runtime JSONC; never grant the SSH directory or unvalidated *.pub paths.
+    // Exact optional exceptions to upstream npmrc/Docker exclusions are added
+    // by runtime-defaults.jsonc only for existing files, avoiding missing-file
+    // warnings while leaving the upstream deny in place when they are absent.
     // Maven writes lock files and downloads into its local repository even
     // offline, and the Maven wrapper unpacks distributions next to it. The
     // java_runtime group grants both read-only.
-    "allow": ["$HOME/.m2/repository", "$HOME/.m2/wrapper"],
+    "allow": [
+      // Accepted shared-cache risk: these may influence later host tool runs.
+      "$HOME/.cache/mise", "$XDG_CACHE_HOME/mise",
+      "$HOME/.cache/golangci-lint", "$XDG_CACHE_HOME/golangci-lint",
+      "$HOME/.cache/staticcheck", "$XDG_CACHE_HOME/staticcheck",
+      "$HOME/.cache/trivy", "$XDG_CACHE_HOME/trivy",
+      "$HOME/.cache/opengrep", "$XDG_CACHE_HOME/opengrep",
+      // VM media is checksum-verified before use; grant its dedicated parent
+      // so explicit cleanup can remove downloads itself, not the cache parent.
+      "$HOME/.cache/itiquette-test-vm", "$XDG_CACHE_HOME/itiquette-test-vm",
+      // User manuals only; executable and shell-completion trees stay protected.
+      "$HOME/.local/share/man", "$XDG_DATA_HOME/man",
+      // Whdkit's working data and state, never the enclosing XDG roots.
+      "$HOME/.local/share/whdkit", "$XDG_DATA_HOME/whdkit",
+      "$HOME/.local/state/whdkit", "$XDG_STATE_HOME/whdkit",
+      // Dependency caches contain executable code and can influence host builds.
+      // Keep installed tools, credentials and ordinary configuration outside grants.
+      "$HOME/go/pkg/mod", "$HOME/.cache/go-build", "$XDG_CACHE_HOME/go-build",
+      "$HOME/.cargo/registry", "$HOME/.cargo/git",
+      "$HOME/.m2/repository", "$HOME/.m2/wrapper",
+      "$HOME/.gradle/native", "$HOME/.gradle/notifications", "$HOME/.gradle/.tmp",
+      "$HOME/.gradle/caches", "$HOME/.gradle/daemon",
+      // Gradle's wrapper locks beside its distributions. Accepted executable-cache risk.
+      "$HOME/.gradle/wrapper/dists"
+    ],
     // Maven stops when settings.xml exists but cannot be read, and DevBase
     // writes one for proxies and registries. It can hold repository and proxy
     // passwords, which the agent can then read; settings-security.xml stays out.
-    "read_file": ["$HOME/.m2/settings.xml"],
+    "read_file": [
+      "$HOME/.m2/settings.xml", "$XDG_CONFIG_HOME/ripgrep/config",
+      "$HOME/.docker/cli-plugins/docker-compose",
+      // Ordinary tool configuration may contain user-placed secrets. Sharing
+      // these files is intentional; dedicated login/key stores stay excluded.
+      "$HOME/.npmrc", "$HOME/.pip/pip.conf", "$XDG_CONFIG_HOME/pip/pip.conf",
+      "$HOME/.bundle/config", "$HOME/.gradle/gradle.properties",
+      "$HOME/.gradle/init.gradle", "$HOME/.gradle/init.gradle.kts",
+      "$XDG_CONFIG_HOME/containers/registries.conf",
+      "$HOME/.cargo/config", "$HOME/.cargo/config.toml", "$HOME/.cargo/env",
+      "$HOME/.cargo/env.fish", "$HOME/.cargo/.crates.toml", "$HOME/.cargo/.crates2.json"
+    ],
     "read": [
+      // Ordinary Whdkit configuration is deliberately shared, not writable.
+      "$HOME/.config/whdkit", "$XDG_CONFIG_HOME/whdkit",
+      // Installed defaults and cached configuration; deliberately shared read-only.
+      "$HOME/.local/share/nanolinter", "$XDG_DATA_HOME/nanolinter",
       // Files a user's Git configuration commonly includes; the pack grants
       // only the configuration file itself.
-      "$XDG_CONFIG_HOME/git", "$XDG_CONFIG_HOME/delta", "$XDG_CONFIG_HOME/ssh/allowed_signers"
+      "$XDG_CONFIG_HOME/git", "$XDG_CONFIG_HOME/delta", "$XDG_CONFIG_HOME/ssh/allowed_signers",
+      "$XDG_CONFIG_HOME/devtools/formatting", "$XDG_CONFIG_HOME/devtools/linting",
+      // Existing trust decisions are readable, never writable or auto-created.
+      "$HOME/.local/state/mise/trusted-configs", "$XDG_STATE_HOME/mise/trusted-configs",
+      "$XDG_DATA_HOME/devbase-check", "$XDG_CONFIG_HOME/uv", "$HOME/.gradle/init.d",
+      "$HOME/.gradle/wrapper",
+      "$HOME/.rustup", "$HOME/.cargo/bin",
+      "$HOME/.pyenv", "$HOME/.local/lib", "$HOME/.conda",
+      "$HOME/.local/share/pipx/venvs", "$HOME/.local/share/pipx/shared",
+      "$XDG_DATA_HOME/pipx/venvs", "$XDG_DATA_HOME/pipx/shared",
+      "$HOME/.local/share/uv/python", "$HOME/.local/share/uv/tools",
+      "$XDG_DATA_HOME/uv/python", "$XDG_DATA_HOME/uv/tools"
     ]
   }
 }

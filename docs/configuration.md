@@ -322,7 +322,7 @@ resources:
 | File | The user's access mode replaces bundled grants for the same canonical file path, including grants written in the general filesystem lists. |
 
 Distinct hosts and paths keep their existing rules.
-For example, `allow-domain chatgpt.com` overrides OpenCode's bundled endpoint
+For example, `allow-domain auth.openai.com` overrides OpenCode's bundled endpoint
 restriction for that host. Removing the user entry restores the bundled rule.
 Host comparisons ignore case and a trailing dot; different wildcard patterns
 remain separate rules.
@@ -521,6 +521,9 @@ OpenCode 2's normal wrapper launch uses this feature automatically with
 host support, conflicting grants and first-time browser login. The example
 below is an optional experiment for Codex.
 
+The wrapper can pass the native namespace option through for a single offline
+Codex session, without creating or changing a profile:
+
 Start with an offline experiment. Save this as
 `~/.config/nono/profiles/codex-loopback.jsonc` (under `XDG_CONFIG_HOME` if set):
 
@@ -572,6 +575,15 @@ them; use a disposable HOME/configuration if you want to keep existing
 settings intact. Codex does not get a namespace flag automatically; its
 isolation comes from this optional profile. OpenCode 2 gets the flag at
 launch time, except for `serve` and explicit `--server` connections.
+
+Private loopback is not nested-container support. Netlink sockets and writes to
+`/proc/*/uid_map` or `setgroups` remain restricted. Ordinary Podman jobs can use
+the configured rootless API socket (with its documented host-user authority).
+Tests that require private engine storage or their own Bubblewrap/Buildah/user
+namespaces must retain those requirements: run their existing guarded launcher
+from a suitable host context. Local-only tiers remain local-only; use CI only
+where that tier explicitly permits it. Do not silently substitute a shared service,
+unset a private-engine refusal, grant writable `/proc` or drop isolation.
 
 The host must allow unprivileged user namespaces. Ubuntu AppArmor policies
 and container seccomp policies can prevent this; nono reports the cause and
@@ -634,6 +646,204 @@ allowance. Remove it with `config opencode remove-domain web.nono.test`
 before an offline launch. Other broader or inherited rules can still grant
 access, as with every domain allowance.
 
+### Just script recipes on Linux
+
+After updating the checkout, run `just install-local` outside the sandbox and
+start a new wrapper session. Existing sessions retain their original grants.
+
+### DevBase compiler, terminal and shared-tool defaults
+
+Default grants live in `profiles/agent-policy.jsonc` and the other native nono
+profiles. Relocated-root mappings, prepared subdirectories, Podman discovery and
+environment fallbacks are declared in `cmd/nono-wrapper/runtime-defaults.jsonc`.
+The latter is embedded: rebuild/reinstall after changing it. Go resolves and
+validates paths, preserves user precedence and checks protected launch inputs;
+it does not carry a second table of developer permissions. Tests verify that
+runtime mappings agree with native profile defaults.
+
+Wrapper runtime declarations accept optional `description` fields on the policy,
+application, Podman section and individual filesystem rules. A filesystem entry
+can remain a plain string or be written as:
+
+```jsonc
+{
+  "path": "native",
+  "description": "Gradle native-library extraction and locks"
+}
+```
+
+The shared policy adds read-only Linux GCC helper and header directories:
+`/usr/libexec/gcc`, `/usr/include` and `/usr/local/include`. Installed toolchains
+remain non-writable. `/dev/ptmx` has an exact read/write file grant for PTY
+allocation; it is not a grant to terminal-control sockets.
+Trusted binfmt metadata at `/var/lib/binfmts`, pip's exact `/etc/debian_version`
+file and public `/usr/local/share/ca-certificates` are readable too. No whole
+`/etc`, `/var/lib` or private CA directory is granted.
+
+Reviewed shared lint inputs are read-only at
+`$XDG_CONFIG_HOME/devtools/formatting`, `$XDG_CONFIG_HOME/devtools/linting` and
+`$XDG_DATA_HOME/devbase-check`. The exact ripgrep config and Compose plugin wrapper
+are readable too. Exact ordinary npm, pip, Bundler, Gradle and Cargo config files
+are shared read-only as-is; users are responsible for secrets placed in those
+deliberately shared files. No whole config/data roots, Docker auth store or
+Maven master-password file is added.
+Whdkit configuration is shared read-only at `~/.config/whdkit` and
+`$XDG_CONFIG_HOME/whdkit`, including its `environment` file. Whdkit's dedicated
+data and state directories are writable at `~/.local/share/whdkit`,
+`~/.local/state/whdkit` and their `$XDG_DATA_HOME` / `$XDG_STATE_HOME` equivalents.
+Those writable directories are prepared before launch; their parents remain
+ungranted. Secrets placed in the shared configuration, data or state are visible,
+and writable application data may influence later unsandboxed Whdkit runs.
+Explicit user restrictions still apply. No host-specific path is required.
+
+Broad inherited Cargo/uv data reads are excluded. Rust toolchains, Cargo
+bin and uv Python/tools subtrees remain read-only, while
+dedicated Cargo and uv credential stores are not included. Installed pipx venvs
+and shared libraries are read-only, not writable installation targets.
+Cargo's `registry` and `git` dependency caches are writable, together with the
+exact `.package-cache`, `.package-cache-mutate` and `.global-cache` files.
+The Cargo home itself, installed binaries and credential files are not writable.
+
+Gradle gets exact writable `native`, `notifications`, `.tmp`, `caches`, `daemon`
+and `wrapper/dists` directories,
+prepared before sandbox launch. `GRADLE_USER_HOME` defaults explicitly to
+`$HOME/.gradle` because the JVM's `user.home` need not follow `HOME`. Custom
+Gradle, Cargo, rustup and pipx roots receive the same configured subpath access,
+not whole-parent grants. User path restrictions still win. Gradle's ordinary
+configuration remains read-only; the wrapper parent
+is not writable. `wrapper/dists` must be writable because Gradle creates ZIP lock
+files beside its distributions. This also permits changing cached executable
+distributions, an accepted shared-cache risk like the Maven repository exception.
+Use a dedicated `GRADLE_USER_HOME` for untrusted work. Downloads still require
+network access and artifact verification; these grants do not establish full builds.
+
+Go can download and extract dependencies under
+`$HOME/go/pkg/mod` and write its build/fuzz cache under
+`$XDG_CACHE_HOME/go-build` (normally `~/.cache/go-build`). These writable
+directories are prepared before launch. Configured mappings also support
+`GOMODCACHE`, `GOCACHE` and the first non-empty entry in a `GOPATH` path list
+(`first_path: true` in runtime JSONC). Installed `GOPATH/bin` tools remain
+read-only. Go, Cargo and Gradle dependency caches contain executable code;
+cache changes can influence later host
+builds, so use dedicated caches for untrusted work.
+Bundled sessions set an empty/unset `GOCACHE` to that prepared XDG location,
+including on macOS, so Go's cache selection agrees with the granted directory.
+
+Mise, golangci-lint, Staticcheck and Trivy also receive scoped read/write caches
+at `~/.cache/{mise,golangci-lint,staticcheck,trivy}` and their XDG equivalents.
+The wrapper prepares the configured directory and supplies its path through
+`MISE_CACHE_DIR`, `GOLANGCI_LINT_CACHE`, `STATICCHECK_CACHE` or `TRIVY_CACHE_DIR`
+when unset/empty. Explicit absolute overrides receive the same scoped access.
+The cache parent is not granted. Trivy database downloads still require network
+permission; writable cache access alone does not enable registry traffic.
+
+OpenGrep gets a prepared read/write cache at `~/.cache/opengrep` or
+`$XDG_CACHE_HOME/opengrep`, without granting the parent directory.
+This cache grant does not expose OpenGrep's `.opengrep` account/settings store.
+Its self-extracted executable runtime lives in the cache, so writes can affect
+later unsandboxed scanner runs; use a dedicated cache for untrusted work.
+The exact default log files `~/.opengrep/semgrep.log` and
+`$XDG_CONFIG_HOME/.opengrep/semgrep.log` are prepared without truncation and
+receive read/write access. Symlink log files, non-regular files and multiple
+hard links are refused. Account/settings siblings are not granted. Local-scan
+acceptance uses project-local scanner settings and the default log path; it
+does not establish access to a user's live scanner account state.
+
+**Writable Mise cache is an intentional security trade-off.** Cached environments
+and artifacts can influence later unsandboxed tool execution. Mise configuration,
+trust/state and installations remain protected, including cache aliases into
+those locations and grants overlapping actual managed executables. Use isolated
+caches or stricter user overrides for untrusted sessions.
+
+Nanolinter's data directory is shared read-only at `~/.local/share/nanolinter`
+and `$XDG_DATA_HOME/nanolinter`. This includes installed linter defaults such as
+`lychee.toml`, cached remote configuration and setup records. Secrets placed in
+that deliberately shared data are visible; no writes or data-parent grant is added.
+
+User manuals are writable under `~/.local/share/man` and `$XDG_DATA_HOME/man`.
+The configured tree is prepared automatically; executables and shell completions
+are not included. Manuals are user-controlled content, not trusted system docs.
+
+The dedicated `~/.cache/itiquette-test-vm` / `$XDG_CACHE_HOME/itiquette-test-vm`
+cache is writable. Its parent is granted so an explicit cleanup recipe can remove
+the `downloads` child itself. The general cache directory remains ungranted.
+Cleanup can remove media shared with other checkouts; it never runs automatically.
+The VM runner must verify pinned checksums before using cached images.
+
+Linux reads `/etc/dpkg/origins` for public vendor metadata, including the usual
+`default` symlink to a vendor file, `/etc/dpkg/dpkg.cfg.d` for configuration
+snippets and the exact `/etc/dpkg/dpkg.cfg` file, all read even by version
+comparisons. Neither all of `/etc/dpkg` nor writes to system metadata are granted.
+
+```sh
+nono-wrapper opencode
+# Or:
+nono-wrapper codex
+```
+
+Bundled profiles set `DEVBASE_CHECK_SKIP_UPDATES=1` and `GOTOOLCHAIN=local`.
+Install/update helpers and toolchains outside the sandbox. The filter preserves
+`RIPGREP_CONFIG_PATH`, `NODE_USE_SYSTEM_CA`, `NODE_EXTRA_CA_CERTS`,
+`NPM_CONFIG_MIN_RELEASE_AGE`, `PIPX_HOME`, `PIPX_COOLDOWN`, `GRADLE_USER_HOME` and
+`DOCKER_HOST`; preserving a path
+does not grant its target. The wrapper supplies npm/pipx release-age defaults of
+seven days only when unset, leaving explicit stricter values intact. These
+environment settings are not protection against project code changing its own
+environment, nor do they grant registry access.
+
+See the [evaluation and follow-up validation](devbase-core-evaluation.md) for
+what was tested and what remains unsupported. Nested sandbox execution, package
+downloads and full Gradle builds are not established by startup/default grants.
+
+### Name-service cache on Linux
+
+### Rootless Podman on Linux
+
+Both agents' bundled profiles allow connecting to the current user's exact
+`/run/user/$UID/podman/podman.sock` endpoint by default. No socket-directory,
+rootful `/run/podman/podman.sock`, Docker socket or container-storage grant is
+added. If this rootless socket exists and is owned by the current user, the
+wrapper supplies `CONTAINER_HOST=unix:///run/user/$UID/podman/podman.sock` so
+ordinary Podman commands use the API rather than writing local storage from
+inside the sandbox. Existing `CONTAINER_HOST` or `CONTAINER_CONNECTION` settings
+take precedence. External profiles are not changed.
+The exact ordinary `$XDG_CONFIG_HOME/containers/registries.conf` is readable;
+the container config directory and `auth.json` are not granted. Linux public
+subordinate-ID mappings `/etc/subuid` and `/etc/subgid` are readable as exact
+files. No `/proc/*/setgroups` write grant or filesystem-root grant is added.
+
+**This intentionally grants host-user capabilities.** The rootless API can
+create containers mounting your home directory or other paths accessible to
+your user, bypassing nono's filesystem restrictions. Containers can also make
+network requests outside nono's domain filter, including from an offline
+session. Do not treat the agent as confined from your host user when this
+service is available. Rootless means “not root”, not “inside nono”.
+
+The wrapper does not start, enable or reconfigure the Podman service. On a
+systemd Linux host, enable it from a normal terminal if desired:
+
+```sh
+systemctl --user enable --now podman.socket
+```
+
+If the service is absent, no automatic transport setting is added. A socket
+grant does not install Podman, prepare test images or make nested sandbox tests
+automatically runnable. Reinstall profiles and start a new session to apply
+changes.
+Local-engine commands that explicitly disable remote mode, or require creating
+user namespaces from inside nono, can still fail in `newuidmap`. Use the existing
+host rootless service for ordinary container jobs rather than widening `/proc`
+or cgroup permissions. Tests whose contract requires a private local engine
+must run in a suitable host test environment; substituting the service would
+test a different contract. `doctor` reports automatic socket selection without
+starting or probing the service.
+When `NoNewPrivs=1` is enforced, setuid helpers such as `newuidmap` cannot gain
+additional privileges. File and Unix-socket grants cannot change that. Run
+local-engine suites on an explicit external worker. Ordinary container jobs can
+use the host API when their execution contract permits it, but shared engine
+storage is not equivalent to an invocation-private engine. The wrapper does not
+relax this isolation mechanism to support nested rootless engines.
+
 ### Relocated agent state
 
 The pinned upstream filesystem rules use standard home-directory locations.
@@ -660,7 +870,6 @@ State locations must not expose managed executables or Mise's control plane:
 | --- | --- |
 | Global configuration and fragments/tasks | `~/.config/mise`, `$XDG_CONFIG_HOME/mise`, `MISE_CONFIG_DIR` |
 | Trusted-config records and state | `~/.local/state/mise`, `$XDG_STATE_HOME/mise`, `MISE_STATE_DIR` |
-| Cached environments, registries and artifacts | `~/.cache/mise`, `$XDG_CACHE_HOME/mise`, `MISE_CACHE_DIR` |
 | Installed tools, plugins and command dispatchers | Data-directory defaults, `MISE_DATA_DIR` and documented install/plugin/shim/download overrides |
 | Explicit global/system configuration files | `MISE_GLOBAL_CONFIG_FILE`, `MISE_CONFIG_FILE`, `MISE_SYSTEM_CONFIG_FILE` |
 | HOME-level configuration | `.mise.toml`, `mise.toml`, their local/existing environment variants, `.config/mise*.toml`, and the `.mise`/`mise` configuration trees |

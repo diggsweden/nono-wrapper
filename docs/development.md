@@ -190,9 +190,13 @@ workspace and ambient grants, aliases, managed installation trees and an
 unusable manifest. Runtime-path tests reject reserved expressions or globs
 hidden behind symlinks. Native negative probes verify refusal before agent
 execution and preservation of a harmless executable stand-in.
-Control-plane tests include Mise config, trust/state/cache locations, explicit
+Control-plane tests include Mise config, trust/state/install locations, explicit
 config overrides, backing-file aliases and dangling links. Path discovery is
 tested with executable configuration to ensure it never evaluates that input.
+Native cache probes cover read/write/delete operations at default, XDG and
+explicit tool-cache roots while refusing unrelated cache siblings. Mise cache
+is intentionally writable; cache overrides into control-plane state still fail.
+Python fixtures exercise real multiprocessing semaphore creation in `/dev/shm`.
 
 These local checks run on the host with temporary homes and explicit
 subprocess environments/tool paths. That is fixture isolation; the real-agent
@@ -314,6 +318,12 @@ inherited home or temporary-directory grants from masking missing permissions.
 
 To validate the DevBase integration after selecting its AI pack, keep the
 generated delegates and limit the test's tools to OpenCode, Codex and nono:
+
+This requires a DevBase revision or overlay that supplies the AI pack and
+delegates. The upstream snapshot reviewed on 2026-11-04 does not contain them;
+see the [DevBase compatibility evaluation](devbase-core-evaluation.md) and
+[manifest-to-PATH inventory](devbase-core-inventory.md) before applying these
+instructions to another revision.
 
 ```sh
 devbase=/absolute/devbase-core

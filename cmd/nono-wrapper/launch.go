@@ -75,6 +75,13 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 	if !chosen {
 		profile = agent + "-chatgpt"
 	}
+	if bundledProfile(profile) {
+		developerPaths, err := prepareDeveloperPaths(protected)
+		if err != nil {
+			return err
+		}
+		runtimePaths = append(runtimePaths, developerPaths...)
+	}
 	user, err := userProfile(agent)
 	if err != nil {
 		return err
@@ -161,7 +168,7 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 			}
 		}
 	}
-	if compositionUser != "" || dropSocketMediation || len(runtimePaths) > 0 || gitSSH != nil {
+	if bundledProfile(profile) || compositionUser != "" || dropSocketMediation || len(runtimePaths) > 0 || gitSSH != nil {
 		composed, cleanup, err := composeSessionPolicy(ctx, nono, profile, compositionUser, program, shown, userShown, dropSocketMediation, runtimePaths, gitSSH)
 		if err != nil {
 			return err
@@ -179,7 +186,11 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 			return fmt.Errorf("inspect final session policy: %w\n%s", err, diagnostic)
 		}
 	}
-	grants, err := effectivePathGrants(ctx, nono, selectedProfile, program, finalShown)
+	environment, err := developerSessionEnvironment(profile)
+	if err != nil {
+		return err
+	}
+	grants, err := effectivePathGrants(ctx, nono, selectedProfile, program, finalShown, environment)
 	if err != nil {
 		return err
 	}
@@ -228,7 +239,7 @@ func launch(ctx context.Context, agent string, args []string, stderr io.Writer) 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return runSession(ctx, nono, nonoArgs, agent, name, stderr)
+	return runSession(ctx, nono, nonoArgs, agent, name, stderr, environment)
 }
 
 // Arguments are positional shell parameters, never interpolated into code.

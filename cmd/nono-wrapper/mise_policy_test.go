@@ -24,7 +24,6 @@ func TestMiseControlPlanePathsAndOverridesAreReadOnly(t *testing.T) {
 		{"XDG_CONFIG_HOME", ".config", "MISE_CONFIG_DIR"},
 		{"XDG_DATA_HOME", ".local/share", "MISE_DATA_DIR"},
 		{"XDG_STATE_HOME", ".local/state", "MISE_STATE_DIR"},
-		{"XDG_CACHE_HOME", ".cache", "MISE_CACHE_DIR"},
 	} {
 		xdg, override := filepath.Join(root, spec.xdg), filepath.Join(root, spec.override)
 		t.Setenv(spec.xdg, xdg)
@@ -54,6 +53,43 @@ func TestMiseControlPlanePathsAndOverridesAreReadOnly(t *testing.T) {
 	}
 	if err := checkProtectedWrites([]pathRule{{filepath.Join(root, "ordinary-state"), pathWrite, false}}, paths); err != nil {
 		t.Fatalf("unrelated application state was blocked: %v", err)
+	}
+}
+
+func TestMiseCacheIsWritableButControlPlaneAliasesAreNot(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", root)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(root, ".local/share"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "xdg cache"))
+	t.Setenv("MISE_CACHE_DIR", filepath.Join(root, "custom cache"))
+	paths, err := miseProtectedPaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cache := range []string{filepath.Join(root, ".cache/mise"), filepath.Join(root, "xdg cache/mise"), filepath.Join(root, "custom cache")} {
+		if err := checkProtectedWrites([]pathRule{{cache, pathRead | pathWrite, false}}, paths); err != nil {
+			t.Fatalf("accepted Mise cache was blocked: %v", err)
+		}
+	}
+	for _, target := range []string{".config/mise", ".local/state/mise", ".local/share/mise"} {
+		t.Setenv("MISE_CACHE_DIR", filepath.Join(root, target))
+		if _, err := prepareDeveloperPaths(paths); err == nil {
+			t.Fatalf("cache override exposed control input: %s", target)
+		}
+		if err := os.MkdirAll(filepath.Join(root, target), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		alias := filepath.Join(root, filepath.Base(filepath.Dir(target))+"-cache-alias")
+		if err := os.Symlink(filepath.Join(root, target), alias); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("MISE_CACHE_DIR", alias)
+		if _, err := prepareDeveloperPaths(paths); err == nil {
+			t.Fatalf("cache symlink exposed control input: %s", target)
+		}
 	}
 }
 

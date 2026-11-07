@@ -195,8 +195,14 @@ func stripPathRules(profile map[string]json.RawMessage, overrides []pathRule) er
 	if err := json.Unmarshal(data, &filesystem); err != nil {
 		return err
 	}
+	// Socket bind capabilities imply filesystem writes too; an exact user
+	// override must remove the capability as well as ordinary path grants.
+	fields := []string{"unix_socket_subtree_bind"}
 	for _, field := range filesystemFields {
-		data, exists := filesystem[field.name]
+		fields = append(fields, field.name)
+	}
+	for _, name := range fields {
+		data, exists := filesystem[name]
 		if !exists {
 			continue
 		}
@@ -212,11 +218,11 @@ func stripPathRules(profile map[string]json.RawMessage, overrides []pathRule) er
 					Path string `json:"path"`
 				}
 				if err := json.Unmarshal(entry, &conditional); err != nil || conditional.Path == "" {
-					return fmt.Errorf("invalid path entry in filesystem.%s", field.name)
+					return fmt.Errorf("invalid path entry in filesystem.%s", name)
 				}
 				raw = conditional.Path
 			}
-			if !field.file && strings.Contains(raw, "*") {
+			if !strings.HasSuffix(name, "_file") && strings.Contains(raw, "*") {
 				// A glob is a set of resources, even if a literal file happens
 				// to have that spelling. Exact-path overrides cannot replace it.
 				kept = append(kept, entry)
@@ -234,7 +240,7 @@ func stripPathRules(profile map[string]json.RawMessage, overrides []pathRule) er
 				kept = append(kept, entry)
 			}
 		}
-		filesystem[field.name], _ = json.Marshal(kept)
+		filesystem[name], _ = json.Marshal(kept)
 	}
 	profile["filesystem"], _ = json.Marshal(filesystem)
 	return nil
@@ -242,11 +248,11 @@ func stripPathRules(profile map[string]json.RawMessage, overrides []pathRule) er
 
 // Use the manifest only to inspect effective filesystem grants (including
 // groups), never to recreate a launch policy: its other sections are lossy.
-func verifyPathOverrides(ctx context.Context, nono, profile, program string, shown []byte, rules []pathRule) error {
+func verifyPathOverrides(ctx context.Context, nono, profile, program string, shown []byte, rules []pathRule, environment []string) error {
 	if len(rules) == 0 {
 		return nil
 	}
-	grants, err := effectivePathGrants(ctx, nono, profile, program, shown)
+	grants, err := effectivePathGrants(ctx, nono, profile, program, shown, environment)
 	if err != nil {
 		return err
 	}
@@ -255,8 +261,9 @@ func verifyPathOverrides(ctx context.Context, nono, profile, program string, sho
 
 // Inspect native inheritance and groups, then account for launch-time grants
 // absent from the export. All permission checks share this effective view.
-func effectivePathGrants(ctx context.Context, nono, profile, program string, shown []byte) ([]pathRule, error) {
+func effectivePathGrants(ctx context.Context, nono, profile, program string, shown []byte, environment []string) ([]pathRule, error) {
 	check := exec.CommandContext(ctx, nono, "profile", "show", "--format", "manifest", profile)
+	check.Env = append(os.Environ(), environment...)
 	var diagnostic strings.Builder
 	check.Stderr = &diagnostic
 	data, err := check.Output()

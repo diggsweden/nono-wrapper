@@ -12,7 +12,7 @@ import (
 )
 
 func TestLaunchChecksEffectiveExecutableWritesBeforeRunningAgent(t *testing.T) {
-	for _, mode := range []string{"inherited directory", "external profile", "explicit file", "standalone manager", "read-only", "ambient allow", "literal ambient alias", "workspace", "managed cached version", "runtime alias", "Mise config alias", "Mise trust alias", "Mise cache alias", "global config override", "invalid manifest"} {
+	for _, mode := range []string{"inherited directory", "external profile", "explicit file", "standalone manager", "read-only", "ambient allow", "literal ambient alias", "workspace", "managed cached version", "runtime alias", "Mise config alias", "Mise trust alias", "Mise installation alias", "global config override", "invalid manifest"} {
 		t.Run(mode, func(t *testing.T) {
 			f := newLauncherFixture(t, "opencode")
 			home := filepath.Dir(f.bin)
@@ -66,14 +66,14 @@ func TestLaunchChecksEffectiveExecutableWritesBeforeRunningAgent(t *testing.T) {
 				}
 				env = append(env, "XDG_DATA_HOME="+data)
 				path = ""
-			case "Mise config alias", "Mise trust alias", "Mise cache alias", "global config override":
+			case "Mise config alias", "Mise trust alias", "Mise installation alias", "global config override":
 				data := filepath.Join(home, "relocated state")
 				target := filepath.Join(home, ".config/mise")
 				if mode == "Mise trust alias" {
 					target = filepath.Join(home, ".local/state/mise")
 				}
-				if mode == "Mise cache alias" {
-					target = filepath.Join(home, ".cache/mise")
+				if mode == "Mise installation alias" {
+					target = filepath.Join(home, ".local/share/mise")
 				}
 				if mode == "global config override" {
 					target = filepath.Join(home, "global source")

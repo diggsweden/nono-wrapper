@@ -1,0 +1,187 @@
+// SPDX-FileCopyrightText: The nono-wrapper Authors
+// SPDX-License-Identifier: CC0-1.0
+
+// Wrapper-side defaults for environment fallbacks and relocated runtime roots.
+// Bundled native grants for standard paths remain in profiles/agent-policy.jsonc.
+// This configuration is embedded in the wrapper; rebuild after changing it.
+{
+  "version": 1,
+  "description": "Reviewed developer conveniences; dedicated tool installations stay read-only, executable-cache trade-offs are explicit, and credential stores are not included.",
+  "environment_defaults": {
+    "NPM_CONFIG_MIN_RELEASE_AGE": "7",
+    "PIPX_COOLDOWN": "7"
+  },
+  "optional_bypass_protection": [
+    { "path": "$HOME/.npmrc", "description": "Share this exact ordinary npm config as-is when it exists, despite the upstream blanket exclusion." },
+    { "path": "$HOME/.docker/cli-plugins/docker-compose", "description": "Run the exact installed Compose wrapper without granting Docker auth files or its parent directory." }
+  ],
+  "public_key_files": [
+    { "path": "$HOME/.ssh/*.pub", "description": "Read existing validated SSH public keys for Git signing; never grant the SSH directory, private keys or redirected files." }
+  ],
+  "podman": {
+    "description": "Accepted host-user delegation through the exact rootless API socket; this can bypass filesystem and network confinement.",
+    "platform": "linux",
+    "socket": "/run/user/$UID/podman/podman.sock",
+    "transport_variable": "CONTAINER_HOST",
+    "override_variables": ["CONTAINER_HOST", "CONTAINER_CONNECTION"]
+  },
+  "applications": [
+    {
+      "variable": "XDG_DATA_HOME",
+      "description": "Install user manuals and use Whdkit's working data without granting the data parent. Writable application data may influence later host runs.",
+      "default_root": "$HOME/.local/share",
+      "prepare": ["man", "whdkit"],
+      "filesystem": { "allow": ["man", "whdkit"] }
+    },
+    {
+      "variable": "XDG_STATE_HOME",
+      "description": "Whdkit's writable application state; never the shared state parent or other applications' state.",
+      "default_root": "$HOME/.local/state",
+      "prepare": ["whdkit"],
+      "filesystem": { "allow": ["whdkit"] }
+    },
+    {
+      "variable": "XDG_CONFIG_HOME",
+      "description": "OpenGrep can append its exact default log without reading or writing account/settings siblings.",
+      "default_root": "$XDG_CONFIG_HOME",
+      "prepare": [".opengrep/semgrep.log"],
+      "filesystem": { "allow_file": [".opengrep/semgrep.log"] }
+    },
+    {
+      "variable": "HOME",
+      "description": "OpenGrep's no-XDG fallback log; no home-directory or account-store grant.",
+      "default_root": "$HOME",
+      "prepare": [".opengrep/semgrep.log"],
+      "filesystem": { "allow_file": [".opengrep/semgrep.log"] }
+    },
+    {
+      "variable": "TMPDIR",
+      "description": "Use the approved private temp root when unset; explicit temp overrides remain the user's choice and do not gain socket permissions automatically.",
+      "default_root": "$XDG_CACHE_HOME/opencode/tmp",
+      "platform": "linux",
+      "set_environment_default": true
+    },
+    {
+      "variable": "XDG_CACHE_HOME",
+      "description": "Prepare only OpenGrep's cache and checksum-verified VM media. The VM child allows explicit download cleanup, never access to the shared cache parent.",
+      "default_root": "$HOME/.cache",
+      "prepare": ["opengrep", "itiquette-test-vm"],
+      "filesystem": { "allow": ["opengrep", "itiquette-test-vm"] }
+    },
+    {
+      "variable": "MISE_CACHE_DIR",
+      "description": "Accepted writable code-loading cache; does not permit changes to Mise installations, configuration or trust state.",
+      "default_root": "$XDG_CACHE_HOME/mise",
+      "set_environment_default": true,
+      "prepare": ["."],
+      "filesystem": { "allow": ["."] }
+    },
+    {
+      "variable": "GOLANGCI_LINT_CACHE",
+      "description": "Writable analysis cache, not the whole user cache directory.",
+      "default_root": "$XDG_CACHE_HOME/golangci-lint",
+      "set_environment_default": true,
+      "prepare": ["."],
+      "filesystem": { "allow": ["."] }
+    },
+    {
+      "variable": "STATICCHECK_CACHE",
+      "description": "Writable Staticcheck analysis cache with explicit override support.",
+      "default_root": "$XDG_CACHE_HOME/staticcheck",
+      "set_environment_default": true,
+      "prepare": ["."],
+      "filesystem": { "allow": ["."] }
+    },
+    {
+      "variable": "TRIVY_CACHE_DIR",
+      "description": "Writable Trivy database and scan cache; network access remains governed separately.",
+      "default_root": "$XDG_CACHE_HOME/trivy",
+      "set_environment_default": true,
+      "prepare": ["."],
+      "filesystem": { "allow": ["."] }
+    },
+    {
+      "variable": "GOPATH",
+      "description": "Download and extract Go dependencies; writable module code can influence host builds, but installed tools stay protected.",
+      "default_root": "$HOME/go",
+      "first_path": true,
+      "prepare": ["pkg/mod"],
+      "filesystem": { "allow": ["pkg/mod"] }
+    },
+    {
+      "variable": "GOMODCACHE",
+      "description": "Support dependency extraction in a relocated module cache, without granting GOPATH binaries.",
+      "default_root": "$HOME/go/pkg/mod",
+      "prepare": ["."],
+      "filesystem": { "allow": ["."] }
+    },
+    {
+      "variable": "GOCACHE",
+      "description": "Writable Go build/fuzz cache, never the whole user cache parent.",
+      "default_root": "$XDG_CACHE_HOME/go-build",
+      "set_environment_default": true,
+      "prepare": ["."],
+      "filesystem": { "allow": ["."] }
+    },
+    {
+      "variable": "MISE_STATE_DIR",
+      "description": "Read existing Mise trust hashes without granting writes to trust decisions or unrelated state.",
+      "default_root": "$XDG_STATE_HOME/mise",
+      "filesystem": { "read": ["trusted-configs"] }
+    },
+    {
+      "variable": "XDG_RUNTIME_DIR",
+      "description": "Just creates temporary recipe scripts in its runtime subdirectory; never grant the runtime parent.",
+      "default_root": "/run/user/$UID",
+      "platform": "linux",
+      "require_existing_root": true,
+      "reject_prepared_symlinks": true,
+      "prepare": ["just"],
+      "filesystem": {
+        "allow": [{ "path": "just", "description": "Read/write recipe scripts; prepare before nono resolves capabilities." }]
+      }
+    },
+    {
+      "variable": "GRADLE_USER_HOME",
+      "description": "Permit Gradle builds and daemon state. Writable dependency and distribution caches can influence host runs; ordinary configuration remains read-only.",
+      "default_root": "$HOME/.gradle",
+      "set_environment_default": true,
+      "prepare": ["native", "notifications", ".tmp", "wrapper/dists", "caches", "daemon"],
+      "filesystem": {
+        "allow": [
+          "caches", "daemon",
+          { "path": "native", "description": "Native-library extraction and lock files required during Gradle startup." },
+          { "path": "notifications", "description": "Version notification markers; does not enable network access." },
+          { "path": ".tmp", "description": "Gradle's filesystem probes and temporary files, without granting its whole home." },
+          { "path": "wrapper/dists", "description": "Wrapper ZIP locks and distributions, not all of Gradle home. Accepted shared executable-cache risk; use a dedicated GRADLE_USER_HOME for untrusted work." }
+        ],
+        "read": ["init.d", "wrapper"],
+        "read_file": ["gradle.properties", "init.gradle", "init.gradle.kts"]
+      }
+    },
+    {
+      "variable": "CARGO_HOME",
+      "description": "Download dependencies and update Cargo cache locks/metadata. Shared source caches are writable; installed tools and registry credentials stay protected.",
+      "default_root": "$HOME/.cargo",
+      "prepare": ["registry", "git", ".package-cache", ".package-cache-mutate", ".global-cache"],
+      "filesystem": {
+        "allow": ["registry", "git"],
+        "allow_file": [".package-cache", ".package-cache-mutate", ".global-cache"],
+        "read": ["bin"],
+        "read_file": ["config", "config.toml", "env", "env.fish", ".crates.toml", ".crates2.json"]
+      }
+    },
+    {
+      "variable": "RUSTUP_HOME",
+      "description": "Installed compiler/toolchain code is readable, never writable through this convenience mapping.",
+      "default_root": "$HOME/.rustup",
+      "filesystem": { "read": ["."] }
+    },
+    {
+      "variable": "PIPX_HOME",
+      "description": "Run preinstalled pipx applications and shared libraries; installs and updates belong outside the sandbox.",
+      "default_root": "$XDG_DATA_HOME/pipx",
+      "filesystem": { "read": ["venvs", "shared"] }
+    }
+  ]
+}

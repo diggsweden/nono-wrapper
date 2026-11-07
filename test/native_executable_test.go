@@ -66,7 +66,7 @@ func testNativeExecutableProtection(t *testing.T, root, project, wrapper string,
 	if output, status := invoke(project, nil, "opencode", "--version"); status != 0 || !strings.Contains(output, "GUARD_AGENT_STARTED") {
 		t.Fatalf("safe native control failed: status=%d\n%s", status, output)
 	}
-	for _, mode := range []string{"user grant", "dispatcher namespace", "ambient grant", "workspace", "state alias", "default state alias", "canonical expression", "Mise config", "Mise state", "Mise cache", "linked global config", "future global config"} {
+	for _, mode := range []string{"user grant", "dispatcher namespace", "ambient grant", "workspace", "state alias", "default state alias", "canonical expression", "Mise config", "Mise state", "Mise installations", "linked global config", "future global config"} {
 		t.Run(mode, func(t *testing.T) {
 			directory, want := project, "protected launch location"
 			var extra []string
@@ -119,7 +119,7 @@ func testNativeExecutableProtection(t *testing.T, root, project, wrapper string,
 					t.Fatal(err)
 				}
 				extra = []string{"HOME=" + aliasHome}
-			case "Mise config", "Mise state", "Mise cache", "linked global config", "future global config":
+			case "Mise config", "Mise state", "Mise installations", "linked global config", "future global config":
 				aliasData := filepath.Join(root, "control alias "+mode)
 				if err := os.Mkdir(aliasData, 0o700); err != nil {
 					t.Fatal(err)
@@ -142,11 +142,14 @@ func testNativeExecutableProtection(t *testing.T, root, project, wrapper string,
 						target = filepath.Join(value("XDG_STATE_HOME"), "mise")
 					}
 				}
-				if mode == "Mise cache" {
-					target = value("MISE_CACHE_DIR")
+				if mode == "Mise installations" {
+					target = value("MISE_DATA_DIR")
 					if target == "" {
-						target = filepath.Join(value("XDG_CACHE_HOME"), "mise")
+						target = filepath.Join(value("XDG_DATA_HOME"), "mise")
 					}
+					// Keep this a configured installation root after XDG_DATA_HOME
+					// is redirected to the alias below.
+					extra = append(extra, "MISE_DATA_DIR="+target)
 				}
 				if mode == "linked global config" || mode == "future global config" {
 					config := filepath.Join(root, "separate config "+mode)

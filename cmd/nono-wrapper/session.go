@@ -20,10 +20,13 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func runSession(ctx context.Context, nono string, args []string, agent, name string, output io.Writer) error {
+func runSession(ctx context.Context, nono string, args []string, agent, name string, output io.Writer, environment []string) error {
 	// Keep the actual terminal descriptors: piping stderr would make nono
 	// disable its interactive PTY. Only the post-exit queries capture output.
 	cmd := exec.Command(nono, args...)
+	if len(environment) > 0 {
+		cmd.Env = append(os.Environ(), environment...)
+	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	signals := make(chan os.Signal, 8)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)

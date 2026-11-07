@@ -75,6 +75,15 @@ checked.
 
 ## COMMANDS
 
+On Linux, bundled profiles also allow the current user's exact rootless Podman
+socket at /run/user/$UID/podman/podman.sock. When it is available and owned by
+the user, the wrapper sets **CONTAINER_HOST** to that Unix endpoint unless a
+container transport was explicitly selected. The wrapper does not start the
+service or grant its parent directory, rootful sockets or container storage.
+**The rootless API can mount host paths and run programs outside nono as your
+user, including outside its network filter.** This is intentional host-user
+access, not a confined container interface.
+
 **opencode** [*agent-argument*...], **codex** [*agent-argument*...]
 :   Start the agent under nono. Every argument, including **--help**, goes to
     the agent. If the agent on **PATH** is a mise shim, the wrapper asks
@@ -190,6 +199,10 @@ use **config** *AGENT* **allow-domain** for persistent wrapper allowances.
 **GIT_SSH_COMMAND**, **GIT_SSH**, **GIT_SSH_VARIANT**
 :   Explicit Git SSH settings are passed through by online profiles. An
     explicit command replaces the automatic agent-based transport.
+
+**CONTAINER_HOST**, **CONTAINER_CONNECTION**
+:   Explicit container transports, preserved instead of the automatic Linux
+    rootless Podman endpoint. Selecting another socket does not grant it.
 
 **HTTPS_PROXY**, **HTTP_PROXY**
 :   Upstream proxy for the sandbox's network proxy. A user name and password

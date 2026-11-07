@@ -54,8 +54,14 @@ upstream. nono 0.81.0's `system_read_linux_core` group includes openSUSE's
 `/var/lib/ca-certificates`; the wrapper needs no extra certificate grant.
 
 `agent-policy` excludes upstream's `user_caches_linux` group: its recursive
-`~/.cache` write grant would expose Mise's code-loading cache. Agent-specific
-cache grants and the Go build cache remain available.
+`~/.cache` grant would expose unrelated application data. Reviewed Go, Mise,
+golangci-lint, Staticcheck, Trivy and OpenGrep caches are writable individually.
+Go module extraction, Cargo registry/Git caches and exact cache lock/database
+files, and Gradle caches/daemon state are also writable. Their configuration,
+dedicated credential stores and installed tool binaries remain protected.
+Writable Mise and OpenGrep caches are accepted code-loading risks. Dedicated
+tool installations, configuration and trust/state remain protected. Use
+dedicated caches for untrusted work.
 
 On top of that, `agent-policy` adds read access through nono's own groups:
 
@@ -115,7 +121,7 @@ The wrapper
 resolves the selected agent and nono, including Mise shims, and checks the
 effective filesystem manifest plus launch-time grants before executing the
 agent. Writable grants covering those executables, the wrapper or resolved
-Mise binary, or overlapping known Mise configuration, trust/state, cache and
+Mise binary, or overlapping known Mise configuration, trust/state and
 data/installation trees, stop the launch. Global configuration matters as much
 as binaries: it can select tools, change trust settings and run host templates.
 Invocation entries are protected as well as resolved binaries, so a writable
@@ -197,6 +203,10 @@ After updating, reinstall the bundled profiles with `just install-local` and
 restart running agent sessions. Existing sessions keep their original policy.
 
 ## Background
+
+For application-specific default-access recommendations, installed-tool evidence
+and compatibility gaps, see the [DevBase-core evaluation](devbase-core-evaluation.md).
+The evaluation proposes follow-ups; it does not change the bundled policy.
 
 The policy choices originated in an earlier wrapper project. This repository
 extends the official nono agent packs rather than maintaining replacement

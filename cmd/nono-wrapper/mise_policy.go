@@ -9,7 +9,8 @@ import (
 	"path/filepath"
 )
 
-// Mise's code-loading and trust inputs are control-plane state. Discover
+// Mise's installed code, configuration and trust inputs are control-plane state.
+// Its writable cache is an explicitly accepted exception. Discover
 // documented locations and filesystem aliases without evaluating any config.
 func miseProtectedPaths() ([]pathRule, error) {
 	home, err := os.UserHomeDir()
@@ -91,7 +92,6 @@ func miseProtectedPaths() ([]pathRule, error) {
 		{"XDG_CONFIG_HOME", ".config", "MISE_CONFIG_DIR"},
 		{"XDG_DATA_HOME", ".local/share", "MISE_DATA_DIR"},
 		{"XDG_STATE_HOME", ".local/state", "MISE_STATE_DIR"},
-		{"XDG_CACHE_HOME", ".cache", "MISE_CACHE_DIR"},
 	} {
 		base := os.Getenv(location.xdg)
 		if base == "" {

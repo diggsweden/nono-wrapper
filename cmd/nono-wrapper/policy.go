@@ -110,7 +110,20 @@ func composeSessionPolicy(ctx context.Context, nono, base, user, program string,
 			return "", noop, err
 		}
 	}
-	var runtimeAllow []string
+	runtimeFilesystem := map[string][]string{}
+	if managed {
+		defaults, err := loadRuntimeDefaults()
+		if err != nil {
+			return "", noop, err
+		}
+		bypasses, err := configuredBypassPaths(defaults)
+		if err != nil {
+			return "", noop, err
+		}
+		if len(bypasses) > 0 {
+			runtimeFilesystem["bypass_protection"] = bypasses
+		}
+	}
 	for _, runtime := range runtimePaths {
 		if !managed {
 			break
@@ -119,18 +132,25 @@ func composeSessionPolicy(ctx context.Context, nono, base, user, program string,
 		if err != nil {
 			return "", noop, err
 		}
-		if err := protectRuleWrite(path); err != nil {
-			return "", noop, err
+		if runtime.access&pathWrite != 0 {
+			if err := protectRuleWrite(path); err != nil {
+				return "", noop, err
+			}
 		}
 		overridden := false
 		for _, rule := range paths {
 			overridden = overridden || samePolicyPath(path, rule.path)
 		}
 		if !overridden {
-			runtimeAllow = append(runtimeAllow, path)
+			for _, field := range filesystemFields {
+				if field.access == runtime.access && field.file == runtime.file {
+					runtimeFilesystem[field.name] = append(runtimeFilesystem[field.name], path)
+					break
+				}
+			}
 		}
 	}
-	if user == "" && len(overrides) == 0 && len(paths) == 0 && !dropSocketMediation && len(runtimeAllow) == 0 && gitSSH == nil {
+	if user == "" && len(overrides) == 0 && len(paths) == 0 && !dropSocketMediation && len(runtimeFilesystem) == 0 && gitSSH == nil {
 		return "", noop, nil
 	}
 	// Both agents share this protected profile directory, including sessions
@@ -256,7 +276,7 @@ func composeSessionPolicy(ctx context.Context, nono, base, user, program string,
 		return alias, nil
 	}
 	parent := base
-	if managed && (len(overrides) > 0 || len(paths) > 0 || dropSocketMediation || len(runtimeAllow) > 0 || gitSSH != nil) {
+	if managed && (len(overrides) > 0 || len(paths) > 0 || dropSocketMediation || len(runtimeFilesystem) > 0 || gitSSH != nil) {
 		parent, err = copyProfile(base, "", 0)
 		if err != nil {
 			return "", noop, err
@@ -268,11 +288,11 @@ func composeSessionPolicy(ctx context.Context, nono, base, user, program string,
 	}
 	session := map[string]any{"extends": parents}
 	filesystem := map[string]any{}
-	if len(runtimeAllow) > 0 {
-		filesystem["allow"] = runtimeAllow
+	for field, entries := range runtimeFilesystem {
+		filesystem[field] = entries
 	}
 	if managed && gitSSH != nil {
-		filesystem["read_file"] = gitSSH.files
+		filesystem["read_file"] = append(runtimeFilesystem["read_file"], gitSSH.files...)
 	}
 	if len(filesystem) > 0 {
 		session["filesystem"] = filesystem
@@ -299,7 +319,11 @@ func composeSessionPolicy(ctx context.Context, nono, base, user, program string,
 			return "", noop, fmt.Errorf("cannot override host %q: a rule outside the bundled profiles still conflicts", host)
 		}
 	}
-	if err := verifyPathOverrides(ctx, nono, path, program, shown, paths); err != nil {
+	environment, err := developerSessionEnvironment(base)
+	if err != nil {
+		return "", noop, err
+	}
+	if err := verifyPathOverrides(ctx, nono, path, program, shown, paths, environment); err != nil {
 		return "", noop, err
 	}
 	if dropSocketMediation && mediatesSockets(shown) {
