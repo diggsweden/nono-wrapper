@@ -47,7 +47,6 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# shellcheck disable=SC2329
 in_image() {
   name=$1
   shift

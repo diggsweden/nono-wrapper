@@ -7,8 +7,7 @@
 # Exercise the official-pack extensions and both launchers in the disposable
 # container home. AGENT_TEST_NETWORK=1 also checks ChatGPT allowlists against
 # real websites. No login or model is needed.
-# Variables in probe strings are expanded by the sandboxed shell.
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016 # Variables in probe strings are expanded by the sandboxed shell.
 set -eu
 
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
@@ -103,11 +102,11 @@ expect() {
 
 skip() { echo "  skip  $1 ($2)"; }
 
-# shellcheck disable=SC2329
+# shellcheck disable=SC2329 # Called through expect.
 in_nono() {
   nono run --silent --profile "$1" --allow-cwd -- /bin/sh -c "$2"
 }
-# shellcheck disable=SC2329
+# shellcheck disable=SC2329 # Called through expect.
 said() { printf '%s\n' "$out" | grep -F -q -- "$1"; }
 
 cd "$project"
@@ -225,7 +224,7 @@ agent-probe listen unix "$work/agent.sock" "$work/agent-connected" &
 listeners=$!
 agent-probe listen tcp4 127.0.0.1:3128 "$work/proxy-connected" &
 listeners="$listeners $!"
-# shellcheck disable=SC2064,SC2086
+# shellcheck disable=SC2064,SC2086 # Expand and split the listener PIDs now.
 trap "kill $listeners 2>/dev/null; rm -rf -- \"\${work:?}\"; [ -z \"\$temp\" ] || rm -rf -- \"\${temp:?}\"" EXIT
 for _ in 1 2 3 4 5 6 7 8 9 10; do
   [ ! -S "$work/agent.sock" ] || break
@@ -507,7 +506,7 @@ if [ "${AGENT_TEST_NETWORK:-}" = 1 ]; then
   echo "ChatGPT host and endpoint lists, against real websites"
   # The helper requires a response for allowed requests and an explicit nono
   # refusal for denied requests. Transport errors fail either expectation.
-  # shellcheck disable=SC2329
+  # shellcheck disable=SC2329 # Called through expect.
   check_site() {
     selected=$1
     shift

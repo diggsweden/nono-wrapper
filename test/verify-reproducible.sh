@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: The nono-wrapper Authors
 # SPDX-License-Identifier: CC0-1.0
+# Builds the binary and manpage twice from clean clones of HEAD offline, then
+# checks they and the eight shipped profiles are byte-identical. Called by
+# `just verify-reproducible`; --compare is also run directly (docs/development.md).
+# Usage: verify-reproducible.sh [--compare FIRST_CHECKOUT SECOND_CHECKOUT]
 set -euo pipefail
 
 expected=(
@@ -41,11 +45,19 @@ compare() {
   printf '10 build files are byte-identical (binary, manpage, eight profiles)\n'
 }
 
+usage() {
+  printf 'Usage: %s [--compare FIRST_CHECKOUT SECOND_CHECKOUT]\n' "$0"
+}
+
+if [[ $# == 1 && ($1 == -h || $1 == --help) ]]; then
+  usage
+  exit
+fi
 if [[ $# == 3 && $1 == --compare ]]; then
   compare "$2" "$3"
   exit
 elif (($# != 0)); then
-  printf 'Usage: %s [--compare FIRST_CHECKOUT SECOND_CHECKOUT]\n' "$0" >&2
+  usage >&2
   exit 2
 fi
 root=$(git rev-parse --show-toplevel)

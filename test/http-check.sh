@@ -9,7 +9,11 @@
 check_request() (
   set -eu
   want=$1 method=$2 url=$3
-  case $want in WORKS | FAILS) ;; *) printf 'unknown HTTP expectation\n' >&2; exit 2 ;; esac
+  case $want in WORKS | FAILS) ;; *)
+    printf 'unknown HTTP expectation\n' >&2
+    exit 2
+    ;;
+  esac
   result=0
   curl -sS -m 20 --retry 2 --retry-max-time 30 --max-filesize 1048576 --proto '=https' -X "$method" -o reply \
     -w '%{http_code} %{http_connect}\n' -- "$url" >code || result=$?
@@ -33,7 +37,10 @@ check_request() (
   else
     case $status in
     2?? | 3?? | 4??) actual=WORKS ;;
-    *) printf 'HTTP request failed (HTTP %s)\n' "$status" >&2; exit 1 ;;
+    *)
+      printf 'HTTP request failed (HTTP %s)\n' "$status" >&2
+      exit 1
+      ;;
     esac
   fi
   if [ "$want" = "$actual" ]; then exit 0; fi

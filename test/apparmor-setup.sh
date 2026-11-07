@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: The nono-wrapper Authors
 # SPDX-License-Identifier: CC0-1.0
+# Runs the README's Fish and Bash AppArmor setup snippets against fake mise,
+# sudo and doctor steps with the real profile compiler, checking call order and
+# the installed profile per scenario. Root inside a disposable container only;
+# called by `just test-apparmor-setup`.
 set -euo pipefail
 
 # Root only inside a disposable rootless container. Never load a profile into
@@ -82,13 +86,26 @@ for shell in fish bash; do
       "$shell" "$work/setup.$shell" >"$work/output" 2>&1 || status=$?
     calls=$(cat "$SETUP_LOG")
     case $scenario in
-    success|spaces|doctor-fails)
+    success | spaces | doctor-fails)
       expected=$'mise\nvalidate\ninstall\nload\ndoctor'
-      if [[ $scenario == doctor-fails ]]; then [[ $status == 9 ]]; else [[ $status == 0 ]]; fi ;;
-    mise-fails|invalid-path) expected=mise; [[ $status != 0 ]] ;;
-    validation-fails) expected=$'mise\nvalidate'; [[ $status != 0 ]] ;;
-    install-fails) expected=$'mise\nvalidate\ninstall'; [[ $status != 0 ]] ;;
-    load-fails) expected=$'mise\nvalidate\ninstall\nload'; [[ $status != 0 ]] ;;
+      if [[ $scenario == doctor-fails ]]; then [[ $status == 9 ]]; else [[ $status == 0 ]]; fi
+      ;;
+    mise-fails | invalid-path)
+      expected=mise
+      [[ $status != 0 ]]
+      ;;
+    validation-fails)
+      expected=$'mise\nvalidate'
+      [[ $status != 0 ]]
+      ;;
+    install-fails)
+      expected=$'mise\nvalidate\ninstall'
+      [[ $status != 0 ]]
+      ;;
+    load-fails)
+      expected=$'mise\nvalidate\ninstall\nload'
+      [[ $status != 0 ]]
+      ;;
     esac
     if [[ $calls != "$expected" ]]; then
       printf '%s/%s: unexpected call order: %s\n' "$shell" "$scenario" "$calls" >&2
@@ -96,8 +113,9 @@ for shell in fish bash; do
       exit 1
     fi
     case $scenario in
-    mise-fails|invalid-path|validation-fails|install-fails)
-      [[ $(cat /etc/apparmor.d/nono-local-userns) == 'previous profile' ]] ;;
+    mise-fails | invalid-path | validation-fails | install-fails)
+      [[ $(cat /etc/apparmor.d/nono-local-userns) == 'previous profile' ]]
+      ;;
     *)
       directory=${SETUP_NONO%/*}
       pattern="${directory%/*}/*/nono"
@@ -105,7 +123,8 @@ for shell in fish bash; do
         "profile nono-local-userns \"$pattern\" flags=(unconfined) {" \
         '    userns,' '}' >"$work/expected"
       cmp "$work/expected" /etc/apparmor.d/nono-local-userns
-      [[ $(stat -c %a /etc/apparmor.d/nono-local-userns) == 644 ]] ;;
+      [[ $(stat -c %a /etc/apparmor.d/nono-local-userns) == 644 ]]
+      ;;
     esac
     # Both success and failure must remove the temporary profile.
     rmdir "$work/tmp"
