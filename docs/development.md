@@ -61,7 +61,7 @@ mise install nono go just
 just install-dev-tools   # prepare pinned tools and Go dependencies
 just                     # list available recipes
 just build               # build .cache/bin/nono-wrapper
-just fmt                 # format Go source and tests
+just lint-fix            # format Go source and tests
 just verify              # lint and unit tests; no containers or network
 ```
 
@@ -162,7 +162,7 @@ machine-local mise overrides (`.mise.local.toml`, `mise.local.toml`,
 | `just build` | build the host wrapper in `.cache/bin/` | only if Go dependencies are missing |
 | `just install-local` | build/install the wrapper and manual, then run its `install-profiles` | yes |
 | `just verify` | lint and unit tests | no |
-| `just fmt` | format Go source and tests with gofmt | no |
+| `just lint-fix` | format Go source and tests with gofmt | no |
 | `just lint` | ShellCheck, Go formatting and go vet | no |
 | `just test-unit` | unit and native CLI/installer contract checks | no |
 | `just test-native` | isolated native installation, offline profiles, real agent startup and Codex execution | pack installation only |

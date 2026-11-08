@@ -4,18 +4,23 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-# just's default shell is `sh -cu` -- no pipefail. Run every recipe line under
-# bash with the full strict triad instead.
+# Build, test and install nono-wrapper.
+
+# Run every recipe line under bash with pipefail; just's default `sh -cu` has none.
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set positional-arguments
 
+CYAN := "\\033[1;36m"
+GREEN := "\\033[0;32m"
+NC := "\\033[0m"
 scripts := "test/suite.sh test/http-check.sh test/image-inputs.sh test/prepare.sh test/containers.sh test/container-suite.sh test/install-deps.sh test/install-packs.sh test/require-container.sh test/require-linux.sh test/require-podman.sh test/verify-reproducible.sh test/apparmor-setup.sh"
 routine := "ubuntu-26.04 opensuse-leap-16"
 image_tag_format := "{{.Repository}}:{{.Tag}}"
 
 [private]
 default:
-    @"{{ just_executable() }}" --justfile "{{ justfile() }}" --list --unsorted
+    @printf ' {{ CYAN }}nono-wrapper recipes{{ NC }}\n\n Quick start: {{ GREEN }}mise trust · just install-dev-tools · just verify{{ NC }}\n Argument help: just --usage <recipe>\n ▪ main job of its group\n\n'
+    @"{{ just_executable() }}" --justfile "{{ justfile() }}" --list --unsorted --list-heading ''
 
 # Announce the selected work before it starts.
 _job name details:
@@ -27,7 +32,7 @@ _require-linux:
     @sh test/require-linux.sh
 
 [arg('recipe', help='Recipe name; omit to list recipes. Prints help without running the selected job.')]
-[doc('Show recipe argument help')]
+[doc('▪ Show recipe argument help')]
 [group('help')]
 help recipe="":
     #!/usr/bin/env bash
@@ -38,87 +43,16 @@ help recipe="":
     fi
 
 # Select this project's tools even when other tools are configured globally.
-[doc('Install pinned tools')]
+[doc('▪ Install pinned tools')]
 [group('setup')]
 install-dev-tools: (_job "install-dev-tools" "tools=checkout-pinned nono/Go/Just/ShellCheck; agents=provided by DevBase; scope=user installation; network=allowed")
     @command -v mise >/dev/null 2>&1 || { printf 'mise is required; see docs/install.md. On macOS: sudo port install mise\n' >&2; exit 127; }
     mise --cd {{ quote(justfile_directory()) }} install nono go just aqua:koalaman/shellcheck
 
-# Compile the host executable into the ignored build directory.
-[doc('Build nono-wrapper')]
-[group('build')]
-build: (_job "build" "target=native host; CGO=disabled; output=.cache/bin/nono-wrapper")
-    #!/usr/bin/env bash
-    set -euo pipefail
-    export GOTOOLCHAIN=local GOPROXY=off GONOPROXY=none GOSUMDB=off GOWORK=off GOENV=off GOFLAGS=''
-    host_os=$(go env GOHOSTOS)
-    host_arch=$(go env GOHOSTARCH)
-    mkdir -p {{ quote(justfile_directory() / ".cache/bin") }}
-    CGO_ENABLED=0 GOOS="$host_os" GOARCH="$host_arch" go -C {{ quote(justfile_directory()) }} build -mod=readonly -trimpath -buildvcs=false -o .cache/bin/nono-wrapper ./cmd/nono-wrapper
-
-[doc('Generate the manpage without installation')]
-[group('build')]
-generate-manpage:
-    mkdir -p {{ quote(justfile_directory() / ".cache/man") }}
-    GOTOOLCHAIN=local go -C {{ quote(justfile_directory()) }} tool go-md2man -in docs/manpages/nono-wrapper.1.md -out .cache/man/nono-wrapper.1
-
-[doc('Compare clean native builds and shipped files')]
-[group('build')]
-verify-reproducible:
-    @bash test/verify-reproducible.sh
-
-# Build and install the wrapper and manual; the binary installs the packs and profiles.
-# Binary destination: INSTALL_DIR, then XDG_BIN_HOME, then ~/.local/bin.
-[doc('Install user; network')]
-[group('install')]
-install-local: build generate-manpage
-    #!/usr/bin/env bash
-    set -euo pipefail
-    : "${HOME:?HOME must be set}"
-    root={{ quote(justfile_directory()) }}
-    bin_dir="${INSTALL_DIR:-${XDG_BIN_HOME:-$HOME/.local/bin}}"
-    profile_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nono/profiles"
-    man_dir="${XDG_DATA_HOME:-$HOME/.local/share}/man/man1"
-    for destination in "$bin_dir" "$profile_dir" "$man_dir"; do
-        case "$destination" in
-            /*) ;;
-            *) printf 'Install destination must be absolute: %s\n' "$destination" >&2; exit 2 ;;
-        esac
-    done
-    command -v nono >/dev/null 2>&1 || {
-        printf 'nono is required; run just install-dev-tools from this checkout.\n' >&2
-        exit 127
-    }
-    # Packs and profiles first: a failed pack leaves the installed binary as it was.
-    "$root/.cache/bin/nono-wrapper" install-profiles
-    mkdir -p "$bin_dir" "$man_dir"
-    install -m 0755 "$root/.cache/bin/nono-wrapper" "$bin_dir/nono-wrapper"
-    # The manual 'nono-wrapper man' prints, rendered for man(1).
-    install -m 0644 "$root/.cache/man/nono-wrapper.1" "$man_dir/nono-wrapper.1"
-    printf 'Commands: %s\nManual: %s\n' "$bin_dir" "$man_dir/nono-wrapper.1"
-    printf 'OpenCode 2 is required on PATH. See docs/opencode.md for namespace setup.\n'
-    case ":$PATH:" in
-        *":$bin_dir:"*) ;;
-        *) printf 'Add %s to your PATH to run nono-wrapper.\n' "$bin_dir" ;;
-    esac
-
 # Everyday local checks; no containers or network required.
-[doc('Run native lint and tests')]
-[group('quality')]
+[doc('▪ Run native lint and tests')]
+[group('development')]
 verify: (_job "verify" "checks=shell/Go lint + launcher/probe unit contracts; execution=native; network=none") lint test-unit
-
-[doc('Format Go code')]
-[group('quality')]
-fmt:
-    gofmt -w cmd/nono-wrapper docs/manpages test
-
-# Check container scripts, Go formatting and Go diagnostics.
-[doc('Check scripts and Go')]
-[group('quality')]
-lint:
-    shellcheck {{ scripts }}
-    test -z "$(gofmt -l cmd/nono-wrapper docs/manpages test)"
-    GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off go vet -mod=readonly ./...
 
 # Isolated launcher contracts plus probe parsers, protocol and socket checks.
 # Includes temporary install/cleanup fixtures; no agents, containers or network.
@@ -136,7 +70,7 @@ test-native: (_job "test-native" "suite=installation + offline profiles + real a
 
 # The full integration matrix uses disposable containers with upstream plugin
 # wiring. Native smoke coverage is available separately via test-native.
-[doc('Run unit + Linux container tests')]
+[doc('▪ Run unit + Linux container tests')]
 [group('test')]
 test: _require-linux (_job "test" ("suites=unit + agent/profile container checks; target=Linux/x86_64; distributions=" + routine + "; runtime-network=" + (if env("AGENT_TEST_NETWORK", "") == "1" { "enabled" } else { "none" }))) test-unit
     sh test/containers.sh {{ routine }}
@@ -226,3 +160,74 @@ test-clean:
             esac
         done
     fi
+
+# Check container scripts, Go formatting and Go diagnostics.
+[doc('Check scripts and Go')]
+[group('lint')]
+lint:
+    shellcheck {{ scripts }}
+    test -z "$(gofmt -l cmd/nono-wrapper docs/manpages test)"
+    GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off go vet -mod=readonly ./...
+
+[doc('▪ Format Go code')]
+[group('lint-fix')]
+lint-fix:
+    gofmt -w cmd/nono-wrapper docs/manpages test
+
+# Compile the host executable into the ignored build directory.
+[doc('▪ Build nono-wrapper')]
+[group('build')]
+build: (_job "build" "target=native host; CGO=disabled; output=.cache/bin/nono-wrapper")
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export GOTOOLCHAIN=local GOPROXY=off GONOPROXY=none GOSUMDB=off GOWORK=off GOENV=off GOFLAGS=''
+    host_os=$(go env GOHOSTOS)
+    host_arch=$(go env GOHOSTARCH)
+    mkdir -p {{ quote(justfile_directory() / ".cache/bin") }}
+    CGO_ENABLED=0 GOOS="$host_os" GOARCH="$host_arch" go -C {{ quote(justfile_directory()) }} build -mod=readonly -trimpath -buildvcs=false -o .cache/bin/nono-wrapper ./cmd/nono-wrapper
+
+[doc('Generate the manpage without installation')]
+[group('build')]
+generate-manpage:
+    mkdir -p {{ quote(justfile_directory() / ".cache/man") }}
+    GOTOOLCHAIN=local go -C {{ quote(justfile_directory()) }} tool go-md2man -in docs/manpages/nono-wrapper.1.md -out .cache/man/nono-wrapper.1
+
+[doc('Compare clean native builds and shipped files')]
+[group('build')]
+verify-reproducible:
+    @bash test/verify-reproducible.sh
+
+# Build and install the wrapper and manual; the binary installs the packs and profiles.
+# Binary destination: INSTALL_DIR, then XDG_BIN_HOME, then ~/.local/bin.
+[doc('▪ Install user; network')]
+[group('install')]
+install-local: build generate-manpage
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${HOME:?HOME must be set}"
+    root={{ quote(justfile_directory()) }}
+    bin_dir="${INSTALL_DIR:-${XDG_BIN_HOME:-$HOME/.local/bin}}"
+    profile_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nono/profiles"
+    man_dir="${XDG_DATA_HOME:-$HOME/.local/share}/man/man1"
+    for destination in "$bin_dir" "$profile_dir" "$man_dir"; do
+        case "$destination" in
+            /*) ;;
+            *) printf 'Install destination must be absolute: %s\n' "$destination" >&2; exit 2 ;;
+        esac
+    done
+    command -v nono >/dev/null 2>&1 || {
+        printf 'nono is required; run just install-dev-tools from this checkout.\n' >&2
+        exit 127
+    }
+    # Packs and profiles first: a failed pack leaves the installed binary as it was.
+    "$root/.cache/bin/nono-wrapper" install-profiles
+    mkdir -p "$bin_dir" "$man_dir"
+    install -m 0755 "$root/.cache/bin/nono-wrapper" "$bin_dir/nono-wrapper"
+    # The manual 'nono-wrapper man' prints, rendered for man(1).
+    install -m 0644 "$root/.cache/man/nono-wrapper.1" "$man_dir/nono-wrapper.1"
+    printf 'Commands: %s\nManual: %s\n' "$bin_dir" "$man_dir/nono-wrapper.1"
+    printf 'OpenCode 2 is required on PATH. See docs/opencode.md for namespace setup.\n'
+    case ":$PATH:" in
+        *":$bin_dir:"*) ;;
+        *) printf 'Add %s to your PATH to run nono-wrapper.\n' "$bin_dir" ;;
+    esac
