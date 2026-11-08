@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 Digg - Agency for Digital Government
-// SPDX-License-Identifier: CC0-1.0
+// SPDX-License-Identifier: EUPL-1.2 OR GPL-3.0-or-later
 
 // The container test helper uses only the standard library. Build it on the
 // host with CGO_ENABLED=0; neither Go nor an interpreter is needed in the images.

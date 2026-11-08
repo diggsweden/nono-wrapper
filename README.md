@@ -383,5 +383,7 @@ Built-in help is available through `nono-wrapper --help`.
 
 ## License
 
-All files in this repository are licensed CC0-1.0. The licence text is in
-[`LICENSES/`](LICENSES).
+The Go source code is licensed EUPL-1.2 OR GPL-3.0-or-later. Documentation,
+configuration, profiles, shell scripts and other non-code files are licensed
+CC0-1.0. Each file states its licence in an SPDX header or in `REUSE.toml`,
+and the licence texts are in [`LICENSES/`](LICENSES).
