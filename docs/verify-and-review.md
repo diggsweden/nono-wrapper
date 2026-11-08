@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: The nono-wrapper Authors
+SPDX-FileCopyrightText: 2026 Digg - Agency for Digital Government
 
 SPDX-License-Identifier: CC0-1.0
 -->

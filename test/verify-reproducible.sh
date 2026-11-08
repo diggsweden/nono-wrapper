@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: The nono-wrapper Authors
+# SPDX-FileCopyrightText: 2026 Digg - Agency for Digital Government
 # SPDX-License-Identifier: CC0-1.0
 # Builds the binary and manpage twice from clean clones of HEAD offline, then
 # checks they and the eight shipped profiles are byte-identical. Called by

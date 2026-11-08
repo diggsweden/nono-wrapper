@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: The nono-wrapper Authors
+# SPDX-FileCopyrightText: 2026 Digg - Agency for Digital Government
 # SPDX-License-Identifier: CC0-1.0
 # Runs the README's Fish and Bash AppArmor setup snippets against fake mise,
 # sudo and doctor steps with the real profile compiler, checking call order and

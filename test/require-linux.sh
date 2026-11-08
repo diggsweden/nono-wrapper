@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# SPDX-FileCopyrightText: The nono-wrapper Authors
+# SPDX-FileCopyrightText: 2026 Digg - Agency for Digital Government
 # SPDX-License-Identifier: CC0-1.0
 
 # The image/tool pins describe Linux x86_64. Run them on a native x86_64 host,

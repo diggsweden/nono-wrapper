@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Digg - Agency for Digital Government
+#
+# SPDX-License-Identifier: CC0-1.0
+
+version = 1
+
+# No default: a new file without a header fails `reuse lint` until it is
+# annotated here or given a header. Code files carry their own headers.
+
+# Documentation, CC0-1.0: override because Markdown quotes SPDX snippets.
+[[annotations]]
+path = "**/*.md"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Digg - Agency for Digital Government"
+SPDX-License-Identifier = "CC0-1.0"
+
+# Configuration and lockfiles without comment syntax, CC0-1.0: closest, as
+# these files cannot carry a header.
+[[annotations]]
+path = ["go.sum", "renovate.json"]
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Digg - Agency for Digital Government"
+SPDX-License-Identifier = "CC0-1.0"
