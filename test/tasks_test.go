@@ -109,6 +109,11 @@ esac
 `)
 	writeLauncherFixture(t, filepath.Join(f.tools, "nono"), `#!/bin/sh
 printf '%s\n' "$*" >> "$TASK_NONO_LOG"
+if [ "${TASK_NONO_TIMEOUT_ONCE:-}" = 1 ] && [ "$1" = pull ] && [ ! -f "$TASK_NONO_LOG.timeout" ]; then
+  : > "$TASK_NONO_LOG.timeout"
+  printf 'nono: Registry error: timeout: resolve\n' >&2
+  exit 1
+fi
 if [ "${TASK_NONO_FAIL:-}" = "$1" ]; then
   printf 'fixture nono failure: %s\n' "$1" >&2
   exit 1
@@ -359,6 +364,22 @@ func TestInstallLocalRequiresNono(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(f.home, ".local")); !os.IsNotExist(err) {
 		t.Fatalf("installation copied files with nono missing: %v", err)
+	}
+}
+
+func TestInstallLocalRecoversFromRegistryTimeout(t *testing.T) {
+	f := newTaskFixture(t)
+	output, status := runTask(t, f, "install-local", "TASK_NONO_TIMEOUT_ONCE=1")
+	if status != 0 || !strings.Contains(output, "retrying in 1s (attempt 2/3)") || !strings.Contains(output, "Default profiles verified:") {
+		t.Fatalf("installation did not recover: status=%d (%s)", status, output)
+	}
+	calls, err := os.ReadFile(f.nonoLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "pull nolabs-ai/opencode@1.2.3\npull nolabs-ai/opencode@1.2.3\npin nolabs-ai/opencode\n"
+	if !strings.Contains(string(calls), want) {
+		t.Fatalf("retry changed pack reference or pinned before success: %s", calls)
 	}
 }
 

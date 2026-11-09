@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/diggsweden/nono-wrapper/profiles"
 	"github.com/urfave/cli/v3"
@@ -53,12 +54,29 @@ func installProfiles(ctx context.Context, stdout, stderr io.Writer) error {
 		return err
 	}
 	run := func(output io.Writer, args ...string) error {
-		command := exec.CommandContext(ctx, nono, args...)
-		command.Stdout, command.Stderr = output, stderr
-		if err := command.Run(); err != nil {
-			return fmt.Errorf("nono %s: %w", strings.Join(args, " "), err)
+		for attempt := 1; ; attempt++ {
+			var diagnostics bytes.Buffer
+			command := exec.CommandContext(ctx, nono, args...)
+			command.Stdout, command.Stderr = output, io.MultiWriter(stderr, &diagnostics)
+			err := command.Run()
+			if err == nil {
+				return nil
+			}
+			// Retry only the registry DNS timeout; never bypass verification
+			// or retry trust, signature, HTTP or local installation failures.
+			if args[0] != "pull" || !strings.Contains(diagnostics.String(), "nono: Registry error: timeout: resolve") || attempt == 3 || ctx.Err() != nil {
+				return fmt.Errorf("nono %s: %w", strings.Join(args, " "), err)
+			}
+			delay := time.Duration(attempt) * time.Second
+			fmt.Fprintf(stderr, "Registry DNS timeout; retrying in %s (attempt %d/3).\n", delay, attempt+1)
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
 		}
-		return nil
 	}
 	// nono canonicalizes XDG_CONFIG_HOME and otherwise falls back to HOME.
 	// Create it before pulling packs so a fresh custom location is respected.

@@ -111,6 +111,13 @@ The packs also install their agent integrations, including a marked block in
 `~/.codex/config.toml`. Reinstalling updates bundled files and preserves your
 optional `opencode-user.jsonc` and `codex-user.jsonc`.
 
+Registry DNS lookup timeouts are retried up to three
+attempts per pack, with waits of one and two seconds. Signature, trust and
+other failures stop immediately. If timeouts persist, check your
+DNS/VPN/network connection and any `NONO_REGISTRY` override, then rerun
+`just install-local` from a normal terminal outside nono. A pack failure
+leaves the installed wrapper binary and manual unchanged.
+
 For custom paths, set `INSTALL_DIR` or `XDG_BIN_HOME` for the binary,
 `XDG_CONFIG_HOME` for profiles and `XDG_DATA_HOME` for the manual. Use
 absolute paths and keep the binary directory on `PATH`.

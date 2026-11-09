@@ -28,6 +28,8 @@ maintaining replacement filesystem profiles.
 
 ### Fixed
 
+- Retry official-pack registry DNS timeouts up to three attempts during
+  profile installation. Other errors still fail immediately.
 - Say before an online session starts when the agent has no saved sign-in,
   and name `nono-wrapper login AGENT`, instead of leaving only the agent's
   `401 Unauthorized` retries. The wrapper checks the agent's login file; it
