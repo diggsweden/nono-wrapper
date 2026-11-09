@@ -26,7 +26,8 @@ jobs:
     with:
       project-type: go
       forge-ci-binary-ref: v0.93.2
-      runtime-image: ghcr.io/diggsweden/forge-ci-runtime-base:v0.93.2
+      # Published from the v0.93.2 commit; versioned runtime tags are unavailable.
+      runtime-image: ghcr.io/diggsweden/forge-ci-runtime-base@sha256:9344947d95313b8fee3f318295986353a3232c197124c2b2307fad52a1ee427f
       # Temporary: re-enable nanolinter after its next release.
       lint-engine: none
 

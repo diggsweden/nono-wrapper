@@ -35,9 +35,10 @@ jobs:
     with:
       branch: main
       forge-ci-binary-ref: v0.93.2
-      runtime-image: ghcr.io/diggsweden/forge-ci-runtime-base:v0.93.2
-      runtime-image-full: ghcr.io/diggsweden/forge-ci-runtime:v0.93.2
-      runtime-image-go: ghcr.io/diggsweden/forge-ci-runtime-go-1.27:v0.93.2
+      # Published from the v0.93.2 commit; versioned runtime tags are unavailable.
+      runtime-image: ghcr.io/diggsweden/forge-ci-runtime-base@sha256:9344947d95313b8fee3f318295986353a3232c197124c2b2307fad52a1ee427f
+      runtime-image-full: ghcr.io/diggsweden/forge-ci-runtime@sha256:77f2dc9bc8e7fb7cfa74876bcf6c72d5a40d5dab96d648cd7519f5a160bb3a6c
+      runtime-image-go: ghcr.io/diggsweden/forge-ci-runtime-go-1.27@sha256:7accb5153ebcdab06592c9e6abb6571f3da7ec7f2db0273635f6155608a72744
       artifacts-config: .forge-ci/artifacts.yml
       bot-name: ${{ vars.RELEASE_BOT_NAME }}
       bot-email: ${{ vars.RELEASE_BOT_EMAIL }}
