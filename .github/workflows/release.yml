@@ -23,7 +23,7 @@ jobs:
 
   release:
     needs: checks
-    uses: diggsweden/forge-ci/.github/workflows/release-orchestrator.yml@265b9ff6cb171eb663263dc0cb9da85b373c6287 # v0.91.13
+    uses: diggsweden/forge-ci/.github/workflows/release-orchestrator.yml@f23f804b729174965efc59f42eab1e90ce82e9d4 # v0.93.2
     permissions:
       actions: read
       contents: write
@@ -34,10 +34,10 @@ jobs:
       RELEASE_SSH_SIGNING_KEY: ${{ secrets.RELEASE_SSH_SIGNING_KEY }}
     with:
       branch: main
-      forge-ci-binary-ref: v0.91.13
-      runtime-image: ghcr.io/diggsweden/forge-ci-runtime-base:v0.91.13
-      runtime-image-full: ghcr.io/diggsweden/forge-ci-runtime:v0.91.13
-      runtime-image-go: ghcr.io/diggsweden/forge-ci-runtime-go-1.27:v0.91.13
+      forge-ci-binary-ref: v0.93.2
+      runtime-image: ghcr.io/diggsweden/forge-ci-runtime-base:v0.93.2
+      runtime-image-full: ghcr.io/diggsweden/forge-ci-runtime:v0.93.2
+      runtime-image-go: ghcr.io/diggsweden/forge-ci-runtime-go-1.27:v0.93.2
       artifacts-config: .forge-ci/artifacts.yml
       bot-name: ${{ vars.RELEASE_BOT_NAME }}
       bot-email: ${{ vars.RELEASE_BOT_EMAIL }}

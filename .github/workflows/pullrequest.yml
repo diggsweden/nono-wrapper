@@ -19,14 +19,14 @@ concurrency:
 
 jobs:
   pr-checks:
-    uses: diggsweden/forge-ci/.github/workflows/pullrequest-orchestrator.yml@265b9ff6cb171eb663263dc0cb9da85b373c6287 # v0.91.13
+    uses: diggsweden/forge-ci/.github/workflows/pullrequest-orchestrator.yml@f23f804b729174965efc59f42eab1e90ce82e9d4 # v0.93.2
     permissions:
       actions: read
       contents: read
     with:
       project-type: go
-      forge-ci-binary-ref: v0.91.13
-      runtime-image: ghcr.io/diggsweden/forge-ci-runtime-base:v0.91.13
+      forge-ci-binary-ref: v0.93.2
+      runtime-image: ghcr.io/diggsweden/forge-ci-runtime-base:v0.93.2
       # Temporary: re-enable nanolinter after its next release.
       lint-engine: none
 
