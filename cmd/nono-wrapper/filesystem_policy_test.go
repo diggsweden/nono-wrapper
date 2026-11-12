@@ -124,6 +124,28 @@ func TestEffectivePathModeConflicts(t *testing.T) {
 	}
 }
 
+func TestEffectivePathModeAllowsNarrowWritableException(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "repository")
+	locks := filepath.Join(root, ".locks")
+	rules := []pathRule{
+		{root, pathRead, false},
+		{locks, pathRead | pathWrite, false},
+	}
+
+	grants := []pathRule{
+		{root, pathRead, false},
+		{locks, pathRead | pathWrite, false},
+	}
+	if err := checkPathOverrides(rules, grants); err != nil {
+		t.Fatalf("narrow writable exception was rejected: %v", err)
+	}
+
+	grants = []pathRule{{root, pathRead | pathWrite, false}}
+	if err := checkPathOverrides(rules, grants); err == nil {
+		t.Fatal("broad writable grant was justified by a narrow exception")
+	}
+}
+
 func TestComposeFilesystemOverrides(t *testing.T) {
 	for _, mode := range []string{"directory read-only", "file read-only", "directory readwrite", "XDG alias", "broader inherited write", "invalid manifest", "cancelled inspection"} {
 		t.Run(mode, func(t *testing.T) {

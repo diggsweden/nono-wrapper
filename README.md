@@ -40,9 +40,10 @@ short version is:
 ```sh
 mise trust
 mise install nono go just
+mise use -g opencode@2.2.7
 mise use -g nono@0.81.0
 just install-local
-nono-wrapper doctor codex
+nono-wrapper doctor opencode
 ```
 
 With a release binary instead of a checkout, run `nono-wrapper install-profiles`
@@ -64,8 +65,8 @@ Then open a terminal in the project the agent should work on, sign in once,
 and start it:
 
 ```sh
-nono-wrapper login codex
-nono-wrapper codex
+nono-wrapper login opencode
+nono-wrapper opencode
 ```
 
 For OpenCode, use `nono-wrapper login opencode`, then `nono-wrapper opencode`.

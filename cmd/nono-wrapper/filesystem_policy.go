@@ -499,7 +499,8 @@ func checkPathOverrides(rules, grants []pathRule) error {
 			if covers {
 				present[i] |= grant.access
 			}
-			if (covers || inside) && grant.access & ^rule.access != 0 {
+			extra := grant.access & ^rule.access
+			if (covers || inside) && extra != 0 && !pathGrantAuthorized(path, extra, rules) {
 				return fmt.Errorf("cannot enforce %s user access to %q: overlapping %s grant for %q remains; narrow or remove that grant", rule.access, rule.path, grant.access, grant.path)
 			}
 		}
@@ -510,4 +511,17 @@ func checkPathOverrides(rules, grants []pathRule) error {
 		}
 	}
 	return nil
+}
+
+// A more specific user rule may intentionally widen access beneath a more
+// restrictive directory. Only accept an effective grant when its entire scope
+// is contained by a user rule that permits the otherwise conflicting access.
+func pathGrantAuthorized(path string, access pathAccess, rules []pathRule) bool {
+	for _, rule := range rules {
+		covers := samePolicyPath(path, rule.path) || !rule.file && pathWithin(path, rule.path)
+		if covers && rule.access&access == access {
+			return true
+		}
+	}
+	return false
 }
